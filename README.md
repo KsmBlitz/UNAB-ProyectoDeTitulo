@@ -13,28 +13,35 @@ El objetivo es ofrecer una herramienta centralizada que permita a los operarios 
 
 ---
 
+## 📊 Estado del Proyecto (MVP Funcional)
+
+Actualmente, el proyecto se encuentra en una fase de **Producto Mínimo Viable (MVP) completamente funcional**. La arquitectura full-stack está establecida y las características principales de autenticación, gestión y visualización de datos están implementadas y conectadas.
+
 ## 🖼️ Vista Previa del Dashboard
 
-![Captura del Dashboard](URL_DE_TU_MEJOR_IMAGEN.png)
+
+![Dashboard](https://blogger.googleusercontent.com/img/a/AVvXsEiQlu2xNAXmpjktZ1rleeE2c_unHYeQf4hQWCBjerEQ-PCCf27yN1KMtS1bhu2NQ4gZ0UI-ukPz4nbGGBF998TPSAhGSoQvKY9JmOiTydXbq3GUkMF_2psk-B5VvJKcHXsn1fYePiS5Z5ML48KkSgM4PxGGgieRlV83FbN4Te1R3u-oNha8iL8ZXSTV7FSi)
 
 ---
 
 ## 🏗️ Diagrama de Arquitectura
 
-El sistema está compuesto por varios servicios que se comunican entre sí, orquestados por Docker para un despliegue simplificado.
+El sistema está compuesto por varios servicios que se comunican entre sí. La arquitectura está diseñada para ser escalable y desplegable a través de Docker.
+
 
 <img width="1048" height="953" alt="image" src="https://github.com/user-attachments/assets/1a876814-8bb4-4074-bcfa-0d846f5fbc25" />
 
+---
 
-## ✨ Características Principales
+## ✨ Características Implementadas
 
-* **Frontend Interactivo:** Un dashboard moderno construido con Vue 3 y TypeScript.
-* **Visualización de Datos:** Gráficos y tablas en tiempo real con Chart.js para un fácil entendimiento de los datos.
-* **Backend de Alto Rendimiento:** Una API RESTful construida con FastAPI (Python) que maneja la lógica de negocio.
-* **Comunicación en Tiempo Real:** Suscripción a un Broker MQTT para la ingesta instantánea de datos desde los sensores.
-* **Almacenamiento Persistente:** Uso de MongoDB, una base de datos NoSQL ideal para datos de series temporales de IoT.
-* **Inteligencia Artificial:** Integración de un modelo de Machine Learning (SVM/XGBoost) para realizar predicciones.
-* **Containerización:** Todo el sistema (frontend, backend, DB, broker) está dockerizado para un despliegue y desarrollo consistentes.
+* **Autenticación Segura:** Flujo de login completo con tokens JWT, hashing de contraseñas (`bcrypt`) y persistencia de sesión.
+* **Gestión de Usuarios (CRUD):** Interfaz completa para crear, leer, editar y eliminar usuarios.
+* **Autorización por Roles (RBAC):** El sistema distingue entre roles de "Administrador" y "Operario", restringiendo el acceso a secciones específicas.
+* **Dashboard Dinámico:** Las tarjetas de métricas (`Temperatura`, `pH`, etc.) se conectan y muestran datos en tiempo real desde el backend.
+* **Layout Profesional:** Interfaz con barra de navegación lateral colapsable y header con menú de usuario interactivo.
+* **Visualización de Datos (Base):** Componentes de gráficos y tablas listos y visualmente completos, usando `Chart.js`.
+* **Backend Robusto:** API RESTful con FastAPI que se conecta de forma segura a una base de datos en la nube (MongoDB Atlas) usando variables de entorno.
 
 ---
 
@@ -42,41 +49,27 @@ El sistema está compuesto por varios servicios que se comunican entre sí, orqu
 
 | Área                 | Tecnología                                               |
 | -------------------- | -------------------------------------------------------- |
-| **Frontend** | Vue 3 (Composition API), TypeScript, Vite, Chart.js      |
-| **Backend** | Python 3, FastAPI, Pydantic, Uvicorn                     |
-| **Base de Datos** | MongoDB                                                  |
-| **Comunicación IoT** | MQTT (Broker como Mosquitto/VerneMQ)                     |
-| **Machine Learning** | Scikit-learn (SVM) o XGBoost                             |
-| **DevOps** | Docker, Docker Compose                                   |
+| **Frontend** | Vue 3 (Composition API), TypeScript, Vite, Chart.js, PrimeIcons |
+| **Backend** | Python 3, FastAPI, Pydantic, Uvicorn, Motor, Passlib, python-jose |
+| **Base de Datos** | MongoDB Atlas (Cloud)                                    |
+| **Comunicación IoT** | MQTT (Arquitectura definida)                             |
+| **Machine Learning** | (Arquitectura definida para SVM/XGBoost)                 |
+| **DevOps** | Docker, Docker Compose (Arquitectura definida)           |
 | **Calidad de Código** | ESLint, Prettier                                         |
 
 ---
 
 ## 🚀 Instalación y Puesta en Marcha
 
-### Con Docker (Método Recomendado)
-
-Este método levantará todos los servicios necesarios con un solo comando.
-
-1.  **Clona el repositorio:**
-    ```bash
-    git clone [https://github.com/tu-usuario/tu-repositorio.git](https://github.com/tu-usuario/tu-repositorio.git)
-    cd tu-repositorio
-    ```
-2.  **Construye y levanta los contenedores:**
-    ```bash
-    docker-compose up --build
-    ```
-    * El Frontend estará disponible en `http://localhost:5173`.
-    * El Backend estará disponible en `http://localhost:8000`.
-
 ### Manualmente (Para Desarrollo)
 
-Si prefieres ejecutar cada servicio por separado:
+Asegúrate de tener un archivo `.env` en la carpeta `backend` con tu `MONGO_CONNECTION_STRING` y demás secretos.
 
 1.  **Backend (FastAPI):**
     ```bash
     cd backend
+    python3 -m venv venv
+    source venv/bin/activate
     pip install -r requirements.txt
     uvicorn main:app --reload
     ```
@@ -87,28 +80,30 @@ Si prefieres ejecutar cada servicio por separado:
     npm run dev
     ```
 
+### Con Docker (Próximo Paso)
+
+El archivo `docker-compose.yml` está planificado para orquestar todos los servicios.
+
 ---
 
-## 📁 Estructura Sugerida del Repositorio
+## 📁 Estructura del Repositorio
 
 /
-├── backend/          # Código del servicio FastAPI
+├── backend/          # Código del servicio FastAPI (Python)
 ├── frontend/         # Código de la aplicación Vue.js
-├── docker-compose.yml # Archivo de orquestación de Docker
 └── README.md         # Este archivo
 
 
 ---
 
-## 📝 Trabajo a Futuro
+## 📝 Próximos Pasos
 
-* [ ] Implementar y entrenar el modelo de predicción (SVM/XGBoost).
-* [ ] Desarrollar los endpoints de la API en FastAPI.
-* [ ] Conectar el frontend con la API real en lugar de usar datos de ejemplo.
-* [ ] Crear el script de Python que se suscribe al broker MQTT y guarda en MongoDB.
-* [ ] Finalizar y pulir el diseño responsivo del frontend.
-* [ ] Implementar un sistema de autenticación de usuarios.
+Con la base de la aplicación ya construida y funcional, los siguientes pasos se centran en la ingesta de datos en tiempo real y la inteligencia del sistema.
 
----
+* [ ] **Conectar Gráficos y Tabla a la API:** Reemplazar los datos de ejemplo de los gráficos y la tabla con datos reales servidos por nuevos endpoints del backend.
+* [ ] **Implementar Suscriptor MQTT:** Crear el script en el backend que se conecte al broker MQTT, reciba los datos de los sensores y los guarde en MongoDB.
+* [ ] **Integrar Modelo de Machine Learning:** Entrenar un modelo de predicción (SVM/XGBoost) y crear un endpoint en la API para servir sus resultados.
+* [ ] **Dockerización Completa:** Crear los `Dockerfile` para cada servicio y un `docker-compose.yml` para levantar todo el entorno con un solo comando.
+* [ ] **Pulir Diseño Responsivo:** Realizar pruebas exhaustivas y ajustes finales en la interfaz para mejorar la experiencia en dispositivos móviles.
 
 
