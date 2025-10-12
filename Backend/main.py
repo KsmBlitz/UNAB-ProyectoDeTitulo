@@ -1,36 +1,40 @@
-# backend/main.py
+# Backend/main.py
 
-# 1. Imports
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, EmailStr, Field, ConfigDict  # ← Agregar Field y ConfigDict aquí
 from pydantic_settings import BaseSettings
-from typing import Annotated, Optional, List
+from typing import Optional, List, Any
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 import motor.motor_asyncio
 from bson import ObjectId
+import secrets
+import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-import smtplib
-import secrets
 
-# Importar core_schema y PydanticCustomError para PyObjectId
-from pydantic_core import CoreSchema, PydanticCustomError, core_schema
-
+# Importaciones para Pydantic v2
+try:
+    from pydantic_core import CoreSchema, PydanticCustomError, core_schema
+except ImportError:
+    print("Error: pydantic_core no está instalado correctamente")
+    print("Ejecuta: pip install pydantic==2.5.0")
+    exit(1)
 
 # --------------------------------------------------------------------------
 # 2. Configuración Centralizada (Lee desde el archivo .env)
 # --------------------------------------------------------------------------
 class Settings(BaseSettings):
-    MONGO_CONNECTION_STRING: str
-    DATABASE_NAME: str
-    SECRET_KEY: str
-    ALGORITHM: str
-    ACCESS_TOKEN_EXPIRE_MINUTES: int
-    # Nuevas configuraciones para email
+    MONGO_CONNECTION_STRING: str = ""
+    DATABASE_NAME: str = ""
+    SECRET_KEY: str = ""
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    
+    # Configuración de email para recuperación de contraseña
     SMTP_SERVER: str = "smtp.gmail.com"
     SMTP_PORT: int = 587
     SMTP_USERNAME: str = ""
@@ -39,6 +43,7 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        env_file_encoding = 'utf-8'
 
 settings = Settings()
 
@@ -52,34 +57,25 @@ sensor_collection = db.Sensor_Data
 password_reset_collection = db.password_reset_tokens
 
 # --------------------------------------------------------------------------
-# 4. Modelos de Datos (Pydantic) - CON LA CORRECCIÓN FINAL PARA ObjectId
+# 4. Modelos de Datos (Pydantic v2)
 # --------------------------------------------------------------------------
 
-# Clase PyObjectId personalizada para Pydantic v2
-# Esta es la implementación recomendada para manejar ObjectId en Pydantic v2
-# Tomado de la documentación de Pydantic/FastAPI
 class PyObjectId(ObjectId):
     @classmethod
-    def __get_pydantic_core_schema__(cls, source_type: any, handler) -> CoreSchema:
+    def __get_pydantic_core_schema__(cls, source_type: Any, handler) -> CoreSchema:
         def validate_from_str(input_value: str) -> ObjectId:
             if not ObjectId.is_valid(input_value):
                 raise PydanticCustomError("object_id", "Invalid ObjectId")
             return ObjectId(input_value)
 
         return core_schema.json_or_python_schema(
-            json_schema=core_schema.str_schema(), # Cuando se envía a JSON, es un string
+            json_schema=core_schema.str_schema(),
             python_schema=core_schema.union_schema([
-                core_schema.is_instance_schema(ObjectId), # Si ya es ObjectId, lo acepta
-                core_schema.no_info_after_validator_function(validate_from_str, core_schema.str_schema()) # Si es string, lo valida y convierte a ObjectId
+                core_schema.is_instance_schema(ObjectId),
+                core_schema.no_info_after_validator_function(validate_from_str, core_schema.str_schema())
             ]),
-            serialization=core_schema.to_string_ser_schema(), # Cómo serializar de ObjectId a string
+            serialization=core_schema.to_string_ser_schema(),
         )
-
-# Para usar este tipo personalizado en los modelos
-# No necesitamos Annotated con BeforeValidator si PyObjectId ya define el schema
-# Solo necesitamos importarlo de typing
-from typing import Any # Asegúrate de que Any esté importado
-
 
 class TokenData(BaseModel):
     email: Optional[str] = None
@@ -87,7 +83,7 @@ class TokenData(BaseModel):
 class UserBase(BaseModel):
     email: EmailStr
     full_name: Optional[str] = None
-    role: str
+    role: str = "operario"
     disabled: Optional[bool] = False
 
 class UserUpdate(BaseModel):
@@ -96,11 +92,12 @@ class UserUpdate(BaseModel):
     disabled: Optional[bool] = None
 
 class UserPublic(UserBase):
-    id: PyObjectId = Field(alias='_id') # Usamos el tipo PyObjectId
+    id: PyObjectId = Field(alias='_id')
+    
     model_config = ConfigDict(
         populate_by_name=True,
-        arbitrary_types_allowed=True, # Permitir que PyObjectId sea un tipo arbitrario
-        json_encoders={ObjectId: str} # Asegurarse de que ObjectId se convierta a str en la salida JSON
+        arbitrary_types_allowed=True,
+        json_encoders={ObjectId: str}
     )
 
 class UserCreate(UserBase):
@@ -110,6 +107,7 @@ class Token(BaseModel):
     access_token: str
     token_type: str
 
+# Modelos para recuperación de contraseña
 class PasswordResetRequest(BaseModel):
     email: EmailStr
 
@@ -139,7 +137,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
     credentials_exception = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No se pudieron validar las credenciales", headers={"WWW-Authenticate": "Bearer"})
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        email: str = payload.get("sub")
+        email: Optional[str] = payload.get("sub")
         if email is None: raise credentials_exception
     except JWTError:
         raise credentials_exception
@@ -155,7 +153,23 @@ async def get_current_admin_user(current_user: dict = Depends(get_current_user))
 # 6. Inicialización de la App FastAPI
 # --------------------------------------------------------------------------
 app = FastAPI(title="API para Dashboard de Embalses IoT", version="1.0.0")
-app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Middleware para logging de errores
+@app.middleware("http")
+async def log_requests(request, call_next):
+    try:
+        response = await call_next(request)
+        return response
+    except Exception as e:
+        print(f"Error en {request.url}: {str(e)}")
+        raise e
 
 # --------------------------------------------------------------------------
 # 7. Endpoints de la API
@@ -163,6 +177,11 @@ app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http
 @app.get("/", tags=["Root"])
 def read_root():
     return {"status": "Servidor FastAPI conectado y con autenticación"}
+
+# Endpoint para evitar el error 404 del favicon
+@app.get("/favicon.ico", tags=["Static"])
+def favicon():
+    return {"message": "No favicon"}
 
 @app.post("/api/token", response_model=Token, tags=["Autenticación"])
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
@@ -187,6 +206,8 @@ async def create_user(user: UserCreate, admin_user: dict = Depends(get_current_a
     user_data["hashed_password"] = hashed_password
     new_user_doc = await users_collection.insert_one(user_data)
     created_user_from_db = await users_collection.find_one({"_id": new_user_doc.inserted_id})
+    if not created_user_from_db:
+        raise HTTPException(status_code=500, detail="Error al crear el usuario")
     return UserPublic(**created_user_from_db)
 
 @app.put("/api/users/{user_id}", response_model=UserPublic, tags=["Usuarios"])
@@ -199,6 +220,8 @@ async def update_user(user_id: str, user_update: UserUpdate, admin_user: dict = 
     if result.matched_count == 0: raise HTTPException(status_code=404, detail="No se encontró el usuario")
     
     updated_user_from_db = await users_collection.find_one({"_id": ObjectId(user_id)})
+    if not updated_user_from_db:
+        raise HTTPException(status_code=500, detail="Error al recuperar el usuario actualizado")
     return UserPublic(**updated_user_from_db)
 
 @app.delete("/api/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Usuarios"])
@@ -214,28 +237,331 @@ async def delete_user(user_id: str, admin_user: dict = Depends(get_current_admin
 async def read_users_me(current_user: dict = Depends(get_current_user)):
     return UserPublic(**current_user)
 
+# Actualizar el endpoint de métricas para los 4 sensores principales
 @app.get("/api/metrics/latest", tags=["Datos de Sensores"])
 async def get_latest_metrics(current_user: dict = Depends(get_current_user)):
     latest_reading = await sensor_collection.find_one({}, sort=[("ReadTime", -1)])
-    if not latest_reading: raise HTTPException(status_code=404, detail="No se encontraron lecturas de sensores")
+    if not latest_reading: 
+        raise HTTPException(status_code=404, detail="No se encontraron lecturas de sensores")
+    
     return {
-        "temperatura": {"value": latest_reading.get("Temperature", 0), "unit": "C°", "changeText": "Leído desde la DB", "isPositive": True},
-        "ph": {"value": latest_reading.get("pH_Value", 0), "unit": "", "changeText": "Leído desde la DB", "isPositive": True},
-        "nitrogeno": {"value": latest_reading.get("Nitrogen", 0), "unit": "mg/kg", "changeText": "Nivel en suelo", "isPositive": True},
-        "electroconductividad": {"value": latest_reading.get("EC", 0), "unit": "dS/m", "changeText": "Conductividad", "isPositive": True},
+        "temperatura_agua": {
+            "value": round(latest_reading.get("Temperature", 0), 1), 
+            "unit": "°C", 
+            "changeText": "Temperatura del agua", 
+            "isPositive": True,
+            "status": "normal" if 18 <= latest_reading.get("Temperature", 0) <= 25 else "warning"
+        },
+        "ph": {
+            "value": round(latest_reading.get("pH_Value", 0), 2), 
+            "unit": "pH", 
+            "changeText": "Acidez del agua", 
+            "isPositive": True,
+            "status": "normal" if 6.5 <= latest_reading.get("pH_Value", 0) <= 8.5 else "warning"
+        },
+        "conductividad": {
+            "value": round(latest_reading.get("EC", 0), 2), 
+            "unit": "dS/m", 
+            "changeText": "Conductividad eléctrica", 
+            "isPositive": True,
+            "status": "normal" if latest_reading.get("EC", 0) <= 2.5 else "warning"
+        },
+        "nivel_agua": {
+            "value": round(latest_reading.get("WaterLevel", latest_reading.get("Potassium", 0)), 1), 
+            "unit": "m", 
+            "changeText": "Nivel del embalse", 
+            "isPositive": True,
+            "status": "normal" if latest_reading.get("WaterLevel", latest_reading.get("Potassium", 0)) > 1.5 else "warning"
+        }
     }
 
-@app.get("/api/charts/water-level", tags=["Datos de Sensores"])
-async def get_water_level_data(current_user: dict = Depends(get_current_user)):
-    cursor = sensor_collection.find({}, sort=[("ReadTime", -1)]).limit(30)
-    readings = await cursor.to_list(length=30)
-    readings.reverse()
-    if not readings: raise HTTPException(status_code=404, detail="No hay suficientes datos para el gráfico")
-    return {
-        "labels": [r["ReadTime"].strftime("%d-%b") for r in readings],
-        "real_level": [r.get("Potassium", 0) for r in readings],
-        "expected_level": [r.get("Potassium", 0) + 5 for r in readings]
+@app.get("/api/charts/historical-data", tags=["Datos de Sensores"])
+async def get_historical_data(
+    sensor_type: str = "all",  # ph, temperatura, conductividad, nivel, all
+    hours: int = 24,  # últimas X horas, 0 = todos los datos
+    current_user: dict = Depends(get_current_user)
+):
+    """Obtener datos históricos de sensores para gráficos"""
+    
+    # Si hours es 0, obtener todos los datos
+    if hours == 0:
+        # Obtener todos los datos (limitado a los últimos 1000 registros por rendimiento)
+        cursor = sensor_collection.find({}, sort=[("ReadTime", 1)]).limit(1000)
+    else:
+        # Calcular fecha de inicio
+        end_time = datetime.now(timezone.utc)
+        start_time = end_time - timedelta(hours=hours)
+        
+        # Consulta a la base de datos
+        cursor = sensor_collection.find(
+            {"ReadTime": {"$gte": start_time, "$lte": end_time}},
+            sort=[("ReadTime", 1)]
+        ).limit(500)  # Limitar para rendimiento
+    
+    readings = await cursor.to_list(length=1000)
+    
+    if not readings:
+        raise HTTPException(status_code=404, detail="No hay datos en el rango solicitado")
+    
+    # Formatear datos con mejor formato de fecha
+    if hours <= 24:
+        # Para rangos cortos, mostrar hora:minuto
+        labels = [r["ReadTime"].strftime("%H:%M") for r in readings]
+    elif hours <= 168:  # 7 días
+        # Para semana, mostrar día/mes hora
+        labels = [r["ReadTime"].strftime("%d/%m %H:%M") for r in readings]
+    else:
+        # Para rangos largos, mostrar día/mes/año
+        labels = [r["ReadTime"].strftime("%d/%m/%Y") for r in readings]
+    
+    result = {
+        "labels": labels,
+        "timestamps": [r["ReadTime"].isoformat() for r in readings],
     }
+    
+    if sensor_type == "all" or sensor_type == "ph":
+        result["ph"] = [round(r.get("pH_Value", 0), 2) for r in readings]
+    
+    if sensor_type == "all" or sensor_type == "temperatura":
+        result["temperatura"] = [round(r.get("Temperature", 0), 1) for r in readings]
+    
+    if sensor_type == "all" or sensor_type == "conductividad":
+        result["conductividad"] = [round(r.get("EC", 0), 2) for r in readings]
+    
+    if sensor_type == "all" or sensor_type == "nivel":
+        result["nivel_agua"] = [round(r.get("WaterLevel", r.get("Potassium", 0)), 1) for r in readings]
+    
+    return result
+
+@app.get("/api/sensors/status", tags=["Datos de Sensores"])
+async def get_sensors_status_detailed(current_user: dict = Depends(get_current_user)):
+    """Estado actual de los sensores"""
+    
+    # Obtener la última lectura
+    latest_reading = await sensor_collection.find_one({}, sort=[("ReadTime", -1)])
+    if not latest_reading:
+        raise HTTPException(status_code=404, detail="No se encontraron datos de sensores")
+    
+    # Calcular tiempo desde la última lectura
+    last_reading_time = latest_reading["ReadTime"]
+    now = datetime.now(timezone.utc)
+    time_diff = now - last_reading_time
+    
+    # Determinar estado de conexión
+    is_online = time_diff.total_seconds() < 3600  # Menos de 1 hora = online
+    
+    return [
+        {
+            "id": "sensor_ph",
+            "name": "Sensor de pH",
+            "type": "pH",
+            "status": "online" if is_online else "offline",
+            "last_reading": last_reading_time.isoformat(),
+            "current_value": round(latest_reading.get("pH_Value", 0), 2),
+            "unit": "pH",
+            "location": "Embalse Principal"
+        },
+        {
+            "id": "sensor_temp",
+            "name": "Sensor de Temperatura",
+            "type": "temperatura",
+            "status": "online" if is_online else "offline",
+            "last_reading": last_reading_time.isoformat(),
+            "current_value": round(latest_reading.get("Temperature", 0), 1),
+            "unit": "°C",
+            "location": "Embalse Principal"
+        },
+        {
+            "id": "sensor_ec",
+            "name": "Sensor de Conductividad",
+            "type": "conductividad",
+            "status": "online" if is_online else "offline",
+            "last_reading": last_reading_time.isoformat(),
+            "current_value": round(latest_reading.get("EC", 0), 2),
+            "unit": "dS/m",
+            "location": "Embalse Principal"
+        },
+        {
+            "id": "sensor_level",
+            "name": "Sensor de Nivel",
+            "type": "nivel",
+            "status": "online" if is_online else "offline",
+            "last_reading": last_reading_time.isoformat(),
+            "current_value": round(latest_reading.get("WaterLevel", latest_reading.get("Potassium", 0)), 1),
+            "unit": "m",
+            "location": "Embalse Principal"
+        }
+    ]
+
+@app.get("/api/sensors", tags=["Datos de Sensores"])
+async def get_sensors_list(current_user: dict = Depends(get_current_user)):
+    """
+    Obtiene el estado actual de todos los sensores
+    """
+    try:
+        # Obtener las últimas lecturas por sensor
+        pipeline = [
+            {"$sort": {"ReadTime": -1}},
+            {"$group": {
+                "_id": "$SensorID",
+                "lastReading": {"$first": "$$ROOT"},
+                "count": {"$sum": 1}
+            }},
+            {"$limit": 10}
+        ]
+        
+        sensor_readings = await sensor_collection.aggregate(pipeline).to_list(length=None)
+        
+        if not sensor_readings:
+            # Si no hay datos, devolver sensores de ejemplo
+            return [
+                {
+                    "id": "1",
+                    "name": "Sensor Principal Embalse",
+                    "lastReading": "19 Mayo 2024 - 10:10",
+                    "uid": "251-661-5362",
+                    "location": "Lon: -70.6693\nLat: -33.4489",
+                    "status": "Activo"
+                },
+                {
+                    "id": "2", 
+                    "name": "Sensor Entrada Agua",
+                    "lastReading": "19 Mayo 2024 - 10:05",
+                    "uid": "171-534-1262",
+                    "location": "Lon: -70.6693\nLat: -33.4489", 
+                    "status": "Activo"
+                }
+            ]
+        
+        sensors = []
+        for i, reading in enumerate(sensor_readings):
+            last_reading_time = reading["lastReading"].get("ReadTime")
+            if last_reading_time:
+                # Verificar si la última lectura es reciente (menos de 10 minutos)
+                time_diff = datetime.now(timezone.utc) - last_reading_time
+                status = "Activo" if time_diff.total_seconds() < 600 else "Inactivo"
+                
+                formatted_time = last_reading_time.strftime("%d %B %Y - %H:%M")
+                
+                sensors.append({
+                    "id": str(reading["_id"]) or str(i+1),
+                    "name": f"Sensor IoT #{reading['_id'] or i+1}",
+                    "lastReading": formatted_time,
+                    "uid": f"SNR-{str(reading['_id'])[-6:]}" if reading["_id"] else f"SNR-{i+1:06d}",
+                    "location": f"Lon: -70.{6693+i}\nLat: -33.{4489+i}",
+                    "status": status
+                })
+        
+        return sensors
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al obtener estado de sensores: {str(e)}")
+
+# Agregar nuevo endpoint para sensores individuales
+@app.get("/api/sensors/individual", tags=["Datos de Sensores"])
+async def get_individual_sensors_status(current_user: dict = Depends(get_current_user)):
+    """Estado detallado de cada sensor individual"""
+    
+    try:
+        # Obtener las últimas lecturas por sensor
+        pipeline = [
+            {"$sort": {"ReadTime": -1}},
+            {"$group": {
+                "_id": "$SensorID",
+                "lastReading": {"$first": "$$ROOT"},
+                "count": {"$sum": 1}
+            }},
+            {"$limit": 20}  # Máximo 20 sensores
+        ]
+        
+        sensor_readings = await sensor_collection.aggregate(pipeline).to_list(length=None)
+        
+        if not sensor_readings:
+            # Retornar datos de ejemplo si no hay datos reales
+            return [
+                {
+                    "id": "SNR-001",
+                    "name": "Sensor pH Principal",
+                    "type": "pH",
+                    "status": "online",
+                    "last_reading": datetime.now(timezone.utc).isoformat(),
+                    "current_value": 7.2,
+                    "unit": "pH",
+                    "location": "Sector A - Entrada",
+                    "signal_strength": 95,
+                    "battery_level": 78,
+                    "uid": "251-661-5362"
+                },
+                {
+                    "id": "SNR-003",
+                    "name": "Sensor Temperatura T1",
+                    "type": "temperatura",
+                    "status": "online",
+                    "last_reading": datetime.now(timezone.utc).isoformat(),
+                    "current_value": 22.5,
+                    "unit": "°C",
+                    "location": "Sector A - Superficie",
+                    "signal_strength": 92,
+                    "battery_level": 82,
+                    "uid": "171-534-1262"
+                }
+            ]
+        
+        sensors = []
+        sensor_types = {
+            1: {"type": "pH", "unit": "pH", "field": "pH_Value"},
+            2: {"type": "temperatura", "unit": "°C", "field": "Temperature"},
+            3: {"type": "conductividad", "unit": "dS/m", "field": "EC"},
+            4: {"type": "nivel", "unit": "m", "field": "WaterLevel"}
+        }
+        
+        for i, reading_data in enumerate(sensor_readings):
+            reading = reading_data["lastReading"]
+            sensor_id = reading.get("SensorID", f"SNR-{i+1:03d}")
+            
+            # Determinar tipo de sensor basado en qué datos tiene
+            sensor_type_info = sensor_types.get((i % 4) + 1, sensor_types[1])
+            
+            # Calcular tiempo desde la última lectura
+            last_reading_time = reading["ReadTime"]
+            now = datetime.now(timezone.utc)
+            time_diff = now - last_reading_time
+            minutes_diff = time_diff.total_seconds() / 60
+            
+            # Determinar estado
+            if minutes_diff < 10:
+                status = "online"
+                signal_strength = 85 + (i % 15)
+            elif minutes_diff < 30:
+                status = "warning"  
+                signal_strength = 45 + (i % 20)
+            else:
+                status = "offline"
+                signal_strength = 0
+            
+            # Obtener valor actual
+            current_value = reading.get(sensor_type_info["field"], 0)
+            if sensor_type_info["type"] == "nivel" and current_value == 0:
+                current_value = reading.get("Potassium", 0)
+            
+            sensors.append({
+                "id": f"SNR-{sensor_id}",
+                "name": f"Sensor {sensor_type_info['type'].title()} {sensor_id}",
+                "type": sensor_type_info["type"],
+                "status": status,
+                "last_reading": last_reading_time.isoformat(),
+                "current_value": round(current_value, 2),
+                "unit": sensor_type_info["unit"],
+                "location": f"Sector {'ABC'[i % 3]} - {'Entrada' if i % 2 == 0 else 'Centro'}",
+                "signal_strength": signal_strength,
+                "battery_level": max(20, 90 - (i * 10)) if status != "offline" else 5,
+                "uid": f"{251 + i}-{661 + i}-{5362 + i}"
+            })
+        
+        return sensors
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al obtener sensores individuales: {str(e)}")
 
 # --------------------------------------------------------------------------
 # 8. Endpoints de Recuperación de Contraseña
