@@ -11,6 +11,16 @@ const router = createRouter({
       component: () => import('../views/LoginView.vue')
     },
     {
+      path: '/forgot-password',
+      name: 'ForgotPassword',
+      component: () => import('../views/ForgotPasswordView.vue')
+    },
+    {
+      path: '/reset-password',
+      name: 'ResetPassword',
+      component: () => import('../views/ResetPasswordView.vue')
+    },
+    {
       path: '/',
       component: () => import('../views/DashboardLayout.vue'),
       meta: { requiresAuth: true },
@@ -40,8 +50,8 @@ router.beforeEach((to, from, next) => {
   if (to.meta.requiresAuth && !isAuthenticated) {
     // Si requiere auth y no está logueado, va al login
     next('/login');
-  } else if (to.name === 'Login' && isAuthenticated) {
-    // Si está logueado e intenta ir al login, va al dashboard
+  } else if ((to.name === 'Login' || to.name === 'ForgotPassword' || to.name === 'ResetPassword') && isAuthenticated) {
+    // Si está logueado e intenta ir al login, recuperación o reset, va al dashboard
     next('/');
   } else if (to.meta.requiresRole) {
     // Si la ruta requiere un rol...

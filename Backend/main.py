@@ -12,6 +12,10 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 import motor.motor_asyncio
 from bson import ObjectId
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import smtplib
+import secrets
 
 # Importar core_schema y PydanticCustomError para PyObjectId
 from pydantic_core import CoreSchema, PydanticCustomError, core_schema
@@ -26,6 +30,12 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ALGORITHM: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int
+    # Nuevas configuraciones para email
+    SMTP_SERVER: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    FROM_EMAIL: str = ""
 
     class Config:
         env_file = ".env"
@@ -39,6 +49,7 @@ client = motor.motor_asyncio.AsyncIOMotorClient(settings.MONGO_CONNECTION_STRING
 db = client[settings.DATABASE_NAME]
 users_collection = db.users
 sensor_collection = db.Sensor_Data
+password_reset_collection = db.password_reset_tokens
 
 # --------------------------------------------------------------------------
 # 4. Modelos de Datos (Pydantic) - CON LA CORRECCIÓN FINAL PARA ObjectId
@@ -98,6 +109,13 @@ class UserCreate(UserBase):
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+class PasswordResetConfirm(BaseModel):
+    token: str
+    new_password: str
 
 # --------------------------------------------------------------------------
 # 5. Utilidades y Dependencias de Seguridad (sin cambios)
@@ -191,6 +209,11 @@ async def delete_user(user_id: str, admin_user: dict = Depends(get_current_admin
     if result.deleted_count == 0: raise HTTPException(status_code=404, detail="No se encontró el usuario a eliminar")
     return
 
+
+@app.get("/api/users/me", response_model=UserPublic, tags=["Usuarios"])
+async def read_users_me(current_user: dict = Depends(get_current_user)):
+    return UserPublic(**current_user)
+
 @app.get("/api/metrics/latest", tags=["Datos de Sensores"])
 async def get_latest_metrics(current_user: dict = Depends(get_current_user)):
     latest_reading = await sensor_collection.find_one({}, sort=[("ReadTime", -1)])
@@ -213,3 +236,328 @@ async def get_water_level_data(current_user: dict = Depends(get_current_user)):
         "real_level": [r.get("Potassium", 0) for r in readings],
         "expected_level": [r.get("Potassium", 0) + 5 for r in readings]
     }
+
+# --------------------------------------------------------------------------
+# 8. Endpoints de Recuperación de Contraseña
+# --------------------------------------------------------------------------
+# Actualizar las importaciones y funciones de email
+
+# Función para enviar email (actualizada)
+async def send_reset_email(email: str, reset_token: str):
+    """Envía email con el token de recuperación"""
+    try:
+        # Solo enviar email si las credenciales están configuradas
+        if not settings.SMTP_USERNAME or not settings.SMTP_PASSWORD:
+            print(f"⚠️  Email no configurado. Token para {email}: {reset_token}")
+            print(f"🔗 URL: http://localhost:5173/reset-password?token={reset_token}")
+            return True
+        
+        # Crear mensaje
+        msg = MIMEMultipart('alternative')
+        msg['From'] = settings.FROM_EMAIL or settings.SMTP_USERNAME
+        msg['To'] = email
+        msg['Subject'] = "🔐 Recuperación de Contraseña - Embalses IoT"
+        
+        # Crear el enlace de recuperación
+        reset_url = f"http://localhost:5173/reset-password?token={reset_token}"
+        
+        # Cuerpo del email en texto plano
+        text_body = f"""
+        Hola,
+        
+        Has solicitado recuperar tu contraseña para el sistema Embalses IoT.
+        
+        Haz clic en el siguiente enlace para restablecer tu contraseña:
+        {reset_url}
+        
+        Este enlace expirará en 1 hora por seguridad.
+        
+        Si no solicitaste este cambio, puedes ignorar este mensaje de forma segura.
+        
+        Saludos,
+        Equipo Embalses IoT
+        """
+        
+        # Cuerpo del email en HTML (más atractivo)
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background-color: #3498db; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }}
+                .content {{ background-color: #f8f9fa; padding: 30px; border-radius: 0 0 8px 8px; }}
+                .button {{ display: inline-block; background-color: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; margin: 20px 0; }}
+                .button:hover {{ background-color: #218838; }}
+                .footer {{ text-align: center; margin-top: 30px; font-size: 0.9em; color: #6c757d; }}
+                .warning {{ background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 6px; margin: 20px 0; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>🔐 Recuperación de Contraseña</h1>
+                    <p>Sistema Embalses IoT</p>
+                </div>
+                <div class="content">
+                    <h2>Hola,</h2>
+                    <p>Has solicitado recuperar tu contraseña para el sistema <strong>Embalses IoT</strong>.</p>
+                    <p>Haz clic en el siguiente botón para restablecer tu contraseña de forma segura:</p>
+                    
+                    <div style="text-align: center;">
+                        <a href="{reset_url}" class="button">🔄 Restablecer Contraseña</a>
+                    </div>
+                    
+                    <div class="warning">
+                        <strong>⚠️ Importante:</strong>
+                        <ul>
+                            <li>Este enlace expirará en <strong>1 hora</strong> por seguridad</li>
+                            <li>Solo funciona una vez</li>
+                            <li>Si no fuiste tú quien solicitó esto, ignora este mensaje</li>
+                        </ul>
+                    </div>
+                    
+                    <p>Si el botón no funciona, copia y pega este enlace en tu navegador:</p>
+                    <p style="word-break: break-all; background-color: #e9ecef; padding: 10px; border-radius: 4px;">
+                        {reset_url}
+                    </p>
+                </div>
+                <div class="footer">
+                    <p>Este mensaje fue enviado automáticamente. No respondas a este email.</p>
+                    <p><strong>Equipo Embalses IoT</strong></p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        # Adjuntar ambas versiones
+        text_part = MIMEText(text_body, 'plain', 'utf-8')
+        html_part = MIMEText(html_body, 'html', 'utf-8')
+        
+        msg.attach(text_part)
+        msg.attach(html_part)
+        
+        # Configurar y enviar
+        server = smtplib.SMTP(settings.SMTP_SERVER, settings.SMTP_PORT)
+        server.starttls()
+        server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+        
+        # Enviar email
+        server.sendmail(settings.FROM_EMAIL or settings.SMTP_USERNAME, email, msg.as_string())
+        server.quit()
+        
+        print(f"✅ Email enviado exitosamente a {email}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error enviando email a {email}: {e}")
+        # En caso de error, mostrar el token en consola como fallback
+        print(f"🔗 Token de recuperación: {reset_token}")
+        print(f"🔗 URL: http://localhost:5173/reset-password?token={reset_token}")
+        return False
+
+# Actualizar el endpoint forgot_password
+@app.post("/api/auth/forgot-password", tags=["Autenticación"])
+async def forgot_password(request: PasswordResetRequest):
+    """Solicitar recuperación de contraseña"""
+    try:
+        # Verificar que el usuario existe
+        user = await users_collection.find_one({"email": request.email})
+        if not user:
+            # Por seguridad, siempre devolvemos el mismo mensaje
+            return {"message": "Si el email está registrado, recibirás las instrucciones para recuperar tu contraseña en unos minutos."}
+        
+        # Verificar que el usuario no esté deshabilitado
+        if user.get("disabled", False):
+            return {"message": "Si el email está registrado, recibirás las instrucciones para recuperar tu contraseña en unos minutos."}
+        
+        # Invalidar tokens anteriores para este email (seguridad extra)
+        await password_reset_collection.update_many(
+            {"email": request.email, "used": False},
+            {"$set": {"used": True}}
+        )
+        
+        # Generar token criptográficamente seguro
+        reset_token = secrets.token_urlsafe(32)
+        
+        # CAMBIO CLAVE: Usar datetime sin timezone para consistencia
+        now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+        expires_at = now_utc + timedelta(hours=1)
+        
+        # Guardar token con información adicional de seguridad
+        reset_data = {
+            "email": request.email,
+            "token": reset_token,
+            "created_at": now_utc,
+            "expires_at": expires_at,
+            "used": False,
+            "ip_address": None,  # Podrías capturar la IP del request
+            "user_agent": None,  # Podrías capturar el user agent
+        }
+        
+        await password_reset_collection.insert_one(reset_data)
+        
+        # Intentar enviar email
+        email_sent = await send_reset_email(request.email, reset_token)
+        
+        if email_sent:
+            print(f"🔐 Solicitud de recuperación procesada para {request.email}")
+        else:
+            print(f"⚠️  Error enviando email, pero token generado para {request.email}")
+        
+        # Siempre devolvemos el mismo mensaje por seguridad
+        return {"message": "Si el email está registrado, recibirás las instrucciones para recuperar tu contraseña en unos minutos."}
+        
+    except Exception as e:
+        print(f"❌ Error en forgot_password: {e}")
+        # En caso de cualquier error, devolvemos el mensaje genérico
+        return {"message": "Si el email está registrado, recibirás las instrucciones para recuperar tu contraseña en unos minutos."}
+
+# Actualizar el endpoint reset_password
+@app.post("/api/auth/reset-password", tags=["Autenticación"])
+async def reset_password(request: PasswordResetConfirm):
+    """Confirmar nueva contraseña con token"""
+    try:
+        # Validar longitud mínima de contraseña
+        if len(request.new_password) < 8:
+            raise HTTPException(
+                status_code=400,
+                detail="La contraseña debe tener al menos 8 caracteres"
+            )
+        
+        # CAMBIO CLAVE: Usar datetime sin timezone para la comparación
+        now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+        
+        # Buscar token válido
+        reset_record = await password_reset_collection.find_one({
+            "token": request.token,
+            "used": False,
+            "expires_at": {"$gt": now_utc}
+        })
+        
+        if not reset_record:
+            raise HTTPException(
+                status_code=400,
+                detail="El enlace de recuperación es inválido o ha expirado. Solicita uno nuevo."
+            )
+        
+        # Verificar que el usuario aún existe y no está deshabilitado
+        user = await users_collection.find_one({"email": reset_record["email"]})
+        if not user:
+            raise HTTPException(
+                status_code=400,
+                detail="Usuario no encontrado"
+            )
+        
+        if user.get("disabled", False):
+            raise HTTPException(
+                status_code=400,
+                detail="Esta cuenta está deshabilitada"
+            )
+        
+        # Actualizar contraseña
+        hashed_password = get_password_hash(request.new_password)
+        
+        result = await users_collection.update_one(
+            {"email": reset_record["email"]},
+            {
+                "$set": {
+                    "hashed_password": hashed_password,
+                    "password_changed_at": now_utc
+                }
+            }
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Error actualizando la contraseña")
+        
+        # Marcar token como usado y agregar timestamp
+        await password_reset_collection.update_one(
+            {"token": request.token},
+            {
+                "$set": {
+                    "used": True,
+                    "used_at": now_utc
+                }
+            }
+        )
+        
+        # Invalidar todos los demás tokens pendientes para este usuario
+        await password_reset_collection.update_many(
+            {
+                "email": reset_record["email"],
+                "used": False,
+                "token": {"$ne": request.token}
+            },
+            {"$set": {"used": True}}
+        )
+        
+        print(f"✅ Contraseña actualizada exitosamente para {reset_record['email']}")
+        
+        return {"message": "✅ Contraseña actualizada exitosamente. Ya puedes iniciar sesión con tu nueva contraseña."}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error en reset_password: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Error interno del servidor"
+        )
+
+# ACTUALIZAR el endpoint de validación - ESTE ES EL MÁS IMPORTANTE
+@app.get("/api/auth/validate-reset-token/{token}", tags=["Autenticación"])
+async def validate_reset_token(token: str):
+    """Validar si un token de reset es válido"""
+    try:
+        # CAMBIO CLAVE: Usar datetime sin timezone para la comparación
+        now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+        
+        # Buscar el token
+        reset_record = await password_reset_collection.find_one({
+            "token": token,
+            "used": False,
+            "expires_at": {"$gt": now_utc}
+        })
+        
+        if not reset_record:
+            raise HTTPException(
+                status_code=400, 
+                detail="El enlace de recuperación es inválido o ha expirado"
+            )
+        
+        # Verificar que el usuario aún existe
+        user = await users_collection.find_one({"email": reset_record["email"]})
+        if not user or user.get("disabled", False):
+            raise HTTPException(
+                status_code=400, 
+                detail="El enlace de recuperación ya no es válido"
+            )
+        
+        # Calcular tiempo restante - MANEJAR POSIBLES DIFERENCIAS DE TIMEZONE
+        expires_at = reset_record["expires_at"]
+        
+        # Si expires_at tiene timezone info, quitársela
+        if hasattr(expires_at, 'tzinfo') and expires_at.tzinfo is not None:
+            expires_at = expires_at.replace(tzinfo=None)
+        
+        time_remaining = expires_at - now_utc
+        minutes_remaining = max(0, int(time_remaining.total_seconds() / 60))
+        
+        return {
+            "valid": True,
+            "email": reset_record["email"],
+            "expires_in_minutes": minutes_remaining
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error validando token: {e}")
+        raise HTTPException(
+            status_code=400, 
+            detail="Error validando el enlace de recuperación"
+        )

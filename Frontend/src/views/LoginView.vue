@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { useRouter } from 'vue-router';
-import { jwtDecode } from 'jwt-decode'; // <-- Importar jwt-decode
-import { authStore } from '@/auth/store'; // <-- Importar nuestro store
+import { useRouter, RouterLink } from 'vue-router';
+import { jwtDecode } from 'jwt-decode';
+import { authStore } from '@/auth/store';
 
 defineOptions({
   name: 'LoginView'
@@ -35,15 +35,28 @@ const handleLogin = async () => {
     const data = await response.json();
     localStorage.setItem('userToken', data.access_token);
 
-    // --- NUEVA LÓGICA AQUÍ ---
-    // Decodificamos el token para obtener el email y el rol
-    const decodedToken: { sub: string; role: string } = jwtDecode(data.access_token);
+    // Obtener datos completos del usuario
+    const userResponse = await fetch('http://127.0.0.1:8000/api/users/me', {
+      headers: {
+        'Authorization': `Bearer ${data.access_token}`
+      }
+    });
 
-    // Guardamos la información en nuestro store
-    authStore.user = {
-      email: decodedToken.sub,
-      role: decodedToken.role
-    };
+    if (userResponse.ok) {
+      const userData = await userResponse.json();
+      authStore.user = {
+        email: userData.email,
+        role: userData.role,
+        full_name: userData.full_name
+      };
+    } else {
+      // Fallback con datos del token
+      const decodedToken: { sub: string; role: string } = jwtDecode(data.access_token);
+      authStore.user = {
+        email: decodedToken.sub,
+        role: decodedToken.role
+      };
+    }
 
     router.push('/');
 
@@ -76,13 +89,19 @@ const handleLogin = async () => {
           <input type="password" id="password" v-model="password" required placeholder="********">
         </div>
         <button type="submit" class="login-button">Iniciar Sesión</button>
+
+        <!-- Enlace para recuperar contraseña -->
+        <div class="form-footer">
+          <RouterLink to="/forgot-password" class="forgot-password-link">
+            ¿Olvidaste tu contraseña?
+          </RouterLink>
+        </div>
       </form>
     </div>
   </div>
 </template>
 
 <style scoped>
-/* Los estilos se mantienen igual, solo añadimos uno para el error */
 .error-message {
   background-color: #f8d7da;
   color: #721c24;
@@ -93,4 +112,20 @@ const handleLogin = async () => {
   text-align: center;
 }
 .login-container{display:flex;justify-content:center;align-items:center;min-height:100vh;background-color:#f4f6f9;padding:1rem}.login-card{background-color:#fff;padding:2.5rem 3rem;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);width:100%;max-width:400px;text-align:center}.logo{margin-bottom:2rem}.logo h2{margin:.5rem 0 0;color:#2c3e50}.login-form{display:flex;flex-direction:column}.form-group{margin-bottom:1.5rem;text-align:left}.form-group label{display:block;margin-bottom:.5rem;font-weight:600;color:#34495e}.form-group input{width:100%;padding:.75rem 1rem;border:1px solid #ced4da;border-radius:6px;font-size:1rem;box-sizing:border-box}.login-button{width:100%;padding:.85rem 1.5rem;background-color:#3498db;color:#fff;border:none;border-radius:6px;font-size:1.1rem;font-weight:700;cursor:pointer;transition:background-color .2s ease-in-out;margin-top:1rem}.login-button:hover{background-color:#2980b9}
+
+/* Estilos para el enlace de recuperación */
+.form-footer {
+  margin-top: 1.5rem;
+  text-align: center;
+}
+
+.forgot-password-link {
+  color: #3498db;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.forgot-password-link:hover {
+  text-decoration: underline;
+}
 </style>
