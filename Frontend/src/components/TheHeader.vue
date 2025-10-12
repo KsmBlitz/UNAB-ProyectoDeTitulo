@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { authStore } from '@/auth/store'; // Importar el store de autenticación
 
 defineOptions({
   name: 'TheHeader'
 });
 
-const userName = 'Usuario A';
-const userRole = 'Administrador';
+// Eliminar las variables estáticas
+// const userName = 'Usuario A';
+// const userRole = 'Administrador';
+
 const router = useRouter();
 
 // 1. Estado para controlar la visibilidad del menú
@@ -23,6 +26,8 @@ function toggleUserMenu() {
 function handleLogout() {
   console.log('Cerrando sesión...');
   localStorage.removeItem('userToken');
+  // Limpiar el store al cerrar sesión
+  authStore.user = null;
   router.push('/login');
 }
 
@@ -63,14 +68,20 @@ onUnmounted(() => {
           <i class="pi pi-user"></i>
         </div>
         <div class="user-info">
-          <span class="user-name">{{ userName }}</span>
-          <span class="user-role">{{ userRole }}</span>
+          <!-- Usar datos del authStore en lugar de valores estáticos -->
+          <span class="user-name">{{ authStore.user?.full_name }}</span>
+          <span class="user-role">{{
+            authStore.user?.role === 'admin' ? 'Administrador' :
+            authStore.user?.role === 'operario' ? 'Operario' :
+            'Sin rol'
+          }}</span>
         </div>
 
         <div v-if="isMenuOpen" class="user-menu">
           <div class="menu-header">
-            <span class="user-name">{{ userName }}</span>
-            <span class="user-email">admin@embalses.cl</span>
+            <!-- Usar datos del authStore en el menú también -->
+            <span class="user-name">{{ authStore.user?.full_name }}</span>
+            <span class="user-email">{{ authStore.user?.email || 'Sin email' }}</span>
           </div>
           <ul>
             <li class="menu-item">
