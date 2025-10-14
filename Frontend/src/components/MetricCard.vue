@@ -26,13 +26,11 @@ const statusClass = computed(() => {
 const iconClass = computed(() => {
   if (props.icon) return props.icon;
 
-  // Iconos por defecto basados en el título
   const title = props.title.toLowerCase();
   if (title.includes('ph')) return 'pi pi-flask';
   if (title.includes('temperatura')) return 'pi pi-sun';
   if (title.includes('conductividad')) return 'pi pi-bolt';
   if (title.includes('nivel')) return 'pi pi-chart-bar';
-
   return 'pi pi-circle';
 });
 </script>
@@ -50,8 +48,10 @@ const iconClass = computed(() => {
     </div>
 
     <div class="card-body">
-      <span class="value">{{ value }}</span>
-      <span class="unit">{{ unit }}</span>
+      <div class="value-section">
+        <span class="value">{{ value }}</span>
+        <span class="unit">{{ unit || '' }}</span>
+      </div>
     </div>
 
     <div class="card-footer">
@@ -61,5 +61,133 @@ const iconClass = computed(() => {
 </template>
 
 <style scoped>
-.metric-card{background-color:#fff;border-radius:8px;padding:1.5rem;box-shadow:0 2px 4px rgba(0,0,0,.05);display:flex;flex-direction:column}.card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem}.title{font-size:1rem;color:#6c757d;font-weight:500}.status-icon{color:#28a745;font-size:1.25rem}.card-body{display:flex;align-items:baseline;gap:.5rem;margin-bottom:.5rem}.value{font-size:2.5rem;font-weight:600;color:#333}.unit{font-size:1.5rem;font-weight:500;color:#6c757d}.card-footer{font-size:.875rem}.change-positive{color:#28a745}.change-negative{color:#dc3545}
+.metric-card {
+  background-color: #fff;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  border-left: 4px solid #28a745;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+}
+
+.metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+}
+
+.metric-card.status-warning {
+  border-left-color: #ffc107;
+}
+
+.metric-card.status-critical {
+  border-left-color: #dc3545;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.title-section {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.metric-icon {
+  font-size: 1.25rem;
+  color: #3498db;
+  padding: 0.5rem;
+  background-color: rgba(52, 152, 219, 0.1);
+  border-radius: 50%;
+}
+
+.title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #6c757d;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-indicator {
+  font-size: 0.75rem;
+}
+
+.status-indicator.status-normal {
+  color: #28a745;
+}
+
+.status-indicator.status-warning {
+  color: #ffc107;
+}
+
+.status-indicator.status-critical {
+  color: #dc3545;
+}
+
+.card-body {
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+  margin: 1.5rem 0;
+}
+
+.value-section {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #2c3e50;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.unit {
+  font-size: 1.2rem;
+  font-weight: 500;
+  color: #6c757d;
+  min-height: 1.2rem;
+  display: inline-block;
+}
+
+.card-footer {
+  border-top: 1px solid #f8f9fa;
+  padding-top: 1rem;
+  margin-top: auto;
+}
+
+.change-text {
+  font-size: 0.85rem;
+  color: #6c757d;
+  font-weight: 500;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .metric-card {
+    padding: 1rem;
+    min-height: 160px;
+  }
+
+  .value {
+    font-size: 2rem;
+  }
+
+  .unit {
+    font-size: 1rem;
+  }
+}
 </style>

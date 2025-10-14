@@ -7,16 +7,16 @@ defineOptions({
   name: 'HistoricalChartGrid'
 });
 
-// ✅ Control de filtro global para los 4 gráficos
+// Control de filtro global para los 4 gráficos
 const globalTimeRange = ref(24); // horas por defecto
 
-// ✅ Referencias a los 4 gráficos individuales
+// Referencias a los 4 gráficos individuales
 const temperatureChartRef = ref<InstanceType<typeof IndividualChart> | null>(null);
 const phChartRef = ref<InstanceType<typeof IndividualChart> | null>(null);
 const conductivityChartRef = ref<InstanceType<typeof IndividualChart> | null>(null);
 const waterLevelChartRef = ref<InstanceType<typeof IndividualChart> | null>(null);
 
-// ✅ Función para cambiar el filtro temporal de todos los gráficos
+// Función para cambiar el filtro temporal de todos los gráficos
 const handleTimeRangeChange = (hours: number) => {
   globalTimeRange.value = hours;
 
@@ -27,7 +27,7 @@ const handleTimeRangeChange = (hours: number) => {
   waterLevelChartRef.value?.updateTimeRange(hours);
 };
 
-// ✅ Función para refrescar todos los gráficos (llamada desde el padre)
+// Función para refrescar todos los gráficos (llamada desde el padre)
 const refreshAllCharts = async () => {
   await Promise.all([
     temperatureChartRef.value?.refreshData(),
@@ -37,7 +37,7 @@ const refreshAllCharts = async () => {
   ]);
 };
 
-// ✅ Exponer funciones al componente padre
+// Exponer funciones al componente padre
 defineExpose({
   refreshAllCharts
 });
@@ -49,7 +49,7 @@ onMounted(() => {
 
 <template>
   <div class="charts-grid-container">
-    <!-- ✅ Controles de filtro temporal (compartidos por todos los gráficos) -->
+    <!-- Controles de filtro temporal (compartidos por todos los gráficos) -->
     <div class="grid-header">
       <div class="grid-controls">
         <label>Período:</label>
@@ -75,7 +75,7 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- ✅ Grid 2x2 de gráficos individuales con ALTURA FIJA -->
+    <!-- Grid 2x2 de gráficos individuales -->
     <div class="charts-grid">
       <!-- Fila superior -->
       <div class="chart-item">
@@ -186,11 +186,11 @@ onMounted(() => {
   color: white;
 }
 
-/* ✅ ARREGLO: Grid 2x2 con ALTURA FIJA */
+/* Grid 2x2 con ALTURA FIJA */
 .charts-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  grid-template-rows: 350px 350px; /* ✅ ALTURA FIJA para evitar crecimiento infinito */
+  grid-template-rows: 350px 350px; /* ALTURA FIJA para evitar crecimiento infinito */
   gap: 1.5rem;
 }
 
@@ -200,7 +200,6 @@ onMounted(() => {
   overflow: hidden;
   border: 1px solid #e9ecef;
   transition: all 0.3s ease;
-  /* ✅ IMPORTANTE: Sin height aquí, ya se define en grid-template-rows */
 }
 
 .chart-item:hover {
@@ -212,7 +211,7 @@ onMounted(() => {
 @media (max-width: 1200px) {
   .charts-grid {
     grid-template-columns: 1fr;
-    grid-template-rows: repeat(4, 350px); /* ✅ 4 filas de 350px cada una */
+    grid-template-rows: repeat(4, 350px); /* 4 filas de 350px cada una */
   }
 }
 
@@ -238,7 +237,7 @@ onMounted(() => {
 
   .charts-grid {
     gap: 1rem;
-    grid-template-rows: repeat(4, 300px); /* ✅ Altura reducida en móviles */
+    grid-template-rows: repeat(4, 300px); /* Altura reducida en móviles */
   }
 }
 </style>

@@ -35,10 +35,10 @@ const isLoading = ref(true);
 const error = ref<string | null>(null);
 const currentTimeRange = ref(props.timeRange);
 
-// ✅ Opciones de gráfico optimizadas para gráfico individual
+// Opciones de gráfico optimizadas para gráfico individual
 const chartOptions = {
   responsive: true,
-  maintainAspectRatio: false, // ✅ IMPORTANTE: Para que respete el contenedor
+  maintainAspectRatio: false, // IMPORTANTE: Para que respete el contenedor
   interaction: {
     intersect: false,
     mode: 'index' as const,
@@ -108,7 +108,7 @@ const fetchData = async () => {
 
     const data = await response.json();
 
-    // ✅ Crear dataset según el tipo de sensor
+    // Crear dataset según el tipo de sensor
     let datasetData = [];
     let datasetLabel = '';
 
@@ -151,7 +151,7 @@ const fetchData = async () => {
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Error desconocido';
 
-    // ✅ Datos de ejemplo si falla
+    // Datos de ejemplo si falla
     chartData.value = {
       labels: ['10:00', '11:00', '12:00', '13:00', '14:00'],
       datasets: [
@@ -172,7 +172,7 @@ const fetchData = async () => {
   }
 };
 
-// ✅ Funciones expuestas para control externo
+// Funciones expuestas para control externo
 const updateTimeRange = (hours: number) => {
   currentTimeRange.value = hours;
   fetchData();
@@ -182,13 +182,13 @@ const refreshData = async () => {
   await fetchData();
 };
 
-// ✅ Exponer funciones al componente padre
+// Exponer funciones al componente padre
 defineExpose({
   updateTimeRange,
   refreshData
 });
 
-// ✅ Watch para cambios en timeRange (prop)
+// Watch para cambios en timeRange (prop)
 watch(() => props.timeRange, (newRange) => {
   currentTimeRange.value = newRange;
   fetchData();
@@ -199,7 +199,7 @@ onMounted(fetchData);
 
 <template>
   <div class="individual-chart">
-    <!-- ✅ Header del gráfico individual -->
+    <!-- Header del gráfico individual -->
     <div class="chart-header">
       <div class="chart-title">
         <i :class="icon" class="chart-icon"></i>
@@ -218,7 +218,7 @@ onMounted(fetchData);
       </div>
     </div>
 
-    <!-- ✅ Contenido del gráfico con ALTURA CONTROLADA -->
+    <!-- Contenido del gráfico con ALTURA CONTROLADA -->
     <div class="chart-content">
       <div v-if="error" class="error-state">
         <i class="pi pi-exclamation-triangle"></i>
@@ -240,13 +240,13 @@ onMounted(fetchData);
 
 <style scoped>
 .individual-chart {
-  height: 100%; /* ✅ IMPORTANTE: Ocupa todo el espacio del contenedor padre */
+  height: 100%; /* IMPORTANTE: Ocupa todo el espacio del contenedor padre */
   background-color: #fff;
   border-radius: 8px;
   padding: 1rem;
   display: flex;
   flex-direction: column;
-  overflow: hidden; /* ✅ IMPORTANTE: Evita el crecimiento infinito */
+  overflow: hidden; /* IMPORTANTE: Evita el crecimiento infinito */
 }
 
 .chart-header {
@@ -256,7 +256,7 @@ onMounted(fetchData);
   margin-bottom: 1rem;
   padding-bottom: 0.5rem;
   border-bottom: 1px solid #f0f0f0;
-  flex-shrink: 0; /* ✅ No se encoge */
+  flex-shrink: 0; /* No se encoge */
 }
 
 .chart-title {
@@ -295,20 +295,20 @@ onMounted(fetchData);
 }
 
 .chart-content {
-  flex-grow: 1; /* ✅ IMPORTANTE: Crece para ocupar el espacio restante */
+  flex-grow: 1; /* IMPORTANTE: Crece para ocupar el espacio restante */
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 0; /* ✅ IMPORTANTE: Permite que se encoja si es necesario */
-  overflow: hidden; /* ✅ IMPORTANTE: Evita desbordamiento */
+  min-height: 0; /* IMPORTANTE: Permite que se encoja si es necesario */
+  overflow: hidden; /* IMPORTANTE: Evita desbordamiento */
 }
 
 .chart-wrapper {
   position: relative;
-  height: 100%; /* ✅ IMPORTANTE: Ocupa todo el alto disponible */
+  height: 100%; /* IMPORTANTE: Ocupa todo el alto disponible */
   width: 100%;
-  min-height: 200px; /* ✅ Altura mínima razonable */
-  max-height: 280px; /* ✅ IMPORTANTE: Límite máximo de altura */
+  min-height: 200px; /* Altura mínima razonable */
+  max-height: 280px; /* IMPORTANTE: Límite máximo de altura */
 }
 
 .loading-state, .error-state {

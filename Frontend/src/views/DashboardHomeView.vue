@@ -3,11 +3,7 @@
 import { ref, onMounted } from 'vue';
 import MetricCard from '@/components/MetricCard.vue';
 import SensorsTable from '@/components/SensorsTable.vue';
-<<<<<<< Updated upstream
-import HistoricalChartGrid from '@/components/HistoricalChartGrid.vue'; // ✅ CORRECTO
-=======
-import HistoricalChart from '@/components/HistoricalChart.vue';
->>>>>>> Stashed changes
+import HistoricalChartGrid from '@/components/HistoricalChartGrid.vue';
 
 defineOptions({
   name: 'DashboardHomeView'
@@ -32,43 +28,35 @@ interface Metrics {
 const metrics = ref<Metrics | null>(null);
 const errorMetrics = ref<string | null>(null);
 const isLoadingMetrics = ref(true);
-<<<<<<< Updated upstream
 
-// ✅ CAMBIO: Referencias a componentes hijos
+// Referencias a componentes hijos
 const sensorsTableRef = ref<InstanceType<typeof SensorsTable> | null>(null);
 const chartsGridRef = ref<InstanceType<typeof HistoricalChartGrid> | null>(null);
 
-// ✅ CAMBIO: Control de auto-refresh
+// Control de auto-refresh
 const isAutoRefreshEnabled = ref(true);
 let refreshInterval: number | null = null;
 
 onMounted(async () => {
   await fetchMetrics();
   startAutoRefresh();
-=======
-
-onMounted(async () => {
-  await fetchMetrics();
-  // Auto-refresh cada 30 segundos
-  setInterval(fetchMetrics, 30000);
->>>>>>> Stashed changes
 });
 
-// ✅ CAMBIO: Función de refresh inteligente
+// Función de refresh inteligente
 async function smartRefresh() {
   // Solo actualizar métricas y tabla de sensores, NO los gráficos
   await Promise.all([
     fetchMetrics(),
-    (sensorsTableRef.value as any)?.fetchSensorsStatus()
+    sensorsTableRef.value?.fetchSensorsStatus()
   ]);
 }
 
-// ✅ CAMBIO: Función de refresh completo (manual)
+// Función de refresh completo (manual)
 async function fullRefresh() {
   await Promise.all([
     fetchMetrics(),
-    (sensorsTableRef.value as any)?.fetchSensorsStatus(),
-    (chartsGridRef.value as any)?.refreshAllCharts()
+    sensorsTableRef.value?.fetchSensorsStatus(),
+    chartsGridRef.value?.refreshAllCharts()
   ]);
 }
 
@@ -92,16 +80,12 @@ function toggleAutoRefresh() {
 }
 
 async function fetchMetrics() {
-<<<<<<< Updated upstream
-  // ✅ CAMBIO: No cambiar isLoadingMetrics si ya hay datos (para evitar parpadeo)
+  // No cambiar isLoadingMetrics si ya hay datos (para evitar parpadeo)
   const shouldShowLoading = !metrics.value;
   if (shouldShowLoading) {
     isLoadingMetrics.value = true;
   }
 
-=======
-  isLoadingMetrics.value = true;
->>>>>>> Stashed changes
   errorMetrics.value = null;
 
   const token = localStorage.getItem('userToken');
@@ -136,37 +120,23 @@ async function fetchMetrics() {
       errorMetrics.value = "Error al cargar las métricas. Intenta actualizar la página.";
     }
   } finally {
-<<<<<<< Updated upstream
     if (shouldShowLoading) {
       isLoadingMetrics.value = false;
     }
   }
-=======
-    isLoadingMetrics.value = false;
-  }
-}
-
-function refreshAll() {
-  fetchMetrics();
->>>>>>> Stashed changes
 }
 </script>
 
 <template>
   <div class="dashboard-content">
-<<<<<<< Updated upstream
     <!-- Header con controles mejorados -->
-=======
-    <!-- Header -->
->>>>>>> Stashed changes
     <header class="dashboard-header">
       <div class="header-info">
         <h1>Monitoreo del Embalse</h1>
         <p>Sistema de control de calidad del agua</p>
       </div>
       <div class="header-actions">
-<<<<<<< Updated upstream
-        <!-- ✅ CAMBIO: Indicador de auto-refresh -->
+        <!-- Indicador de auto-refresh -->
         <div class="auto-refresh-indicator">
           <button
             @click="toggleAutoRefresh"
@@ -178,15 +148,10 @@ function refreshAll() {
           </button>
         </div>
 
-        <!-- ✅ CAMBIO: Botón de refresh completo -->
+        <!-- Botón de refresh completo -->
         <button @click="fullRefresh" class="refresh-btn">
           <i class="pi pi-refresh"></i>
           Actualizar Todo
-=======
-        <button @click="refreshAll" class="refresh-btn">
-          <i class="pi pi-refresh"></i>
-          Actualizar
->>>>>>> Stashed changes
         </button>
       </div>
     </header>
@@ -196,14 +161,11 @@ function refreshAll() {
       <h2 class="section-title">
         <i class="pi pi-gauge"></i>
         Últimas Mediciones
-<<<<<<< Updated upstream
-        <!-- ✅ CAMBIO: Indicador de actualización en tiempo real -->
+        <!-- Indicador de actualización en tiempo real -->
         <span v-if="isAutoRefreshEnabled" class="live-indicator">
           <i class="pi pi-circle-fill"></i>
           EN VIVO
         </span>
-=======
->>>>>>> Stashed changes
       </h2>
 
       <div v-if="errorMetrics" class="error-message">
@@ -263,8 +225,7 @@ function refreshAll() {
       </div>
     </section>
 
-<<<<<<< Updated upstream
-    <!-- ✅ CAMBIO: 2. Grid de gráficos históricos (4 gráficos) -->
+    <!-- 2. Grid de gráficos históricos (4 gráficos) -->
     <section class="charts-section">
       <h2 class="section-title">
         <i class="pi pi-chart-line"></i>
@@ -274,32 +235,12 @@ function refreshAll() {
     </section>
 
     <!-- 3. Tabla de sensores detallada -->
-=======
-    <!-- 2. AGREGAR: Gráfico histórico -->
-    <section class="charts-section">
-      <h2 class="section-title">
-        <i class="pi pi-chart-line"></i>
-        Tendencia Histórica
-      </h2>
-      <HistoricalChart
-        title="Mediciones Históricas"
-        sensorType="all"
-        :timeRange="24"
-      />
-    </section>
-
-    <!-- 3. Tabla de sensores -->
->>>>>>> Stashed changes
     <section class="sensors-section">
       <h2 class="section-title">
         <i class="pi pi-microchip"></i>
         Estado de Sensores IoT
       </h2>
-<<<<<<< Updated upstream
       <SensorsTable ref="sensorsTableRef" />
-=======
-      <SensorsTable />
->>>>>>> Stashed changes
     </section>
   </div>
 </template>
@@ -314,7 +255,6 @@ function refreshAll() {
 .dashboard-header {
   display: flex;
   justify-content: space-between;
-<<<<<<< Updated upstream
   align-items: center;
   margin-bottom: 2rem;
   padding-bottom: 1rem;
@@ -325,41 +265,22 @@ function refreshAll() {
   margin: 0 0 0.5rem 0;
   font-size: 2rem;
   font-weight: 700;
-=======
-  align-items: flex-start;
-  margin-bottom: 2rem;
-  padding-bottom: 1.5rem;
-  border-bottom: 2px solid #e9ecef;
-}
-
-.header-info h1 {
-  font-size: 2.25rem;
-  font-weight: 700;
-  margin: 0 0 0.5rem 0;
->>>>>>> Stashed changes
   color: #2c3e50;
 }
 
 .header-info p {
-<<<<<<< Updated upstream
   margin: 0;
   color: #6c757d;
   font-size: 1.1rem;
-=======
-  font-size: 1.1rem;
-  color: #6c757d;
-  margin: 0;
->>>>>>> Stashed changes
 }
 
 .header-actions {
   display: flex;
   gap: 1rem;
-<<<<<<< Updated upstream
   align-items: center;
 }
 
-/* ✅ NUEVO: Estilos para auto-refresh */
+/* Estilos para auto-refresh */
 .auto-refresh-indicator {
   display: flex;
   align-items: center;
@@ -388,8 +309,6 @@ function refreshAll() {
 
 .auto-refresh-btn:hover {
   transform: translateY(-1px);
-=======
->>>>>>> Stashed changes
 }
 
 .refresh-btn {
@@ -397,11 +316,7 @@ function refreshAll() {
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1.5rem;
-<<<<<<< Updated upstream
   background-color: #3498db;
-=======
-  background: linear-gradient(135deg, #3498db, #2980b9);
->>>>>>> Stashed changes
   color: white;
   border: none;
   border-radius: 8px;
@@ -416,8 +331,7 @@ function refreshAll() {
   box-shadow: 0 6px 16px rgba(52, 152, 219, 0.3);
 }
 
-<<<<<<< Updated upstream
-/* ✅ NUEVO: Indicador en vivo */
+/* Indicador en vivo */
 .live-indicator {
   display: flex;
   align-items: center;
@@ -442,8 +356,6 @@ function refreshAll() {
   50% { opacity: 0.3; }
 }
 
-=======
->>>>>>> Stashed changes
 .metrics-section, .sensors-section, .charts-section {
   margin-bottom: 2rem;
 }
@@ -483,24 +395,14 @@ function refreshAll() {
   border-radius: 12px;
   overflow: hidden;
   position: relative;
-<<<<<<< Updated upstream
-=======
-  background-color: #f8f9fa;
->>>>>>> Stashed changes
 }
 
 .loading-shimmer {
   width: 100%;
   height: 100%;
-<<<<<<< Updated upstream
   background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
-=======
-  background: linear-gradient(90deg, #f8f9fa 25%, #e9ecef 50%, #f8f9fa 75%);
-  background-size: 200% 100%;
-  animation: shimmer 2s infinite;
->>>>>>> Stashed changes
 }
 
 @keyframes shimmer {
@@ -511,7 +413,6 @@ function refreshAll() {
 .error-message {
   display: flex;
   align-items: center;
-<<<<<<< Updated upstream
   gap: 0.75rem;
   padding: 1.5rem;
   background-color: #fff3cd;
@@ -537,55 +438,6 @@ function refreshAll() {
 
 /* Responsive */
 @media (max-width: 768px) {
-=======
-  gap: 1rem;
-  padding: 1rem;
-  background-color: #f8d7da;
-  border: 1px solid #f5c6cb;
-  border-radius: 8px;
-  color: #721c24;
-}
-
-.retry-btn {
-  padding: 0.25rem 0.75rem;
-  background-color: #dc3545;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
-}
-
-.retry-btn:hover {
-  background-color: #c82333;
-}
-
-/* Responsive Design */
-@media (max-width: 1200px) {
-  .dashboard-content {
-    padding: 1rem;
-  }
-}
-
-@media (max-width: 768px) {
-  .dashboard-header {
-    flex-direction: column;
-    gap: 1rem;
-    align-items: stretch;
-  }
-
-  .header-info h1 {
-    font-size: 1.8rem;
-  }
-
-  .metrics-grid {
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 1rem;
-  }
-}
-
-@media (max-width: 576px) {
->>>>>>> Stashed changes
   .dashboard-content {
     padding: 0.75rem;
   }
@@ -594,14 +446,11 @@ function refreshAll() {
     font-size: 1.5rem;
   }
 
-<<<<<<< Updated upstream
   .header-actions {
     flex-direction: column;
     gap: 0.5rem;
   }
 
-=======
->>>>>>> Stashed changes
   .metrics-grid {
     grid-template-columns: 1fr;
   }

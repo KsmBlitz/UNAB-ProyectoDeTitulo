@@ -1,68 +1,59 @@
 # Backend/main.py
 
 # 1. Imports
-from fastapi import FastAPI, Depends, HTTPException, status, BackgroundTasks
+from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
-from pydantic_settings import BaseSettings, SettingsConfigDict
-<<<<<<< Updated upstream
-from typing import Annotated, Optional, List, Any, Dict
-=======
-from typing import Annotated, Optional, List, Any
->>>>>>> Stashed changes
+from pydantic_settings import BaseSettings
+from typing import Annotated, Optional, List, Dict
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 import motor.motor_asyncio
 from bson import ObjectId
 import asyncio
-import logging
 import threading
+import logging
+from collections import defaultdict
 
 # Importar core_schema y PydanticCustomError para PyObjectId
 from pydantic_core import CoreSchema, PydanticCustomError, core_schema
 
-# Importar nuestro cliente AWS IoT
-from aws_iot_client import AWSIoTClient, IoTDataProcessor, create_iot_client
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # --------------------------------------------------------------------------
 # 2. Configuración Centralizada (Lee desde el archivo .env)
 # --------------------------------------------------------------------------
 class Settings(BaseSettings):
+    # Variables básicas requeridas
     MONGO_CONNECTION_STRING: str
     DATABASE_NAME: str
     SECRET_KEY: str
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ALGORITHM: str
+    ACCESS_TOKEN_EXPIRE_MINUTES: int
     
-    # Configuración de email
-    SMTP_SERVER: str = "smtp.gmail.com"
-    SMTP_PORT: int = 587
-    SMTP_USERNAME: str = ""
-    SMTP_PASSWORD: str = ""
-    FROM_EMAIL: str = ""
-    
-    # Configuración AWS IoT Core
-    AWS_IOT_ENDPOINT: str = ""
-    AWS_REGION: str = "us-east-1"
-    AWS_IOT_ROOT_CA_PATH: str = "./certificates/root-CA.crt"
-    AWS_IOT_CERTIFICATE_PATH: str = "./certificates/device.pem.crt"
-    AWS_IOT_PRIVATE_KEY_PATH: str = "./certificates/private.pem.key"
-    AWS_IOT_TOPIC: str = "sensor/+/data"
-    AWS_IOT_CLIENT_ID: str = "FastAPI_Consumer"
+    # Variables opcionales para AWS IoT (pueden estar en .env pero no son requeridas)
+    smtp_server: Optional[str] = None
+    smtp_port: Optional[str] = None
+    smtp_username: Optional[str] = None
+    smtp_password: Optional[str] = None
+    from_email: Optional[str] = None
+    aws_iot_endpoint: Optional[str] = None
+    aws_region: Optional[str] = None
+    aws_iot_root_ca_path: Optional[str] = None
+    aws_iot_certificate_path: Optional[str] = None
+    aws_iot_private_key_path: Optional[str] = None
+    aws_iot_topic: Optional[str] = None
+    aws_iot_client_id: Optional[str] = None
 
-    # ✅ MEJOR: Usar la clase Config tradicional
     class Config:
         env_file = ".env"
-        env_file_encoding = 'utf-8'
-        extra = 'ignore'
+        extra = "ignore"  # Ignorar variables extra del .env
 
-<<<<<<< Updated upstream
 settings = Settings() # type: ignore
-=======
-settings = Settings()
->>>>>>> Stashed changes
 
 # --------------------------------------------------------------------------
 # 3. Conexión a la Base de Datos
@@ -73,12 +64,13 @@ users_collection = db.users
 sensor_collection = db.Sensor_Data
 
 # --------------------------------------------------------------------------
-# 4. Modelos de Datos (Pydantic v2)
+# 4. Modelos de Datos (Pydantic) - CON LA CORRECCIÓN FINAL PARA ObjectId
 # --------------------------------------------------------------------------
 
+# Clase PyObjectId personalizada para Pydantic v2
 class PyObjectId(ObjectId):
     @classmethod
-    def __get_pydantic_core_schema__(cls, source_type: Any, handler) -> CoreSchema:
+    def __get_pydantic_core_schema__(cls, source_type, handler) -> CoreSchema:
         def validate_from_str(input_value: str) -> ObjectId:
             if not ObjectId.is_valid(input_value):
                 raise PydanticCustomError("object_id", "Invalid ObjectId")
@@ -99,7 +91,7 @@ class TokenData(BaseModel):
 class UserBase(BaseModel):
     email: EmailStr
     full_name: Optional[str] = None
-    role: str = "operario"
+    role: str
     disabled: Optional[bool] = False
 
 class UserUpdate(BaseModel):
@@ -109,7 +101,6 @@ class UserUpdate(BaseModel):
 
 class UserPublic(UserBase):
     id: PyObjectId = Field(alias='_id')
-    
     model_config = ConfigDict(
         populate_by_name=True,
         arbitrary_types_allowed=True,
@@ -123,188 +114,8 @@ class Token(BaseModel):
     access_token: str
     token_type: str
 
-# NUEVO: Modelo para datos de sensores desde AWS IoT Core
-class SensorData(BaseModel):
-    reservoirId: str
-    temperature: float
-    ec: float
-    ph: Optional[float] = None
-    timestamp: Optional[str] = None
-
 # --------------------------------------------------------------------------
-# 5. Utilidades y Dependencias de Seguridad
-# --------------------------------------------------------------------------
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/token")
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
-
-def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
-
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-
-async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
-    credentials_exception = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No se pudieron validar las credenciales", headers={"WWW-Authenticate": "Bearer"})
-    try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        email: Optional[str] = payload.get("sub")
-        if email is None: raise credentials_exception
-    except JWTError:
-        raise credentials_exception
-    user = await users_collection.find_one({"email": email})
-    if user is None: raise credentials_exception
-    return user
-
-async def get_current_admin_user(current_user: dict = Depends(get_current_user)):
-    if current_user.get("role") != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permisos de administrador requeridos")
-    return current_user
-
-# --------------------------------------------------------------------------
-# 6. Inicialización de la App FastAPI
-# --------------------------------------------------------------------------
-app = FastAPI(title="API para Dashboard de Embalses IoT", version="1.0.0")
-
-# Configuración de CORS para permitir ngrok y desarrollo local
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173", 
-        "http://localhost:5174",  # Puerto donde está ejecutándose el frontend
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:5174",  # También para 127.0.0.1
-        "https://unconical-wavily-jefferey.ngrok-free.dev"  # Tu URL de ngrok
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"]
-)
-
-# --------------------------------------------------------------------------
-# AWS IoT Core Integration
-# --------------------------------------------------------------------------
-# Variables globales para el cliente IoT
-iot_client: Optional[AWSIoTClient] = None
-iot_processor = IoTDataProcessor()
-
-# Configurar logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-async def save_sensor_data_to_db(sensor_data: dict):
-    """Guarda los datos del sensor en MongoDB de forma asíncrona"""
-    try:
-        # Procesar los datos del sensor
-        processed_data = iot_processor.process_sensor_message(sensor_data)
-        
-        # Insertar en MongoDB
-        result = await sensor_collection.insert_one(processed_data)
-        logger.info(f"✅ Datos guardados en MongoDB con ID: {result.inserted_id}")
-        
-    except Exception as e:
-        logger.error(f"❌ Error guardando datos en DB: {e}")
-
-def on_iot_message_received(sensor_data: dict):
-    """Callback para procesar mensajes de AWS IoT Core"""
-    logger.info(f"📡 Mensaje IoT recibido: {sensor_data}")
-    
-<<<<<<< Updated upstream
-    # Actualizar actividad del sensor
-    reservoir_id = sensor_data.get('reservoirId', 'unknown')
-    if reservoir_id != 'unknown':
-        asyncio.create_task(update_sensor_activity(reservoir_id))
-    
-=======
->>>>>>> Stashed changes
-    # Ejecutar la función de guardado en un hilo separado
-    threading.Thread(
-        target=save_sensor_data_sync,
-        args=(sensor_data,),
-        daemon=True
-    ).start()
-
-def save_sensor_data_sync(sensor_data: dict):
-    """Versión sincrónica para guardar datos del sensor"""
-    try:
-        # Procesar los datos del sensor
-        processed_data = iot_processor.process_sensor_message(sensor_data)
-        
-        # Usar pymongo directamente (síncrono) en lugar de motor (asíncrono)
-        import pymongo
-        
-        # Crear conexión síncrona temporal
-        sync_client = pymongo.MongoClient(settings.MONGO_CONNECTION_STRING)
-        sync_db = sync_client[settings.DATABASE_NAME]
-        sync_collection = sync_db.Sensor_Data
-        
-        # Insertar directamente
-        result = sync_collection.insert_one(processed_data)
-        logger.info(f"✅ Datos guardados en MongoDB con ID: {result.inserted_id}")
-        
-        # Cerrar conexión
-        sync_client.close()
-        
-    except Exception as e:
-        logger.error(f"❌ Error guardando datos en DB: {e}")
-
-def start_iot_connection():
-    """Inicia la conexión con AWS IoT Core en un hilo separado"""
-    global iot_client
-    
-    try:
-        logger.info("🚀 Iniciando conexión con AWS IoT Core...")
-        
-        # Crear el cliente IoT
-        iot_client = create_iot_client(settings)
-        iot_client.set_message_callback(on_iot_message_received)
-        
-        # Conectar
-        if iot_client.connect():
-            # Suscribirse al tópico de sensores
-            if iot_client.subscribe_to_topic(settings.AWS_IOT_TOPIC):
-                logger.info(f"✅ AWS IoT Core configurado exitosamente. Escuchando: {settings.AWS_IOT_TOPIC}")
-            else:
-                logger.error("❌ Error suscribiéndose al tópico IoT")
-        else:
-            logger.error("❌ Error conectando con AWS IoT Core")
-            
-    except Exception as e:
-        logger.error(f"❌ Error iniciando AWS IoT: {e}")
-
-@app.on_event("startup")
-async def startup_event():
-    """Eventos que se ejecutan al iniciar la aplicación"""
-    logger.info("🚀 Iniciando API para Dashboard de Embalses IoT")
-    
-    # Iniciar conexión IoT en un hilo separado para no bloquear la API
-    threading.Thread(target=start_iot_connection, daemon=True).start()
-<<<<<<< Updated upstream
-    
-    # Iniciar monitoreo de sensores en background
-    asyncio.create_task(check_sensor_timeouts())
-    logger.info("⏰ Sistema de monitoreo de sensores iniciado")
-=======
->>>>>>> Stashed changes
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Eventos que se ejecutan al cerrar la aplicación"""
-    logger.info("🛑 Cerrando aplicación...")
-    
-    global iot_client
-    if iot_client:
-        iot_client.disconnect()
-        logger.info("✅ Conexión IoT cerrada correctamente")
-
-# --------------------------------------------------------------------------
-<<<<<<< Updated upstream
-# Sistema de Monitoreo de Sensores
+# 5. Sistema de Monitoreo de Sensores
 # --------------------------------------------------------------------------
 
 # Registro de última actividad de sensores
@@ -391,42 +202,71 @@ async def save_sensor_status_event(reservoir_id: str, status: str, time_inactive
     except Exception as e:
         logger.error(f"❌ Error guardando evento de sensor: {e}")
 
+def on_iot_message_received(sensor_data: dict):
+    """Callback para procesar mensajes de AWS IoT Core"""
+    logger.info(f"📡 Mensaje IoT recibido: {sensor_data}")
+    
+    # Actualizar actividad del sensor
+    reservoir_id = sensor_data.get('reservoirId', 'unknown')
+    if reservoir_id != 'unknown':
+        asyncio.create_task(update_sensor_activity(reservoir_id))
+
+def start_iot_connection():
+    """Inicia la conexión con AWS IoT Core"""
+    try:
+        # Aquí se conectaría con AWS IoT Core
+        logger.info("🔗 Conectando con AWS IoT Core...")
+        # aws_iot_client.connect(on_message_callback=on_iot_message_received)
+    except Exception as e:
+        logger.error(f"❌ Error conectando con AWS IoT Core: {e}")
+
 # --------------------------------------------------------------------------
-=======
->>>>>>> Stashed changes
-# 7. Endpoints de la API
+# 6. Utilidades y Dependencias de Seguridad
+# --------------------------------------------------------------------------
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/token")
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+
+def get_password_hash(password: str) -> str:
+    return pwd_context.hash(password)
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
+    credentials_exception = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No se pudieron validar las credenciales", headers={"WWW-Authenticate": "Bearer"})
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        email: str = payload.get("sub") # type: ignore
+        if email is None: raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    user = await users_collection.find_one({"email": email})
+    if user is None: raise credentials_exception
+    return user
+
+async def get_current_admin_user(current_user: dict = Depends(get_current_user)):
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permisos de administrador requeridos")
+    return current_user
+
+# --------------------------------------------------------------------------
+# 7. Inicialización de la App FastAPI
+# --------------------------------------------------------------------------
+app = FastAPI(title="API para Dashboard de Embalses IoT", version="1.0.0")
+app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+
+# --------------------------------------------------------------------------
+# 8. Endpoints de la API
 # --------------------------------------------------------------------------
 @app.get("/", tags=["Root"])
 def read_root():
-    global iot_client
-    iot_status = "Conectado" if iot_client and iot_client.is_connected else "Desconectado"
-    return {
-        "status": "Servidor FastAPI conectado y con autenticación",
-        "aws_iot_status": iot_status,
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    }
-
-@app.get("/api/iot/status", tags=["AWS IoT"])
-async def get_iot_status():
-    """Obtiene el estado actual de la conexión AWS IoT Core"""
-    global iot_client
-    
-    if not iot_client:
-        return {
-            "connected": False,
-            "status": "Cliente IoT no inicializado",
-            "endpoint": settings.AWS_IOT_ENDPOINT,
-            "topic": settings.AWS_IOT_TOPIC
-        }
-    
-    return {
-        "connected": iot_client.is_connected,
-        "status": "Conectado" if iot_client.is_connected else "Desconectado",
-        "endpoint": settings.AWS_IOT_ENDPOINT,
-        "topic": settings.AWS_IOT_TOPIC,
-        "client_id": settings.AWS_IOT_CLIENT_ID,
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    }
+    return {"status": "Servidor FastAPI conectado y con autenticación"}
 
 @app.post("/api/token", response_model=Token, tags=["Autenticación"])
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
@@ -452,9 +292,7 @@ async def create_user(user: UserCreate, admin_user: dict = Depends(get_current_a
     user_data["hashed_password"] = hashed_password
     new_user_doc = await users_collection.insert_one(user_data)
     created_user_from_db = await users_collection.find_one({"_id": new_user_doc.inserted_id})
-    if created_user_from_db is None:
-        raise HTTPException(status_code=500, detail="Error al crear el usuario")
-    return UserPublic(**created_user_from_db)
+    return UserPublic(**created_user_from_db) # type: ignore
 
 @app.put("/api/users/{user_id}", response_model=UserPublic, tags=["Usuarios"])
 async def update_user(user_id: str, user_update: UserUpdate, admin_user: dict = Depends(get_current_admin_user)):
@@ -466,9 +304,7 @@ async def update_user(user_id: str, user_update: UserUpdate, admin_user: dict = 
     if result.matched_count == 0: raise HTTPException(status_code=404, detail="No se encontró el usuario")
     
     updated_user_from_db = await users_collection.find_one({"_id": ObjectId(user_id)})
-    if updated_user_from_db is None:
-        raise HTTPException(status_code=404, detail="No se encontró el usuario después de actualizar")
-    return UserPublic(**updated_user_from_db)
+    return UserPublic(**updated_user_from_db) # type: ignore
 
 @app.delete("/api/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Usuarios"])
 async def delete_user(user_id: str, admin_user: dict = Depends(get_current_admin_user)):
@@ -481,22 +317,13 @@ async def delete_user(user_id: str, admin_user: dict = Depends(get_current_admin
 @app.get("/api/metrics/latest", tags=["Datos de Sensores"])
 async def get_latest_metrics(current_user: dict = Depends(get_current_user)):
     latest_reading = await sensor_collection.find_one({}, sort=[("ReadTime", -1)])
-    if not latest_reading: 
-        raise HTTPException(status_code=404, detail="No se encontraron lecturas de sensores")
+    if not latest_reading: raise HTTPException(status_code=404, detail="No se encontraron lecturas de sensores")
     
-<<<<<<< Updated upstream
-=======
-    # ✅ Nombres corregidos para coincidir con el frontend y datos reales de MongoDB
->>>>>>> Stashed changes
     return {
         "temperatura_agua": {
             "value": round(latest_reading.get("Temperature", 0), 1), 
             "unit": "°C", 
-<<<<<<< Updated upstream
-            "changeText": "Temperatura del agua", # ✅ CAMBIO: Quitar referencia al ESP32
-=======
-            "changeText": f"ESP32: {latest_reading.get('reservoirId', 'N/A')}", 
->>>>>>> Stashed changes
+            "changeText": "Temperatura del agua",
             "isPositive": True,
             "status": "normal"
         },
@@ -525,149 +352,146 @@ async def get_latest_metrics(current_user: dict = Depends(get_current_user)):
 
 @app.get("/api/charts/historical-data", tags=["Datos de Sensores"])
 async def get_historical_data(
-    sensor_type: str = "all",  # ph, temperatura, conductividad, nivel, all
-    hours: int = 24,  # últimas X horas, 0 = todos los datos
+    sensor_type: str,
+    hours: int = 24,
     current_user: dict = Depends(get_current_user)
 ):
-    """Obtener datos históricos de sensores para gráficos"""
-    
+    """Obtiene datos históricos para gráficos individuales"""
     try:
-        # Si hours es 0, obtener todos los datos
-        if hours == 0:
-            # Obtener todos los datos (limitado a los últimos 1000 registros por rendimiento)
-            cursor = sensor_collection.find({}, sort=[("ReadTime", 1)]).limit(1000)
-        else:
-            # Calcular fecha de inicio
-            end_time = datetime.now(timezone.utc)
+        # Calcular rango de fechas
+        end_time = datetime.now(timezone.utc)
+        if hours > 0:
             start_time = end_time - timedelta(hours=hours)
-            
-            # Consulta a la base de datos
-            cursor = sensor_collection.find(
-                {"ReadTime": {"$gte": start_time, "$lte": end_time}},
-                sort=[("ReadTime", 1)]
-            ).limit(500)  # Limitar para rendimiento
+            query = {"ReadTime": {"$gte": start_time, "$lte": end_time}}
+        else:
+            query = {}  # Todo el historial
         
+        # Buscar datos
+        cursor = sensor_collection.find(query).sort("ReadTime", 1).limit(1000)
         readings = await cursor.to_list(length=1000)
         
         if not readings:
-            raise HTTPException(status_code=404, detail="No hay datos en el rango solicitado")
+            return {"labels": [], sensor_type: []}
         
-        # Formatear datos con mejor formato de fecha
-        if hours <= 24:
-            # Para rangos cortos, mostrar hora:minuto
-            labels = [r["ReadTime"].strftime("%H:%M") for r in readings]
-        elif hours <= 168:  # 7 días
-            # Para semana, mostrar día/mes hora
-            labels = [r["ReadTime"].strftime("%d/%m %H:%M") for r in readings]
-        else:
-            # Para rangos largos, mostrar día/mes/año
-            labels = [r["ReadTime"].strftime("%d/%m/%Y") for r in readings]
+        # Generar etiquetas de tiempo
+        labels = []
+        for reading in readings:
+            read_time = reading["ReadTime"]
+            if hours <= 24:
+                labels.append(read_time.strftime("%H:%M"))
+            elif hours <= 168:  # 7 días
+                labels.append(read_time.strftime("%d/%m %H:%M"))
+            else:
+                labels.append(read_time.strftime("%d/%m/%Y"))
         
-        result = {
-            "labels": labels,
-            "timestamps": [r["ReadTime"].isoformat() for r in readings],
+        # Mapear datos según el tipo de sensor
+        data_map = {
+            "temperatura": [r.get("Temperature", 0) for r in readings],
+            "ph": [r.get("pH_Value", 7.0) for r in readings],
+            "conductividad": [r.get("EC", 0) for r in readings],
+            "nivel": [r.get("Water_Level", 0) for r in readings]
         }
         
-        # ✅ Usar los nombres correctos de campos de tu base de datos
-        if sensor_type == "all" or sensor_type == "ph":
-            result["ph"] = [round(r.get("pH_Value", 0), 2) for r in readings]
-        
-        if sensor_type == "all" or sensor_type == "temperatura":
-            result["temperatura"] = [round(r.get("Temperature", 0), 1) for r in readings]
-        
-        if sensor_type == "all" or sensor_type == "conductividad":
-            result["conductividad"] = [round(r.get("EC", 0), 2) for r in readings]
-        
-        if sensor_type == "all" or sensor_type == "nivel":
-            result["nivel_agua"] = [round(r.get("Water_Level", 0), 1) for r in readings]
-        
-        return result
-        
-    except Exception as e:
-        logger.error(f"Error en historical-data: {e}")
-        raise HTTPException(status_code=500, detail=f"Error al obtener datos históricos: {str(e)}")
-
-@app.get("/api/charts/water-level", tags=["Datos de Sensores"])
-async def get_water_level_data(
-    current_user: dict = Depends(get_current_user),
-    start_date: Optional[datetime] = None,
-    end_date: Optional[datetime] = None,
-    limit: Optional[int] = None
-):
-    """
-    Obtiene registros para el gráfico de nivel de agua.
-    Puede filtrar por un rango de fechas o devolver los últimos 'limit' registros.
-    """
-    query = {}
-    if start_date and end_date:
-        query["ReadTime"] = {"$gte": start_date, "$lte": end_date}
-    
-    sort_order = [("ReadTime", 1)] if start_date else [("ReadTime", -1)]
-
-    cursor = sensor_collection.find(query).sort(sort_order)
-
-    if limit and not start_date:
-        cursor = cursor.limit(limit)
-
-    readings = await cursor.to_list(length=1000)
-    
-    if not start_date and readings:
-        readings.reverse()
-
-    if not readings:
-        raise HTTPException(status_code=404, detail="No hay datos para el rango seleccionado")
-
-    first_time = readings[0]["ReadTime"]
-    last_time = readings[-1]["ReadTime"]
-    data_range_seconds = (last_time - first_time).total_seconds()
-
-    time_format = "%d-%b %H:%M" if data_range_seconds <= (24 * 3600 * 2) else "%d-%b-%Y"
-
-    # *** IMPORTANTE: AJUSTA ESTE CAMPO ***
-    water_level_field = "Potassium"
-    
-    return {
-        "labels": [r["ReadTime"].strftime(time_format) for r in readings],
-        "real_level": [r.get(water_level_field, 0) for r in readings],
-        "expected_level": [r.get(water_level_field, 0) + 5 for r in readings]
-    }
-
-# NUEVO: Endpoint para recibir datos de sensores desde AWS IoT Core
-@app.post("/api/sensors/data", status_code=status.HTTP_201_CREATED, tags=["Datos de Sensores"])
-async def receive_sensor_data(data: SensorData):
-    """
-    Endpoint para recibir datos de sensores desde AWS IoT Core.
-    """
-    try:
-        # Prepara el documento para insertar en MongoDB
-        sensor_document = {
-            "reservoirId": data.reservoirId,
-            "Temperature": data.temperature,
-            "EC": data.ec,
-            "pH_Value": data.ph,
-            "ReadTime": datetime.now(timezone.utc),
-            # Agregar campos adicionales para mantener compatibilidad
-            "SensorID": f"AWS_IoT_{data.reservoirId}",
-            "Timestamp": data.timestamp or datetime.now(timezone.utc).isoformat()
-        }
-
-        # Inserta el documento en la colección 'Sensor_Data'
-        result = await sensor_collection.insert_one(sensor_document)
-        print(f"Datos del embalse '{data.reservoirId}' guardados con ID: {result.inserted_id}")
-
         return {
-            "status": "Datos recibidos y guardados exitosamente",
-            "reservoirId": data.reservoirId,
-            "insertedId": str(result.inserted_id)
+            "labels": labels,
+            sensor_type: data_map.get(sensor_type, [])
         }
-
+        
     except Exception as e:
-        print(f"Error al guardar datos de sensor: {e}")
-        raise HTTPException(
-            status_code=500, 
-            detail=f"Error interno al procesar los datos del sensor: {str(e)}"
-        )
-<<<<<<< Updated upstream
+        logger.error(f"Error obteniendo datos históricos: {e}")
+        raise HTTPException(status_code=500, detail=f"Error obteniendo datos históricos: {str(e)}")
+
+@app.get("/api/sensors/individual", tags=["Datos de Sensores"])
+async def get_individual_sensors_status(current_user: dict = Depends(get_current_user)):
+    """Estado detallado de cada sensor individual"""
+    
+    try:
+        current_time = datetime.now(timezone.utc)
+        sensors = []
+        
+        # Si no hay sensores en memoria, buscar en la base de datos
+        if not sensor_last_seen:
+            # Buscar sensores únicos en la base de datos
+            pipeline = [
+                {"$sort": {"ReadTime": -1}},
+                {"$group": {
+                    "_id": "$reservoirId", 
+                    "lastReading": {"$first": "$$ROOT"}
+                }},
+                {"$limit": 20}
+            ]
+            
+            db_sensors = await sensor_collection.aggregate(pipeline).to_list(length=None)
+            
+            for sensor_group in db_sensors:
+                reservoir_id = sensor_group["_id"]
+                latest_reading = sensor_group["lastReading"]
+                
+                # Asegurar que ambas fechas tengan zona horaria
+                last_reading_time = latest_reading["ReadTime"]
+                if last_reading_time.tzinfo is None:
+                    last_reading_time = last_reading_time.replace(tzinfo=timezone.utc)
+                
+                time_diff = (current_time - last_reading_time).total_seconds()
+                minutes_diff = time_diff / 60
+                
+                # Determinar estado basado en tiempo
+                if minutes_diff < 15:
+                    status = "online"
+                elif minutes_diff < 30:
+                    status = "warning"  
+                else:
+                    status = "offline"
+                
+                sensor_data = {
+                    "uid": reservoir_id,
+                    "last_value": {
+                        "value": round(latest_reading.get("Temperature", 0), 1),
+                        "unit": "°C",
+                        "type": "Temperatura"
+                    },
+                    "status": status,
+                    "location": f"Embalse {reservoir_id}",
+                    "last_reading": last_reading_time.isoformat(),
+                    "minutes_since_reading": int(minutes_diff)
+                }
+                
+                sensors.append(sensor_data)
+            
+            return sensors
+        
+        # Lógica para sensores activos en memoria
+        for reservoir_id, last_seen in sensor_last_seen.items():
+            time_diff = (current_time - last_seen).total_seconds()
+            minutes_diff = time_diff / 60
+            status = sensor_status.get(reservoir_id, "unknown")
+            
+            # Obtener última lectura
+            latest_reading = await sensor_collection.find_one(
+                {"reservoirId": reservoir_id}, 
+                sort=[("ReadTime", -1)]
+            )
+            
+            sensor_data = {
+                "uid": reservoir_id,
+                "last_value": {
+                    "value": round(latest_reading.get("Temperature", 0), 1) if latest_reading else 0,
+                    "unit": "°C",
+                    "type": "Temperatura"
+                },
+                "status": status,
+                "location": f"Embalse {reservoir_id}",
+                "last_reading": last_seen.isoformat(),
+                "minutes_since_reading": int(minutes_diff)
+            }
+            
+            sensors.append(sensor_data)
+        
+        return sensors
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo sensores individuales: {e}")
+        return []
 
 @app.get("/api/sensors/status", tags=["Datos de Sensores"])
 async def get_sensors_status(current_user: dict = Depends(get_current_user)):
@@ -731,9 +555,9 @@ async def get_sensor_events(
     end_time = datetime.now(timezone.utc)
     start_time = end_time - timedelta(hours=hours)
     
-    query: Dict[str, Any] = {"timestamp": {"$gte": start_time, "$lte": end_time}}
+    query = {"timestamp": {"$gte": start_time, "$lte": end_time}}
     if reservoir_id:
-        query["reservoirId"] = reservoir_id
+        query["reservoirId"] = reservoir_id # type: ignore
     
     # Buscar eventos
     events_collection = db.Sensor_Events
@@ -750,68 +574,17 @@ async def get_sensor_events(
         }
     }
 
-@app.get("/api/sensors/individual", tags=["Datos de Sensores"])
-async def get_individual_sensors_status(current_user: dict = Depends(get_current_user)):
-    """Estado detallado de cada sensor individual (actualizado)"""
+# --------------------------------------------------------------------------
+# 9. Eventos de Startup
+# --------------------------------------------------------------------------
+@app.on_event("startup")
+async def startup_event():
+    """Eventos que se ejecutan al iniciar la aplicación"""
+    logger.info("🚀 Iniciando API para Dashboard de Embalses IoT")
     
-    try:
-        current_time = datetime.now(timezone.utc)
-        sensors = []
-        
-        # ✅ CAMBIO 1: Si no hay sensores en memoria, buscar SOLO en la base de datos
-        # Buscar sensores únicos en la base de datos
-        pipeline = [
-            {"$sort": {"ReadTime": -1}},
-            {"$group": {
-                "_id": "$reservoirId", 
-                "lastReading": {"$first": "$$ROOT"}
-            }},
-            {"$limit": 20}
-        ]
-        
-        db_sensors = await sensor_collection.aggregate(pipeline).to_list(length=None)
-        
-        for sensor_group in db_sensors:
-            reservoir_id = sensor_group["_id"]
-            latest_reading = sensor_group["lastReading"]
-            
-            # ✅ ARREGLO: Asegurar que ambas fechas tengan zona horaria
-            last_reading_time = latest_reading["ReadTime"]
-            if last_reading_time.tzinfo is None:
-                last_reading_time = last_reading_time.replace(tzinfo=timezone.utc)
-            
-            time_diff = (current_time - last_reading_time).total_seconds()
-            minutes_diff = time_diff / 60
-            
-            # Determinar estado basado en tiempo
-            if minutes_diff < 15:
-                status = "online"
-            elif minutes_diff < 30:
-                status = "warning"  
-            else:
-                status = "offline"
-            
-            # ✅ CAMBIO 2: Formato más simple para la tabla
-            sensor_data = {
-                "uid": reservoir_id,  # UID del sensor
-                "last_value": {
-                    "value": round(latest_reading.get("Temperature", 0), 1),
-                    "unit": "°C",
-                    "type": "Temperatura"
-                },
-                "status": status,
-                "location": f"Embalse {reservoir_id}",
-                "last_reading": last_reading_time.isoformat(),
-                "minutes_since_reading": int(minutes_diff)
-            }
-            
-            sensors.append(sensor_data)
-        
-        return sensors
-        
-    except Exception as e:
-        logger.error(f"Error obteniendo sensores individuales: {e}")
-        # ✅ CAMBIO 3: Retornar lista vacía en lugar de error HTTP
-        return []
-=======
->>>>>>> Stashed changes
+    # Iniciar conexión IoT en un hilo separado para no bloquear la API
+    threading.Thread(target=start_iot_connection, daemon=True).start()
+    
+    # Iniciar monitoreo de sensores en background
+    asyncio.create_task(check_sensor_timeouts())
+    logger.info("⏰ Sistema de monitoreo de sensores iniciado")
