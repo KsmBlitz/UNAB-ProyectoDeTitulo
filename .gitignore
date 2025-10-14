@@ -136,3 +136,4 @@ helm-charts/values-prod.yaml
 .env.embalses
 .env.iot
 .env.sensors
+Backend/__pycache__/
