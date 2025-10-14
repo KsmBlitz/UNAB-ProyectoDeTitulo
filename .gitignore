@@ -60,3 +60,4 @@ Backend/certificates/private.pem.key
 Backend/certificates/root-CA.pem
 >>>>>>> Stashed changes
 /Backend/certificates
+Backend/__pycache__/main.cpython-312.pyc
