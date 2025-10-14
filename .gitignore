@@ -33,3 +33,4 @@ coverage
 #venv
 Backend/venv/
 Backend/.env
+Backend/__pycache__/main.cpython-312.pyc
