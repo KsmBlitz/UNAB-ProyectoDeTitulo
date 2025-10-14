@@ -6,7 +6,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from pydantic_settings import BaseSettings, SettingsConfigDict
+<<<<<<< Updated upstream
 from typing import Annotated, Optional, List, Any, Dict
+=======
+from typing import Annotated, Optional, List, Any
+>>>>>>> Stashed changes
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -54,7 +58,11 @@ class Settings(BaseSettings):
         env_file_encoding = 'utf-8'
         extra = 'ignore'
 
+<<<<<<< Updated upstream
 settings = Settings() # type: ignore
+=======
+settings = Settings()
+>>>>>>> Stashed changes
 
 # --------------------------------------------------------------------------
 # 3. Conexión a la Base de Datos
@@ -206,11 +214,14 @@ def on_iot_message_received(sensor_data: dict):
     """Callback para procesar mensajes de AWS IoT Core"""
     logger.info(f"📡 Mensaje IoT recibido: {sensor_data}")
     
+<<<<<<< Updated upstream
     # Actualizar actividad del sensor
     reservoir_id = sensor_data.get('reservoirId', 'unknown')
     if reservoir_id != 'unknown':
         asyncio.create_task(update_sensor_activity(reservoir_id))
     
+=======
+>>>>>>> Stashed changes
     # Ejecutar la función de guardado en un hilo separado
     threading.Thread(
         target=save_sensor_data_sync,
@@ -273,10 +284,13 @@ async def startup_event():
     
     # Iniciar conexión IoT en un hilo separado para no bloquear la API
     threading.Thread(target=start_iot_connection, daemon=True).start()
+<<<<<<< Updated upstream
     
     # Iniciar monitoreo de sensores en background
     asyncio.create_task(check_sensor_timeouts())
     logger.info("⏰ Sistema de monitoreo de sensores iniciado")
+=======
+>>>>>>> Stashed changes
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -289,6 +303,7 @@ async def shutdown_event():
         logger.info("✅ Conexión IoT cerrada correctamente")
 
 # --------------------------------------------------------------------------
+<<<<<<< Updated upstream
 # Sistema de Monitoreo de Sensores
 # --------------------------------------------------------------------------
 
@@ -377,6 +392,8 @@ async def save_sensor_status_event(reservoir_id: str, status: str, time_inactive
         logger.error(f"❌ Error guardando evento de sensor: {e}")
 
 # --------------------------------------------------------------------------
+=======
+>>>>>>> Stashed changes
 # 7. Endpoints de la API
 # --------------------------------------------------------------------------
 @app.get("/", tags=["Root"])
@@ -467,11 +484,19 @@ async def get_latest_metrics(current_user: dict = Depends(get_current_user)):
     if not latest_reading: 
         raise HTTPException(status_code=404, detail="No se encontraron lecturas de sensores")
     
+<<<<<<< Updated upstream
+=======
+    # ✅ Nombres corregidos para coincidir con el frontend y datos reales de MongoDB
+>>>>>>> Stashed changes
     return {
         "temperatura_agua": {
             "value": round(latest_reading.get("Temperature", 0), 1), 
             "unit": "°C", 
+<<<<<<< Updated upstream
             "changeText": "Temperatura del agua", # ✅ CAMBIO: Quitar referencia al ESP32
+=======
+            "changeText": f"ESP32: {latest_reading.get('reservoirId', 'N/A')}", 
+>>>>>>> Stashed changes
             "isPositive": True,
             "status": "normal"
         },
@@ -642,6 +667,7 @@ async def receive_sensor_data(data: SensorData):
             status_code=500, 
             detail=f"Error interno al procesar los datos del sensor: {str(e)}"
         )
+<<<<<<< Updated upstream
 
 @app.get("/api/sensors/status", tags=["Datos de Sensores"])
 async def get_sensors_status(current_user: dict = Depends(get_current_user)):
@@ -787,3 +813,5 @@ async def get_individual_sensors_status(current_user: dict = Depends(get_current
         logger.error(f"Error obteniendo sensores individuales: {e}")
         # ✅ CAMBIO 3: Retornar lista vacía en lugar de error HTTP
         return []
+=======
+>>>>>>> Stashed changes
