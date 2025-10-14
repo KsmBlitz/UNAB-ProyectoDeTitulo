@@ -33,3 +33,4 @@ coverage
 #venv
 Backend/venv/
 Backend/.env
+Backend/certificates/
