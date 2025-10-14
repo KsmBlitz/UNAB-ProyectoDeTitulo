@@ -2,6 +2,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import AuthLayout from '@/components/AuthLayout.vue';
 
 defineOptions({
   name: 'ResetPasswordView'
@@ -144,184 +145,176 @@ const handleSubmit = async () => {
 </script>
 
 <template>
-  <div class="reset-password-container">
-    <div class="reset-password-card">
-      <div class="logo">
-        <i class="pi pi-shield" style="font-size: 3rem; color: #3498db;"></i>
-        <h2>Crear Nueva Contraseña</h2>
+  <!-- ✅ USAR EL NUEVO LAYOUT BASE -->
+  <AuthLayout title="Crear Nueva Contraseña">
+    <!-- Contenido existente sin el wrapper duplicado -->
+    <div v-if="isValidating" class="validating-message">
+      <i class="pi pi-spin pi-spinner"></i>
+      <p>Validando enlace de seguridad...</p>
+    </div>
+
+    <div v-else-if="!isTokenValid" class="error-state">
+      <i class="pi pi-times-circle" style="font-size: 4rem; color: #dc3545; margin-bottom: 1rem;"></i>
+      <h3>❌ Enlace No Válido</h3>
+      <p>{{ error }}</p>
+      <div class="help-text">
+        <p><strong>Posibles causas:</strong></p>
+        <ul>
+          <li>El enlace ha expirado (válido por 1 hora)</li>
+          <li>Ya has usado este enlace</li>
+          <li>El enlace no es válido</li>
+        </ul>
+      </div>
+      <div class="action-buttons">
+        <router-link to="/forgot-password" class="retry-link">
+          <i class="pi pi-refresh"></i>
+          Solicitar nuevo enlace
+        </router-link>
+        <router-link to="/login" class="login-link">
+          <i class="pi pi-sign-in"></i>
+          Ir al login
+        </router-link>
+      </div>
+    </div>
+
+    <form v-else @submit.prevent="handleSubmit" class="reset-password-form">
+      <div class="user-info">
+        <i class="pi pi-user"></i>
+        <div>
+          <p><strong>Usuario:</strong> {{ email }}</p>
+          <p class="expires-info">
+            <i class="pi pi-clock"></i>
+            Este enlace expira en {{ expiresInMinutes }} minutos
+          </p>
+        </div>
       </div>
 
-      <!-- Estado de validación -->
-      <div v-if="isValidating" class="validating-message">
-        <i class="pi pi-spin pi-spinner"></i>
-        <p>Validando enlace de seguridad...</p>
+      <div class="instruction">
+        <h3>🔐 Crear Nueva Contraseña</h3>
+        <p>Tu nueva contraseña debe ser segura y fácil de recordar para ti.</p>
       </div>
 
-      <!-- Token inválido -->
-      <div v-else-if="!isTokenValid" class="error-state">
-        <i class="pi pi-times-circle" style="font-size: 4rem; color: #dc3545; margin-bottom: 1rem;"></i>
-        <h3>❌ Enlace No Válido</h3>
-        <p>{{ error }}</p>
-        <div class="help-text">
-          <p><strong>Posibles causas:</strong></p>
+      <div v-if="error" class="error-message">
+        <i class="pi pi-exclamation-triangle"></i>
+        {{ error }}
+      </div>
+
+      <div class="form-group">
+        <label for="newPassword">
+          <i class="pi pi-key"></i>
+          Nueva Contraseña
+        </label>
+        <div class="password-input-container">
+          <input
+            :type="showPassword ? 'text' : 'password'"
+            id="newPassword"
+            v-model="newPassword"
+            required
+            placeholder="Mínimo 8 caracteres"
+            :disabled="isLoading"
+            autocomplete="new-password"
+          >
+          <button
+            type="button"
+            class="toggle-password"
+            @click="showPassword = !showPassword"
+            :disabled="isLoading"
+          >
+            <i :class="showPassword ? 'pi pi-eye-slash' : 'pi pi-eye'"></i>
+          </button>
+        </div>
+
+        <!-- Indicador de fortaleza de contraseña -->
+        <div v-if="newPassword" class="password-strength">
+          <div class="strength-bar">
+            <div
+              class="strength-fill"
+              :style="{
+                width: getPasswordStrength().strength === 'weak' ? '33%' :
+                       getPasswordStrength().strength === 'medium' ? '66%' : '100%',
+                backgroundColor: getPasswordStrength().color
+              }"
+            ></div>
+          </div>
+          <span :style="{ color: getPasswordStrength().color }">
+            Seguridad: {{ getPasswordStrength().text }}
+          </span>
+        </div>
+
+        <div class="password-requirements">
+          <small>La contraseña debe contener:</small>
           <ul>
-            <li>El enlace ha expirado (válido por 1 hora)</li>
-            <li>Ya has usado este enlace</li>
-            <li>El enlace no es válido</li>
+            <li :class="{ valid: newPassword.length >= 8 }">
+              <i :class="newPassword.length >= 8 ? 'pi pi-check' : 'pi pi-times'"></i>
+              Al menos 8 caracteres
+            </li>
+            <li :class="{ valid: /(?=.*[a-z])/.test(newPassword) }">
+              <i :class="/(?=.*[a-z])/.test(newPassword) ? 'pi pi-check' : 'pi pi-times'"></i>
+              Una letra minúscula
+            </li>
+            <li :class="{ valid: /(?=.*[A-Z])/.test(newPassword) }">
+              <i :class="/(?=.*[A-Z])/.test(newPassword) ? 'pi pi-check' : 'pi pi-times'"></i>
+              Una letra mayúscula
+            </li>
+            <li :class="{ valid: /(?=.*\d)/.test(newPassword) }">
+              <i :class="/(?=.*\d)/.test(newPassword) ? 'pi pi-check' : 'pi pi-times'"></i>
+              Un número
+            </li>
           </ul>
         </div>
-        <div class="action-buttons">
-          <router-link to="/forgot-password" class="retry-link">
-            <i class="pi pi-refresh"></i>
-            Solicitar nuevo enlace
-          </router-link>
-          <router-link to="/login" class="login-link">
-            <i class="pi pi-sign-in"></i>
-            Ir al login
-          </router-link>
+      </div>
+
+      <div class="form-group">
+        <label for="confirmPassword">
+          <i class="pi pi-check"></i>
+          Confirmar Nueva Contraseña
+        </label>
+        <div class="password-input-container">
+          <input
+            :type="showConfirmPassword ? 'text' : 'password'"
+            id="confirmPassword"
+            v-model="confirmPassword"
+            required
+            placeholder="Repite tu nueva contraseña"
+            :disabled="isLoading"
+            autocomplete="new-password"
+          >
+          <button
+            type="button"
+            class="toggle-password"
+            @click="showConfirmPassword = !showConfirmPassword"
+            :disabled="isLoading"
+          >
+            <i :class="showConfirmPassword ? 'pi pi-eye-slash' : 'pi pi-eye'"></i>
+          </button>
+        </div>
+        <div v-if="confirmPassword" class="password-match">
+          <i :class="newPassword === confirmPassword ? 'pi pi-check' : 'pi pi-times'"></i>
+          <span :class="{ valid: newPassword === confirmPassword }">
+            {{ newPassword === confirmPassword ? 'Las contraseñas coinciden' : 'Las contraseñas no coinciden' }}
+          </span>
         </div>
       </div>
 
-      <!-- Formulario de nueva contraseña -->
-      <form v-else @submit.prevent="handleSubmit" class="reset-password-form">
-        <div class="user-info">
-          <i class="pi pi-user"></i>
-          <div>
-            <p><strong>Usuario:</strong> {{ email }}</p>
-            <p class="expires-info">
-              <i class="pi pi-clock"></i>
-              Este enlace expira en {{ expiresInMinutes }} minutos
-            </p>
-          </div>
-        </div>
+      <button type="submit" class="submit-button" :disabled="isLoading">
+        <i v-if="isLoading" class="pi pi-spin pi-spinner"></i>
+        <i v-else class="pi pi-save"></i>
+        {{ isLoading ? 'Actualizando...' : 'Actualizar Contraseña' }}
+      </button>
 
-        <div class="instruction">
-          <h3>🔐 Crear Nueva Contraseña</h3>
-          <p>Tu nueva contraseña debe ser segura y fácil de recordar para ti.</p>
-        </div>
+      <div class="security-info">
+        <i class="pi pi-info-circle"></i>
+        <p>Después de cambiar tu contraseña, será necesario que inicies sesión nuevamente.</p>
+      </div>
 
-        <div v-if="error" class="error-message">
-          <i class="pi pi-exclamation-triangle"></i>
-          {{ error }}
-        </div>
-
-        <div class="form-group">
-          <label for="newPassword">
-            <i class="pi pi-key"></i>
-            Nueva Contraseña
-          </label>
-          <div class="password-input-container">
-            <input
-              :type="showPassword ? 'text' : 'password'"
-              id="newPassword"
-              v-model="newPassword"
-              required
-              placeholder="Mínimo 8 caracteres"
-              :disabled="isLoading"
-              autocomplete="new-password"
-            >
-            <button
-              type="button"
-              class="toggle-password"
-              @click="showPassword = !showPassword"
-              :disabled="isLoading"
-            >
-              <i :class="showPassword ? 'pi pi-eye-slash' : 'pi pi-eye'"></i>
-            </button>
-          </div>
-
-          <!-- Indicador de fortaleza de contraseña -->
-          <div v-if="newPassword" class="password-strength">
-            <div class="strength-bar">
-              <div
-                class="strength-fill"
-                :style="{
-                  width: getPasswordStrength().strength === 'weak' ? '33%' :
-                         getPasswordStrength().strength === 'medium' ? '66%' : '100%',
-                  backgroundColor: getPasswordStrength().color
-                }"
-              ></div>
-            </div>
-            <span :style="{ color: getPasswordStrength().color }">
-              Seguridad: {{ getPasswordStrength().text }}
-            </span>
-          </div>
-
-          <div class="password-requirements">
-            <small>La contraseña debe contener:</small>
-            <ul>
-              <li :class="{ valid: newPassword.length >= 8 }">
-                <i :class="newPassword.length >= 8 ? 'pi pi-check' : 'pi pi-times'"></i>
-                Al menos 8 caracteres
-              </li>
-              <li :class="{ valid: /(?=.*[a-z])/.test(newPassword) }">
-                <i :class="/(?=.*[a-z])/.test(newPassword) ? 'pi pi-check' : 'pi pi-times'"></i>
-                Una letra minúscula
-              </li>
-              <li :class="{ valid: /(?=.*[A-Z])/.test(newPassword) }">
-                <i :class="/(?=.*[A-Z])/.test(newPassword) ? 'pi pi-check' : 'pi pi-times'"></i>
-                Una letra mayúscula
-              </li>
-              <li :class="{ valid: /(?=.*\d)/.test(newPassword) }">
-                <i :class="/(?=.*\d)/.test(newPassword) ? 'pi pi-check' : 'pi pi-times'"></i>
-                Un número
-              </li>
-            </ul>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label for="confirmPassword">
-            <i class="pi pi-check"></i>
-            Confirmar Nueva Contraseña
-          </label>
-          <div class="password-input-container">
-            <input
-              :type="showConfirmPassword ? 'text' : 'password'"
-              id="confirmPassword"
-              v-model="confirmPassword"
-              required
-              placeholder="Repite tu nueva contraseña"
-              :disabled="isLoading"
-              autocomplete="new-password"
-            >
-            <button
-              type="button"
-              class="toggle-password"
-              @click="showConfirmPassword = !showConfirmPassword"
-              :disabled="isLoading"
-            >
-              <i :class="showConfirmPassword ? 'pi pi-eye-slash' : 'pi pi-eye'"></i>
-            </button>
-          </div>
-          <div v-if="confirmPassword" class="password-match">
-            <i :class="newPassword === confirmPassword ? 'pi pi-check' : 'pi pi-times'"></i>
-            <span :class="{ valid: newPassword === confirmPassword }">
-              {{ newPassword === confirmPassword ? 'Las contraseñas coinciden' : 'Las contraseñas no coinciden' }}
-            </span>
-          </div>
-        </div>
-
-        <button type="submit" class="submit-button" :disabled="isLoading">
-          <i v-if="isLoading" class="pi pi-spin pi-spinner"></i>
-          <i v-else class="pi pi-save"></i>
-          {{ isLoading ? 'Actualizando...' : 'Actualizar Contraseña' }}
-        </button>
-
-        <div class="security-info">
-          <i class="pi pi-info-circle"></i>
-          <p>Después de cambiar tu contraseña, será necesario que inicies sesión nuevamente.</p>
-        </div>
-
-        <div class="form-footer">
-          <router-link to="/login" class="back-link">
-            <i class="pi pi-arrow-left"></i>
-            Cancelar y volver al login
-          </router-link>
-        </div>
-      </form>
-    </div>
-  </div>
+      <div class="form-footer">
+        <router-link to="/login" class="back-link">
+          <i class="pi pi-arrow-left"></i>
+          Cancelar y volver al login
+        </router-link>
+      </div>
+    </form>
+  </AuthLayout>
 </template>
 
 <style scoped>

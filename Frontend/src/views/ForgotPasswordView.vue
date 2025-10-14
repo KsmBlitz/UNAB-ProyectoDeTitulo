@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { RouterLink } from 'vue-router';
+import AuthLayout from '@/components/AuthLayout.vue';
 
 defineOptions({
   name: 'ForgotPasswordView'
@@ -62,91 +63,86 @@ const handleSubmit = async () => {
 </script>
 
 <template>
-  <div class="forgot-password-container">
-    <div class="forgot-password-card">
-      <div class="logo">
-        <i class="pi pi-shield" style="font-size: 3rem; color: #3498db;"></i>
-        <h2>Recuperar Contraseña</h2>
+  <!-- ✅ USAR EL NUEVO LAYOUT BASE -->
+  <AuthLayout title="Recuperar Contraseña">
+    <!-- Contenido existente sin el wrapper duplicado -->
+    <div v-if="isSuccess" class="success-message">
+      <i class="pi pi-check-circle"></i>
+      <h3>📧 Solicitud Enviada</h3>
+      <p>{{ message }}</p>
+
+      <div class="instructions">
+        <h4>📋 Próximos pasos:</h4>
+        <ol>
+          <li>Revisa tu bandeja de entrada en <strong>{{ email }}</strong></li>
+          <li>Si no encuentras el email, revisa tu carpeta de spam</li>
+          <li>Haz clic en el enlace del email para cambiar tu contraseña</li>
+          <li>El enlace expirará en 1 hora por seguridad</li>
+        </ol>
       </div>
 
-      <div v-if="isSuccess" class="success-message">
-        <i class="pi pi-check-circle"></i>
-        <h3>📧 Solicitud Enviada</h3>
-        <p>{{ message }}</p>
-
-        <div class="instructions">
-          <h4>📋 Próximos pasos:</h4>
-          <ol>
-            <li>Revisa tu bandeja de entrada en <strong>{{ email }}</strong></li>
-            <li>Si no encuentras el email, revisa tu carpeta de spam</li>
-            <li>Haz clic en el enlace del email para cambiar tu contraseña</li>
-            <li>El enlace expirará en 1 hora por seguridad</li>
-          </ol>
-        </div>
-
-        <div class="dev-info">
-          <strong>💻 Modo desarrollo:</strong> Si los emails no están configurados, revisa la consola del servidor backend para obtener el enlace directo.
-        </div>
-
-        <div class="action-buttons">
-          <RouterLink to="/login" class="back-to-login">
-            <i class="pi pi-arrow-left"></i>
-            Volver al inicio de sesión
-          </RouterLink>
-          <button @click="isSuccess = false; email = ''; message = ''" class="try-again-btn">
-            <i class="pi pi-refresh"></i>
-            Intentar con otro email
-          </button>
-        </div>
+      <div class="dev-info">
+        <strong>💻 Modo desarrollo:</strong> Si los emails no están configurados, revisa la consola del servidor backend para obtener el enlace directo.
       </div>
 
-      <form v-else @submit.prevent="handleSubmit" class="forgot-password-form">
-        <div class="instruction-box">
-          <h3>🔐 ¿Olvidaste tu contraseña?</h3>
-          <p>No te preocupes. Ingresa tu correo electrónico y te enviaremos un enlace seguro para crear una nueva contraseña.</p>
-        </div>
-
-        <div v-if="error" class="error-message">
-          <i class="pi pi-exclamation-triangle"></i>
-          {{ error }}
-        </div>
-
-        <div class="form-group">
-          <label for="email">
-            <i class="pi pi-envelope"></i>
-            Correo Electrónico
-          </label>
-          <input
-            type="email"
-            id="email"
-            v-model="email"
-            required
-            placeholder="tu@ejemplo.com"
-            :disabled="isLoading"
-            autocomplete="email"
-          >
-        </div>
-
-        <button type="submit" class="submit-button" :disabled="isLoading || !email.trim()">
-          <i v-if="isLoading" class="pi pi-spin pi-spinner"></i>
-          <i v-else class="pi pi-send"></i>
-          {{ isLoading ? 'Enviando...' : 'Enviar Enlace de Recuperación' }}
+      <div class="action-buttons">
+        <RouterLink to="/login" class="back-to-login">
+          <i class="pi pi-arrow-left"></i>
+          Volver al inicio de sesión
+        </RouterLink>
+        <button @click="isSuccess = false; email = ''; message = ''" class="try-again-btn">
+          <i class="pi pi-refresh"></i>
+          Intentar con otro email
         </button>
-
-        <div class="security-note">
-          <i class="pi pi-info-circle"></i>
-          <small>Por seguridad, el enlace expirará en 1 hora y solo funcionará una vez.</small>
-        </div>
-
-        <div class="form-footer">
-          <RouterLink to="/login" class="back-link">
-            <i class="pi pi-arrow-left"></i>
-            Volver al inicio de sesión
-          </RouterLink>
-        </div>
-      </form>
+      </div>
     </div>
-  </div>
+
+    <form v-else @submit.prevent="handleSubmit" class="forgot-password-form">
+      <div class="instruction-box">
+        <h3>🔐 ¿Olvidaste tu contraseña?</h3>
+        <p>No te preocupes. Ingresa tu correo electrónico y te enviaremos un enlace seguro para crear una nueva contraseña.</p>
+      </div>
+
+      <div v-if="error" class="error-message">
+        <i class="pi pi-exclamation-triangle"></i>
+        {{ error }}
+      </div>
+
+      <div class="form-group">
+        <label for="email">
+          <i class="pi pi-envelope"></i>
+          Correo Electrónico
+        </label>
+        <input
+          type="email"
+          id="email"
+          v-model="email"
+          required
+          placeholder="tu@ejemplo.com"
+          :disabled="isLoading"
+          autocomplete="email"
+        >
+      </div>
+
+      <button type="submit" class="submit-button" :disabled="isLoading || !email.trim()">
+        <i v-if="isLoading" class="pi pi-spin pi-spinner"></i>
+        <i v-else class="pi pi-send"></i>
+        {{ isLoading ? 'Enviando...' : 'Enviar Enlace de Recuperación' }}
+      </button>
+
+      <div class="security-note">
+        <i class="pi pi-info-circle"></i>
+        <small>Por seguridad, el enlace expirará en 1 hora y solo funcionará una vez.</small>
+      </div>
+
+      <div class="form-footer">
+        <RouterLink to="/login" class="back-link">
+          <i class="pi pi-arrow-left"></i>
+          Volver al inicio de sesión
+        </RouterLink>
+      </div>
+    </form>
+  </AuthLayout>
 </template>
 
 <style scoped>

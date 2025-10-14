@@ -3,6 +3,7 @@ import { ref } from 'vue';
 import { useRouter, RouterLink } from 'vue-router';
 import { jwtDecode } from 'jwt-decode';
 import { authStore } from '@/auth/store';
+import AuthLayout from '@/components/AuthLayout.vue';  
 
 defineOptions({
   name: 'LoginView'
@@ -72,60 +73,65 @@ const handleLogin = async () => {
 </script>
 
 <template>
-  <div class="login-container">
-    <div class="login-card">
-      <div class="logo">
-        <i class="pi pi-shield" style="font-size: 3rem; color: #3498db;"></i>
-        <h2>Embalses IoT</h2>
-      </div>
-      <form @submit.prevent="handleLogin" class="login-form">
-        <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
-        <div class="form-group">
-          <label for="email">Correo Electrónico</label>
-          <input type="email" id="email" v-model="email" required placeholder="admin@embalses.cl">
-        </div>
-        <div class="form-group">
-          <label for="password">Contraseña</label>
-          <input type="password" id="password" v-model="password" required placeholder="********">
-        </div>
-        <button type="submit" class="login-button">Iniciar Sesión</button>
+  <!-- ✅ USAR EL NUEVO LAYOUT BASE -->
+  <AuthLayout title="Embalses IoT" subtitle="Sistema de monitoreo">
+    <form @submit.prevent="handleLogin" class="login-form">
+      <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
 
-        <!-- Enlace para recuperar contraseña -->
-        <div class="form-footer">
-          <RouterLink to="/forgot-password" class="forgot-password-link">
-            ¿Olvidaste tu contraseña?
-          </RouterLink>
-        </div>
-      </form>
-    </div>
-  </div>
+      <div class="form-group">
+        <label for="email">Correo Electrónico</label>
+        <input type="email" id="email" v-model="email" required placeholder="admin@embalses.cl">
+      </div>
+
+      <div class="form-group">
+        <label for="password">Contraseña</label>
+        <input type="password" id="password" v-model="password" required placeholder="********">
+      </div>
+
+      <button type="submit" class="login-button">Iniciar Sesión</button>
+
+      <div class="form-footer">
+        <RouterLink to="/forgot-password" class="forgot-password-link">
+          ¿Olvidaste tu contraseña?
+        </RouterLink>
+      </div>
+    </form>
+  </AuthLayout>
 </template>
 
 <style scoped>
+/* Solo estilos específicos del formulario */
+.login-form { display: flex; flex-direction: column; }
+.form-group { margin-bottom: 1.5rem; text-align: left; }
+.form-group label { display: block; margin-bottom: 0.5rem; font-weight: 600; color: #34495e; }
+.form-group input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  font-size: 1rem;
+  box-sizing: border-box;
+}
+.login-button {
+  width: 100%;
+  padding: 0.85rem 1.5rem;
+  background-color: #3498db;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.login-button:hover { background-color: #2980b9; }
 .error-message {
   background-color: #f8d7da;
   color: #721c24;
-  border: 1px solid #f5c6cb;
-  padding: 0.75rem 1.25rem;
+  padding: 0.75rem;
+  border-radius: 4px;
   margin-bottom: 1rem;
-  border-radius: 0.25rem;
-  text-align: center;
 }
-.login-container{display:flex;justify-content:center;align-items:center;min-height:100vh;background-color:#f4f6f9;padding:1rem}.login-card{background-color:#fff;padding:2.5rem 3rem;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);width:100%;max-width:400px;text-align:center}.logo{margin-bottom:2rem}.logo h2{margin:.5rem 0 0;color:#2c3e50}.login-form{display:flex;flex-direction:column}.form-group{margin-bottom:1.5rem;text-align:left}.form-group label{display:block;margin-bottom:.5rem;font-weight:600;color:#34495e}.form-group input{width:100%;padding:.75rem 1rem;border:1px solid #ced4da;border-radius:6px;font-size:1rem;box-sizing:border-box}.login-button{width:100%;padding:.85rem 1.5rem;background-color:#3498db;color:#fff;border:none;border-radius:6px;font-size:1.1rem;font-weight:700;cursor:pointer;transition:background-color .2s ease-in-out;margin-top:1rem}.login-button:hover{background-color:#2980b9}
-
-/* Estilos para el enlace de recuperación */
-.form-footer {
-  margin-top: 1.5rem;
-  text-align: center;
-}
-
-.forgot-password-link {
-  color: #3498db;
-  text-decoration: none;
-  font-size: 0.9rem;
-}
-
-.forgot-password-link:hover {
-  text-decoration: underline;
-}
+.form-footer { margin-top: 1.5rem; text-align: center; }
+.forgot-password-link { color: #3498db; text-decoration: none; font-size: 0.9rem; }
+.forgot-password-link:hover { text-decoration: underline; }
 </style>
