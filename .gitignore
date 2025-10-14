@@ -33,4 +33,22 @@ coverage
 #venv
 Backend/venv/
 Backend/.env
+
+# Backend/.gitignore (o en el .gitignore principal)
+
+# Certificados AWS IoT Core (SEGURIDAD)
 Backend/certificates/
+*.pem
+*.crt
+*.key
+*.p12
+*.pfx
+
+# Variables de entorno
+Backend/.env
+
+# Logs y cache
+Backend/__pycache__/
+Backend/venv/
+Backend/logs/
+Backend/*.log

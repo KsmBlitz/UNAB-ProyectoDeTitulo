@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Annotated, Optional, List, Any
+from typing import Annotated, Optional, List, Any, Dict
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -54,7 +54,7 @@ class Settings(BaseSettings):
         env_file_encoding = 'utf-8'
         extra = 'ignore'
 
-settings = Settings()
+settings = Settings() # type: ignore
 
 # --------------------------------------------------------------------------
 # 3. Conexión a la Base de Datos
@@ -206,6 +206,11 @@ def on_iot_message_received(sensor_data: dict):
     """Callback para procesar mensajes de AWS IoT Core"""
     logger.info(f"📡 Mensaje IoT recibido: {sensor_data}")
     
+    # Actualizar actividad del sensor
+    reservoir_id = sensor_data.get('reservoirId', 'unknown')
+    if reservoir_id != 'unknown':
+        asyncio.create_task(update_sensor_activity(reservoir_id))
+    
     # Ejecutar la función de guardado en un hilo separado
     threading.Thread(
         target=save_sensor_data_sync,
@@ -268,6 +273,10 @@ async def startup_event():
     
     # Iniciar conexión IoT en un hilo separado para no bloquear la API
     threading.Thread(target=start_iot_connection, daemon=True).start()
+    
+    # Iniciar monitoreo de sensores en background
+    asyncio.create_task(check_sensor_timeouts())
+    logger.info("⏰ Sistema de monitoreo de sensores iniciado")
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -278,6 +287,94 @@ async def shutdown_event():
     if iot_client:
         iot_client.disconnect()
         logger.info("✅ Conexión IoT cerrada correctamente")
+
+# --------------------------------------------------------------------------
+# Sistema de Monitoreo de Sensores
+# --------------------------------------------------------------------------
+
+# Registro de última actividad de sensores
+sensor_last_seen: Dict[str, datetime] = {}
+sensor_status: Dict[str, str] = {}  # "online", "warning", "offline"
+
+# Configuración de timeouts (en segundos)
+SENSOR_WARNING_TIMEOUT = 15 * 60  # 15 minutos = warning
+SENSOR_OFFLINE_TIMEOUT = 30 * 60  # 30 minutos = offline
+SENSOR_CHECK_INTERVAL = 60        # Revisar cada 60 segundos
+
+async def update_sensor_activity(reservoir_id: str):
+    """Actualiza la última actividad de un sensor"""
+    global sensor_last_seen, sensor_status
+    
+    current_time = datetime.now(timezone.utc)
+    sensor_last_seen[reservoir_id] = current_time
+    
+    # Si estaba offline/warning y ahora recibió datos, marcarlo como online
+    if sensor_status.get(reservoir_id) != "online":
+        sensor_status[reservoir_id] = "online"
+        logger.info(f"🟢 Sensor {reservoir_id} recuperado - Estado: ONLINE")
+
+async def check_sensor_timeouts():
+    """Tarea en background que verifica timeouts de sensores"""
+    global sensor_last_seen, sensor_status
+    
+    while True:
+        try:
+            current_time = datetime.now(timezone.utc)
+            
+            for reservoir_id, last_seen in list(sensor_last_seen.items()):
+                time_since_last_seen = (current_time - last_seen).total_seconds()
+                current_status = sensor_status.get(reservoir_id, "unknown")
+                
+                new_status = None
+                
+                if time_since_last_seen > SENSOR_OFFLINE_TIMEOUT:
+                    # 30+ minutos sin datos = OFFLINE
+                    if current_status != "offline":
+                        new_status = "offline"
+                        logger.warning(f"🔴 Sensor {reservoir_id} DESCONECTADO - Sin datos por {int(time_since_last_seen/60)} minutos")
+                        
+                elif time_since_last_seen > SENSOR_WARNING_TIMEOUT:
+                    # 15-30 minutos sin datos = WARNING
+                    if current_status not in ["offline", "warning"]:
+                        new_status = "warning"
+                        logger.warning(f"🟡 Sensor {reservoir_id} en ADVERTENCIA - Sin datos por {int(time_since_last_seen/60)} minutos")
+                
+                # Actualizar estado si cambió
+                if new_status:
+                    sensor_status[reservoir_id] = new_status
+                    
+                    # Guardar evento en base de datos
+                    await save_sensor_status_event(reservoir_id, new_status, time_since_last_seen)
+            
+            # Esperar antes del próximo chequeo
+            await asyncio.sleep(SENSOR_CHECK_INTERVAL)
+            
+        except Exception as e:
+            logger.error(f"❌ Error en monitoreo de sensores: {e}")
+            await asyncio.sleep(SENSOR_CHECK_INTERVAL)
+
+async def save_sensor_status_event(reservoir_id: str, status: str, time_inactive: float):
+    """Guarda un evento de cambio de estado del sensor"""
+    try:
+        # Crear colección de eventos si no existe
+        events_collection = db.Sensor_Events
+        
+        event_document = {
+            "reservoirId": reservoir_id,
+            "sensorId": f"AWS_IoT_{reservoir_id}",
+            "event_type": "status_change",
+            "new_status": status,
+            "previous_status": sensor_status.get(reservoir_id, "unknown"),
+            "time_inactive_minutes": int(time_inactive / 60),
+            "timestamp": datetime.now(timezone.utc),
+            "message": f"Sensor {status} - Sin actividad por {int(time_inactive/60)} minutos" if status != "online" else "Sensor recuperado"
+        }
+        
+        result = await events_collection.insert_one(event_document)
+        logger.info(f"📝 Evento de sensor guardado: {reservoir_id} -> {status}")
+        
+    except Exception as e:
+        logger.error(f"❌ Error guardando evento de sensor: {e}")
 
 # --------------------------------------------------------------------------
 # 7. Endpoints de la API
@@ -370,12 +467,11 @@ async def get_latest_metrics(current_user: dict = Depends(get_current_user)):
     if not latest_reading: 
         raise HTTPException(status_code=404, detail="No se encontraron lecturas de sensores")
     
-    # ✅ Nombres corregidos para coincidir con el frontend y datos reales de MongoDB
     return {
         "temperatura_agua": {
             "value": round(latest_reading.get("Temperature", 0), 1), 
             "unit": "°C", 
-            "changeText": f"ESP32: {latest_reading.get('reservoirId', 'N/A')}", 
+            "changeText": "Temperatura del agua", # ✅ CAMBIO: Quitar referencia al ESP32
             "isPositive": True,
             "status": "normal"
         },
@@ -546,3 +642,148 @@ async def receive_sensor_data(data: SensorData):
             status_code=500, 
             detail=f"Error interno al procesar los datos del sensor: {str(e)}"
         )
+
+@app.get("/api/sensors/status", tags=["Datos de Sensores"])
+async def get_sensors_status(current_user: dict = Depends(get_current_user)):
+    """Obtiene el estado actual de todos los sensores"""
+    
+    current_time = datetime.now(timezone.utc)
+    sensors_info = []
+    
+    for reservoir_id, last_seen in sensor_last_seen.items():
+        time_since_last_seen = (current_time - last_seen).total_seconds()
+        status = sensor_status.get(reservoir_id, "unknown")
+        
+        # Obtener última lectura de datos del sensor
+        latest_reading = await sensor_collection.find_one(
+            {"reservoirId": reservoir_id}, 
+            sort=[("ReadTime", -1)]
+        )
+        
+        sensor_info = {
+            "reservoir_id": reservoir_id,
+            "sensor_id": f"AWS_IoT_{reservoir_id}",
+            "status": status,
+            "last_seen": last_seen.isoformat(),
+            "minutes_since_last_data": int(time_since_last_seen / 60),
+            "last_values": {
+                "temperature": latest_reading.get("Temperature", 0) if latest_reading else 0,
+                "ph": latest_reading.get("pH_Value", 7.0) if latest_reading else 7.0,
+                "ec": latest_reading.get("EC", 0) if latest_reading else 0,
+                "water_level": latest_reading.get("Water_Level", 0) if latest_reading else 0
+            } if latest_reading else None
+        }
+        
+        sensors_info.append(sensor_info)
+    
+    # Estadísticas resumidas
+    total_sensors = len(sensors_info)
+    online_count = sum(1 for s in sensors_info if s["status"] == "online")
+    warning_count = sum(1 for s in sensors_info if s["status"] == "warning")
+    offline_count = sum(1 for s in sensors_info if s["status"] == "offline")
+    
+    return {
+        "summary": {
+            "total": total_sensors,
+            "online": online_count,
+            "warning": warning_count,
+            "offline": offline_count
+        },
+        "sensors": sensors_info,
+        "timestamp": current_time.isoformat()
+    }
+
+@app.get("/api/sensors/events", tags=["Datos de Sensores"])
+async def get_sensor_events(
+    reservoir_id: Optional[str] = None,
+    hours: int = 24,
+    current_user: dict = Depends(get_current_user)
+):
+    """Obtiene eventos de sensores (conexiones/desconexiones)"""
+    
+    # Filtros de consulta
+    end_time = datetime.now(timezone.utc)
+    start_time = end_time - timedelta(hours=hours)
+    
+    query: Dict[str, Any] = {"timestamp": {"$gte": start_time, "$lte": end_time}}
+    if reservoir_id:
+        query["reservoirId"] = reservoir_id
+    
+    # Buscar eventos
+    events_collection = db.Sensor_Events
+    events_cursor = events_collection.find(query).sort("timestamp", -1).limit(100)
+    events = await events_cursor.to_list(length=100)
+    
+    return {
+        "events": events,
+        "filters": {
+            "reservoir_id": reservoir_id,
+            "hours": hours,
+            "start_time": start_time.isoformat(),
+            "end_time": end_time.isoformat()
+        }
+    }
+
+@app.get("/api/sensors/individual", tags=["Datos de Sensores"])
+async def get_individual_sensors_status(current_user: dict = Depends(get_current_user)):
+    """Estado detallado de cada sensor individual (actualizado)"""
+    
+    try:
+        current_time = datetime.now(timezone.utc)
+        sensors = []
+        
+        # ✅ CAMBIO 1: Si no hay sensores en memoria, buscar SOLO en la base de datos
+        # Buscar sensores únicos en la base de datos
+        pipeline = [
+            {"$sort": {"ReadTime": -1}},
+            {"$group": {
+                "_id": "$reservoirId", 
+                "lastReading": {"$first": "$$ROOT"}
+            }},
+            {"$limit": 20}
+        ]
+        
+        db_sensors = await sensor_collection.aggregate(pipeline).to_list(length=None)
+        
+        for sensor_group in db_sensors:
+            reservoir_id = sensor_group["_id"]
+            latest_reading = sensor_group["lastReading"]
+            
+            # ✅ ARREGLO: Asegurar que ambas fechas tengan zona horaria
+            last_reading_time = latest_reading["ReadTime"]
+            if last_reading_time.tzinfo is None:
+                last_reading_time = last_reading_time.replace(tzinfo=timezone.utc)
+            
+            time_diff = (current_time - last_reading_time).total_seconds()
+            minutes_diff = time_diff / 60
+            
+            # Determinar estado basado en tiempo
+            if minutes_diff < 15:
+                status = "online"
+            elif minutes_diff < 30:
+                status = "warning"  
+            else:
+                status = "offline"
+            
+            # ✅ CAMBIO 2: Formato más simple para la tabla
+            sensor_data = {
+                "uid": reservoir_id,  # UID del sensor
+                "last_value": {
+                    "value": round(latest_reading.get("Temperature", 0), 1),
+                    "unit": "°C",
+                    "type": "Temperatura"
+                },
+                "status": status,
+                "location": f"Embalse {reservoir_id}",
+                "last_reading": last_reading_time.isoformat(),
+                "minutes_since_reading": int(minutes_diff)
+            }
+            
+            sensors.append(sensor_data)
+        
+        return sensors
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo sensores individuales: {e}")
+        # ✅ CAMBIO 3: Retornar lista vacía en lugar de error HTTP
+        return []

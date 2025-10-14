@@ -52,7 +52,8 @@ const iconClass = computed(() => {
     <div class="card-body">
       <div class="value-section">
         <span class="value">{{ value }}</span>
-        <span class="unit">{{ unit }}</span>
+        <!-- ✅ CAMBIO: Asegurar que la unidad se muestre siempre en la misma línea -->
+        <span class="unit">{{ unit || '' }}</span>
       </div>
     </div>
 
@@ -72,6 +73,10 @@ const iconClass = computed(() => {
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
+  /* ✅ CAMBIO: Altura mínima para que todos los cards tengan el mismo tamaño */
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
 }
 
 .metric-card:hover {
@@ -110,8 +115,10 @@ const iconClass = computed(() => {
 
 .title {
   font-size: 0.95rem;
-  color: #6c757d;
   font-weight: 600;
+  color: #6c757d;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .status-indicator {
@@ -131,6 +138,10 @@ const iconClass = computed(() => {
 }
 
 .card-body {
+  /* ✅ CAMBIO: Flex-grow para que ocupe el espacio disponible */
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
   margin: 1.5rem 0;
 }
 
@@ -138,6 +149,7 @@ const iconClass = computed(() => {
   display: flex;
   align-items: baseline;
   gap: 0.5rem;
+  width: 100%;
 }
 
 .value {
@@ -145,17 +157,23 @@ const iconClass = computed(() => {
   font-weight: 700;
   color: #2c3e50;
   line-height: 1;
+  /* ✅ CAMBIO: Asegurar que el número no se desplace */
+  white-space: nowrap;
 }
 
 .unit {
   font-size: 1.2rem;
   font-weight: 500;
   color: #6c757d;
+  /* ✅ CAMBIO: Altura mínima para unidades vacías */
+  min-height: 1.2rem;
+  display: inline-block;
 }
 
 .card-footer {
   border-top: 1px solid #f8f9fa;
   padding-top: 1rem;
+  margin-top: auto; /* ✅ CAMBIO: Footer siempre en la parte inferior */
 }
 
 .change-text {
@@ -168,6 +186,7 @@ const iconClass = computed(() => {
 @media (max-width: 768px) {
   .metric-card {
     padding: 1rem;
+    min-height: 160px; /* ✅ Altura mínima reducida en móviles */
   }
 
   .value {

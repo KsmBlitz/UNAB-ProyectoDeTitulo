@@ -1,8 +1,9 @@
+<!-- eslint-disable @typescript-eslint/no-explicit-any -->
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import MetricCard from '@/components/MetricCard.vue';
 import SensorsTable from '@/components/SensorsTable.vue';
-import HistoricalChart from '@/components/HistoricalChart.vue';
+import HistoricalChartGrid from '@/components/HistoricalChartGrid.vue'; // ✅ CORRECTO
 
 defineOptions({
   name: 'DashboardHomeView'
@@ -28,14 +29,63 @@ const metrics = ref<Metrics | null>(null);
 const errorMetrics = ref<string | null>(null);
 const isLoadingMetrics = ref(true);
 
+// ✅ CAMBIO: Referencias a componentes hijos
+const sensorsTableRef = ref<InstanceType<typeof SensorsTable> | null>(null);
+const chartsGridRef = ref<InstanceType<typeof HistoricalChartGrid> | null>(null);
+
+// ✅ CAMBIO: Control de auto-refresh
+const isAutoRefreshEnabled = ref(true);
+let refreshInterval: number | null = null;
+
 onMounted(async () => {
   await fetchMetrics();
-  // Auto-refresh cada 30 segundos
-  setInterval(fetchMetrics, 30000);
+  startAutoRefresh();
 });
 
+// ✅ CAMBIO: Función de refresh inteligente
+async function smartRefresh() {
+  // Solo actualizar métricas y tabla de sensores, NO los gráficos
+  await Promise.all([
+    fetchMetrics(),
+    (sensorsTableRef.value as any)?.fetchSensorsStatus()
+  ]);
+}
+
+// ✅ CAMBIO: Función de refresh completo (manual)
+async function fullRefresh() {
+  await Promise.all([
+    fetchMetrics(),
+    (sensorsTableRef.value as any)?.fetchSensorsStatus(),
+    (chartsGridRef.value as any)?.refreshAllCharts()
+  ]);
+}
+
+function startAutoRefresh() {
+  if (refreshInterval) clearInterval(refreshInterval);
+
+  if (isAutoRefreshEnabled.value) {
+    // Auto-refresh cada 30 segundos (solo métricas y sensores)
+    refreshInterval = setInterval(smartRefresh, 30000);
+  }
+}
+
+function toggleAutoRefresh() {
+  isAutoRefreshEnabled.value = !isAutoRefreshEnabled.value;
+  if (isAutoRefreshEnabled.value) {
+    startAutoRefresh();
+  } else if (refreshInterval) {
+    clearInterval(refreshInterval);
+    refreshInterval = null;
+  }
+}
+
 async function fetchMetrics() {
-  isLoadingMetrics.value = true;
+  // ✅ CAMBIO: No cambiar isLoadingMetrics si ya hay datos (para evitar parpadeo)
+  const shouldShowLoading = !metrics.value;
+  if (shouldShowLoading) {
+    isLoadingMetrics.value = true;
+  }
+
   errorMetrics.value = null;
 
   const token = localStorage.getItem('userToken');
@@ -70,27 +120,38 @@ async function fetchMetrics() {
       errorMetrics.value = "Error al cargar las métricas. Intenta actualizar la página.";
     }
   } finally {
-    isLoadingMetrics.value = false;
+    if (shouldShowLoading) {
+      isLoadingMetrics.value = false;
+    }
   }
-}
-
-function refreshAll() {
-  fetchMetrics();
 }
 </script>
 
 <template>
   <div class="dashboard-content">
-    <!-- Header -->
+    <!-- Header con controles mejorados -->
     <header class="dashboard-header">
       <div class="header-info">
         <h1>Monitoreo del Embalse</h1>
         <p>Sistema de control de calidad del agua</p>
       </div>
       <div class="header-actions">
-        <button @click="refreshAll" class="refresh-btn">
+        <!-- ✅ CAMBIO: Indicador de auto-refresh -->
+        <div class="auto-refresh-indicator">
+          <button
+            @click="toggleAutoRefresh"
+            class="auto-refresh-btn"
+            :class="{ active: isAutoRefreshEnabled }"
+          >
+            <i class="pi" :class="isAutoRefreshEnabled ? 'pi-pause' : 'pi-play'"></i>
+            <span>{{ isAutoRefreshEnabled ? 'Pausar' : 'Reanudar' }}</span>
+          </button>
+        </div>
+
+        <!-- ✅ CAMBIO: Botón de refresh completo -->
+        <button @click="fullRefresh" class="refresh-btn">
           <i class="pi pi-refresh"></i>
-          Actualizar
+          Actualizar Todo
         </button>
       </div>
     </header>
@@ -100,6 +161,11 @@ function refreshAll() {
       <h2 class="section-title">
         <i class="pi pi-gauge"></i>
         Últimas Mediciones
+        <!-- ✅ CAMBIO: Indicador de actualización en tiempo real -->
+        <span v-if="isAutoRefreshEnabled" class="live-indicator">
+          <i class="pi pi-circle-fill"></i>
+          EN VIVO
+        </span>
       </h2>
 
       <div v-if="errorMetrics" class="error-message">
@@ -159,26 +225,22 @@ function refreshAll() {
       </div>
     </section>
 
-    <!-- 2. AGREGAR: Gráfico histórico -->
+    <!-- ✅ CAMBIO: 2. Grid de gráficos históricos (4 gráficos) -->
     <section class="charts-section">
       <h2 class="section-title">
         <i class="pi pi-chart-line"></i>
-        Tendencia Histórica
+        Tendencia Histórica por Parámetro
       </h2>
-      <HistoricalChart
-        title="Mediciones Históricas"
-        sensorType="all"
-        :timeRange="24"
-      />
+      <HistoricalChartGrid ref="chartsGridRef" />
     </section>
 
-    <!-- 3. Tabla de sensores -->
+    <!-- 3. Tabla de sensores detallada -->
     <section class="sensors-section">
       <h2 class="section-title">
         <i class="pi pi-microchip"></i>
         Estado de Sensores IoT
       </h2>
-      <SensorsTable />
+      <SensorsTable ref="sensorsTableRef" />
     </section>
   </div>
 </template>
@@ -193,28 +255,60 @@ function refreshAll() {
 .dashboard-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   margin-bottom: 2rem;
-  padding-bottom: 1.5rem;
-  border-bottom: 2px solid #e9ecef;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #f8f9fa;
 }
 
 .header-info h1 {
-  font-size: 2.25rem;
-  font-weight: 700;
   margin: 0 0 0.5rem 0;
+  font-size: 2rem;
+  font-weight: 700;
   color: #2c3e50;
 }
 
 .header-info p {
-  font-size: 1.1rem;
-  color: #6c757d;
   margin: 0;
+  color: #6c757d;
+  font-size: 1.1rem;
 }
 
 .header-actions {
   display: flex;
   gap: 1rem;
+  align-items: center;
+}
+
+/* ✅ NUEVO: Estilos para auto-refresh */
+.auto-refresh-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.auto-refresh-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: #f8f9fa;
+  color: #6c757d;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.auto-refresh-btn.active {
+  background-color: #28a745;
+  color: white;
+  border-color: #28a745;
+}
+
+.auto-refresh-btn:hover {
+  transform: translateY(-1px);
 }
 
 .refresh-btn {
@@ -222,7 +316,7 @@ function refreshAll() {
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1.5rem;
-  background: linear-gradient(135deg, #3498db, #2980b9);
+  background-color: #3498db;
   color: white;
   border: none;
   border-radius: 8px;
@@ -235,6 +329,31 @@ function refreshAll() {
 .refresh-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 16px rgba(52, 152, 219, 0.3);
+}
+
+/* ✅ NUEVO: Indicador en vivo */
+.live-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: 1rem;
+  padding: 0.25rem 0.75rem;
+  background-color: rgba(40, 167, 69, 0.1);
+  color: #28a745;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.live-indicator i {
+  font-size: 0.5rem;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
 
 .metrics-section, .sensors-section, .charts-section {
@@ -276,15 +395,14 @@ function refreshAll() {
   border-radius: 12px;
   overflow: hidden;
   position: relative;
-  background-color: #f8f9fa;
 }
 
 .loading-shimmer {
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, #f8f9fa 25%, #e9ecef 50%, #f8f9fa 75%);
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
   background-size: 200% 100%;
-  animation: shimmer 2s infinite;
+  animation: shimmer 1.5s infinite;
 }
 
 @keyframes shimmer {
@@ -295,59 +413,42 @@ function refreshAll() {
 .error-message {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 1rem;
-  background-color: #f8d7da;
-  border: 1px solid #f5c6cb;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  background-color: #fff3cd;
+  border: 1px solid #ffeaa7;
   border-radius: 8px;
-  color: #721c24;
+  color: #856404;
 }
 
 .retry-btn {
-  padding: 0.25rem 0.75rem;
-  background-color: #dc3545;
-  color: white;
+  padding: 0.5rem 1rem;
+  background-color: #ffc107;
+  color: #212529;
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-weight: 500;
+  margin-left: auto;
 }
 
 .retry-btn:hover {
-  background-color: #c82333;
+  background-color: #e0a800;
 }
 
-/* Responsive Design */
-@media (max-width: 1200px) {
-  .dashboard-content {
-    padding: 1rem;
-  }
-}
-
+/* Responsive */
 @media (max-width: 768px) {
-  .dashboard-header {
-    flex-direction: column;
-    gap: 1rem;
-    align-items: stretch;
-  }
-
-  .header-info h1 {
-    font-size: 1.8rem;
-  }
-
-  .metrics-grid {
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 1rem;
-  }
-}
-
-@media (max-width: 576px) {
   .dashboard-content {
     padding: 0.75rem;
   }
 
   .header-info h1 {
     font-size: 1.5rem;
+  }
+
+  .header-actions {
+    flex-direction: column;
+    gap: 0.5rem;
   }
 
   .metrics-grid {
