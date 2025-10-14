@@ -11,6 +11,7 @@ import {
   Title,
   Tooltip,
   Legend,
+  Filler, // ✅ AGREGAR ESTE IMPORT
   type ChartData
 } from 'chart.js';
 
@@ -18,7 +19,8 @@ defineOptions({
   name: 'HistoricalChart'
 });
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
+// ✅ REGISTRAR EL PLUGIN FILLER
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
 const props = defineProps<{
   title?: string;

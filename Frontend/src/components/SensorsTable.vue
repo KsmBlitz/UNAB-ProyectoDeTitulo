@@ -29,13 +29,25 @@ const fetchSensorsStatus = async () => {
 
   const token = localStorage.getItem('userToken');
 
+  if (!token) {
+    error.value = 'No hay token de autenticación';
+    isLoading.value = false;
+    return;
+  }
+
   try {
     const response = await fetch('http://127.0.0.1:8000/api/sensors/individual', {
       headers: { 'Authorization': `Bearer ${token}` }
     });
 
     if (!response.ok) {
-      throw new Error('Error al cargar estado de sensores');
+      if (response.status === 401) {
+        // Token expirado o inválido
+        localStorage.removeItem('userToken');
+        window.location.href = '/login';
+        return;
+      }
+      throw new Error(`Error ${response.status}: ${response.statusText}`);
     }
 
     const sensorsData = await response.json();
@@ -52,7 +64,12 @@ const fetchSensorsStatus = async () => {
 
   } catch (err) {
     console.error('Error al cargar sensores:', err);
-    error.value = 'No se pudieron cargar los datos de sensores.';
+
+    if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
+      error.value = 'No se puede conectar al servidor. Verifica que el backend esté ejecutándose.';
+    } else {
+      error.value = err instanceof Error ? err.message : 'Error desconocido al cargar sensores.';
+    }
   } finally {
     isLoading.value = false;
   }

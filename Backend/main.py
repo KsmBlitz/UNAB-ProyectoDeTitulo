@@ -314,6 +314,11 @@ async def delete_user(user_id: str, admin_user: dict = Depends(get_current_admin
     if result.deleted_count == 0: raise HTTPException(status_code=404, detail="No se encontró el usuario a eliminar")
     return
 
+@app.get("/api/users/me", response_model=UserPublic, tags=["Usuarios"])
+async def get_current_user_info(current_user: dict = Depends(get_current_user)):
+    """Obtiene información del usuario actual"""
+    return UserPublic(**current_user)
+
 @app.get("/api/metrics/latest", tags=["Datos de Sensores"])
 async def get_latest_metrics(current_user: dict = Depends(get_current_user)):
     latest_reading = await sensor_collection.find_one({}, sort=[("ReadTime", -1)])
