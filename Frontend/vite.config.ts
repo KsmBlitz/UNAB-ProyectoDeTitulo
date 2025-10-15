@@ -1,10 +1,8 @@
 import { fileURLToPath, URL } from 'node:url'
-
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [
     vue(),
@@ -15,4 +13,13 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     },
   },
+  // ✅ CONFIGURACIÓN SIMPLE PARA LOCALHOST
+  server: {
+    host: '127.0.0.1',  // Solo localhost
+    port: 5173,
+  },
+  preview: {
+    host: '127.0.0.1',
+    port: 4173,
+  }
 })

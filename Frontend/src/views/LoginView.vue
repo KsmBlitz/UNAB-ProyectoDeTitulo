@@ -3,7 +3,8 @@ import { ref } from 'vue';
 import { useRouter, RouterLink } from 'vue-router';
 import { jwtDecode } from 'jwt-decode';
 import { authStore } from '@/auth/store';
-import AuthLayout from '@/components/AuthLayout.vue';  
+import AuthLayout from '@/components/AuthLayout.vue';
+import { API_BASE_URL } from '@/config/api';  // ✅ AGREGAR IMPORT
 
 defineOptions({
   name: 'LoginView'
@@ -22,7 +23,7 @@ const handleLogin = async () => {
   formData.append('password', password.value);
 
   try {
-    const response = await fetch('http://127.0.0.1:8000/api/token', {
+    const response = await fetch(`${API_BASE_URL}/api/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: formData,
@@ -36,8 +37,7 @@ const handleLogin = async () => {
     const data = await response.json();
     localStorage.setItem('userToken', data.access_token);
 
-    // Obtener datos completos del usuario
-    const userResponse = await fetch('http://127.0.0.1:8000/api/users/me', {
+    const userResponse = await fetch(`${API_BASE_URL}/api/users/me`, {
       headers: {
         'Authorization': `Bearer ${data.access_token}`
       }
@@ -51,7 +51,6 @@ const handleLogin = async () => {
         full_name: userData.full_name
       };
     } else {
-      // Fallback con datos del token
       const decodedToken: { sub: string; role: string } = jwtDecode(data.access_token);
       authStore.user = {
         email: decodedToken.sub,

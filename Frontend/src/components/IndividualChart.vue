@@ -12,9 +12,10 @@ import {
   Title,
   Tooltip,
   Legend,
-  Filler, // ✅ AGREGAR ESTE IMPORT
+  Filler,
   type ChartData
 } from 'chart.js';
+import { API_BASE_URL } from '@/config/api';  // ✅ AGREGAR IMPORT
 
 defineOptions({
   name: 'IndividualChart'
@@ -97,8 +98,9 @@ const fetchData = async () => {
   const token = localStorage.getItem('userToken');
 
   try {
+    // ✅ CAMBIAR URL
     const response = await fetch(
-      `http://127.0.0.1:8000/api/charts/historical-data?sensor_type=${props.sensorType}&hours=${currentTimeRange.value}`,
+      `${API_BASE_URL}/api/charts/historical-data?sensor_type=${props.sensorType}&hours=${currentTimeRange.value}`,
       {
         headers: { 'Authorization': `Bearer ${token}` }
       }

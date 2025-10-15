@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
+import { API_BASE_URL } from '@/config/api';  // ✅ AGREGAR IMPORT
 
 const emit = defineEmits(['close', 'user-created']);
 
@@ -20,7 +21,8 @@ async function handleSubmit() {
   const token = localStorage.getItem('userToken');
 
   try {
-    const response = await fetch('http://127.0.0.1:8000/api/users', {
+    // ✅ CAMBIAR URL
+    const response = await fetch(`${API_BASE_URL}/api/users`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

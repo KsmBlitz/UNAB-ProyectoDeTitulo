@@ -4,7 +4,8 @@ import type { Ref } from 'vue';
 import UsersTable from '@/components/UsersTable.vue';
 import CreateUserModal from '@/components/CreateUserModal.vue';
 import EditUserModal from '@/components/EditUserModal.vue';
-import type { User } from '@/types'; // Importamos el tipo User
+import { API_BASE_URL } from '@/config/api';  // ✅ AGREGAR IMPORT
+import type { User } from '@/types';
 
 defineOptions({
   name: 'UserManagementView'
@@ -43,20 +44,20 @@ function handleUserUpdated() {
 
 // ---- Lógica para Borrar Usuario ----
 async function handleDeleteUser(user: User) {
-  // 1. Pedimos confirmación
   if (!confirm(`¿Estás seguro de que quieres eliminar a ${user.full_name}? Esta acción no se puede deshacer.`)) {
     return;
   }
 
   const token = localStorage.getItem('userToken');
-  // Asegúrate de que el ID es un string antes de usarlo
   const userIdToDelete = String(user.id);
 
   try {
-    const response = await fetch(`http://127.0.0.1:8000/api/users/${userIdToDelete}`, {
+    // ✅ CAMBIAR URL
+    const response = await fetch(`${API_BASE_URL}/api/users/${userIdToDelete}`, {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${token}` }
     });
+
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.detail || 'No se pudo eliminar el usuario.');

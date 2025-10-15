@@ -259,7 +259,18 @@ async def get_current_admin_user(current_user: dict = Depends(get_current_user))
 # 7. Inicialización de la App FastAPI
 # --------------------------------------------------------------------------
 app = FastAPI(title="API para Dashboard de Embalses IoT", version="1.0.0")
-app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware, 
+    allow_origins=[
+        "http://localhost:5173", 
+        "http://127.0.0.1:5173",
+        "http://localhost:4173",  # ✅ PARA BUILD DE PRODUCCIÓN
+        "http://127.0.0.1:4173",  # ✅ PARA BUILD DE PRODUCCIÓN
+    ], 
+    allow_credentials=True, 
+    allow_methods=["*"], 
+    allow_headers=["*"]
+)
 
 # --------------------------------------------------------------------------
 # 8. Endpoints de la API

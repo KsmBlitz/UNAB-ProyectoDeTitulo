@@ -4,6 +4,7 @@ import { ref, onMounted } from 'vue';
 import MetricCard from '@/components/MetricCard.vue';
 import SensorsTable from '@/components/SensorsTable.vue';
 import HistoricalChartGrid from '@/components/HistoricalChartGrid.vue';
+import { API_BASE_URL } from '@/config/api';  // ✅ AGREGAR IMPORT
 
 defineOptions({
   name: 'DashboardHomeView'
@@ -97,7 +98,8 @@ async function fetchMetrics() {
   }
 
   try {
-    const response = await fetch('http://127.0.0.1:8000/api/metrics/latest', {
+    // ✅ CAMBIAR URL
+    const response = await fetch(`${API_BASE_URL}/api/metrics/latest`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
 

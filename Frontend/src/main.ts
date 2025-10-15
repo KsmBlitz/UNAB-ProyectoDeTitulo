@@ -5,14 +5,15 @@ import 'primeicons/primeicons.css';
 
 import { authStore } from './auth/store';
 import { jwtDecode } from 'jwt-decode';
+import { API_BASE_URL } from './config/api';  // ✅ AGREGAR IMPORT
 
 const token = localStorage.getItem('userToken');
 if (token) {
   try {
     const decodedToken: { sub: string; role: string } = jwtDecode(token);
 
-    // Hacer una petición para obtener los datos completos del usuario
-    fetch('http://127.0.0.1:8000/api/users/me', {
+    // ✅ CAMBIAR URL
+    fetch(`${API_BASE_URL}/api/users/me`, {
       headers: {
         'Authorization': `Bearer ${token}`
       }

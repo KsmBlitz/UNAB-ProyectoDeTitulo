@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'; // Agregamos 'watch'
+import { ref, watch, onMounted } from 'vue';
 import type { PropType } from 'vue';
-import type { User } from '@/types'; // Importamos el tipo User
+import type { User } from '@/types';
+import { API_BASE_URL } from '@/config/api';  // ✅ AGREGAR IMPORT
 
 defineOptions({
   name: 'EditUserModal'
@@ -56,7 +57,8 @@ async function handleUpdate() {
   }
 
   try {
-    const response = await fetch(`http://127.0.0.1:8000/api/users/${props.user.id}`, { // Usamos props.user.id directamente
+    // ✅ CAMBIAR URL
+    const response = await fetch(`${API_BASE_URL}/api/users/${props.user.id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
