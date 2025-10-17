@@ -266,6 +266,8 @@ app.add_middleware(
         "http://127.0.0.1:5173",
         "http://localhost:4173",  # ✅ PARA BUILD DE PRODUCCIÓN
         "http://127.0.0.1:4173",  # ✅ PARA BUILD DE PRODUCCIÓN
+        "http://localhost:3000",  # ✅ PARA DOCKER (NGINX)
+        "http://127.0.0.1:3000",  # ✅ PARA DOCKER (NGINX)
     ], 
     allow_credentials=True, 
     allow_methods=["*"], 

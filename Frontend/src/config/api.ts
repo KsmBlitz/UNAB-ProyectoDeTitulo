@@ -1,10 +1,12 @@
 // Frontend/src/config/api.ts
 const getApiBaseUrl = () => {
-  // Usar localhost para desarrollo local
+  // En desarrollo local
   if (import.meta.env.DEV) {
-    return 'http://127.0.0.1:8000';  // ✅ LOCALHOST PARA DESARROLLO
+    return 'http://127.0.0.1:8000';
   }
-  // En producción, usar la URL de producción
+
+  // En producción con Docker
+  // Docker Compose expondrá el backend en el puerto 8000
   return 'http://localhost:8000';
 };
 
