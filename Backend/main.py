@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from pydantic_settings import BaseSettings
-from typing import Annotated, Optional, List, Dict
+from typing import Annotated, Optional, List, Dict, Any
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -19,6 +19,14 @@ from collections import defaultdict
 
 # Importar core_schema y PydanticCustomError para PyObjectId
 from pydantic_core import CoreSchema, PydanticCustomError, core_schema
+
+# Importar modelos de alertas
+from models.alert_models import (
+    AlertThresholds, ActiveAlert, AlertHistory, AlertSummary, 
+    AlertConfigUpdateRequest, DismissAlertRequest, AlertLevel, AlertType, AlertStatus,
+    BLUEBERRY_CHILE_THRESHOLDS
+)
+import uuid
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -62,6 +70,14 @@ client = motor.motor_asyncio.AsyncIOMotorClient(settings.MONGO_CONNECTION_STRING
 db = client[settings.DATABASE_NAME]
 users_collection = db.users
 sensor_collection = db.Sensor_Data
+# Colecciones para sistema de alertas
+alerts_collection = db.alerts
+alert_history_collection = db.alert_history
+alert_thresholds_collection = db.alert_thresholds
+
+# Estado global para alertas
+active_alerts: Dict[str, ActiveAlert] = {}
+user_thresholds: Dict[str, AlertThresholds] = {}
 
 # --------------------------------------------------------------------------
 # 4. Modelos de Datos (Pydantic) - CON LA CORRECCIÓN FINAL PARA ObjectId
@@ -593,6 +609,685 @@ async def get_sensor_events(
     }
 
 # --------------------------------------------------------------------------
+# 8. Endpoints de Alertas
+# --------------------------------------------------------------------------
+
+async def get_user_thresholds(user_email: str) -> AlertThresholds:
+    """Obtiene la configuración de umbrales del usuario o devuelve los predefinidos"""
+    if user_email in user_thresholds:
+        return user_thresholds[user_email]
+    
+    # Buscar en base de datos
+    threshold_doc = await alert_thresholds_collection.find_one({"user_email": user_email})
+    if threshold_doc:
+        thresholds = AlertThresholds(**threshold_doc["thresholds"])
+        user_thresholds[user_email] = thresholds
+        return thresholds
+    
+    # Devolver configuración predefinida para arándanos
+    user_thresholds[user_email] = BLUEBERRY_CHILE_THRESHOLDS
+    return BLUEBERRY_CHILE_THRESHOLDS
+
+async def evaluate_sensor_thresholds(user_email: str = "default") -> List[ActiveAlert]:
+    """Evalúa las métricas actuales contra los umbrales configurados para arándanos"""
+    current_alerts = []
+    thresholds = await get_user_thresholds(user_email)
+    
+    try:
+        # Obtener últimas lecturas
+        latest_reading = await sensor_collection.find_one({}, sort=[("ReadTime", -1)])
+        if not latest_reading:
+            return current_alerts
+        
+        current_time = datetime.now(timezone.utc)
+        sensor_id = latest_reading.get("SensorID", "Unknown")
+        
+        # Evaluar pH - Crítico para arándanos
+        ph_value = latest_reading.get("pH_Value", 7.0)
+        ph_alert = evaluate_ph_threshold(ph_value, thresholds.ph, current_time, sensor_id)
+        if ph_alert:
+            current_alerts.append(ph_alert)
+        
+        # Evaluar Conductividad - Crítico para calidad del agua
+        ec_value = latest_reading.get("EC", 0)
+        ec_alert = evaluate_conductivity_threshold(ec_value, thresholds.conductivity, current_time, sensor_id)
+        if ec_alert:
+            current_alerts.append(ec_alert)
+        
+        # Evaluar Temperatura
+        temp_value = latest_reading.get("Temperature", 20)
+        temp_alert = evaluate_temperature_threshold(temp_value, thresholds.temperature, current_time, sensor_id)
+        if temp_alert:
+            current_alerts.append(temp_alert)
+        
+        # Evaluar sensores desconectados
+
+        sensor_alerts = await evaluate_sensor_disconnection(thresholds, current_time)
+        current_alerts.extend(sensor_alerts)
+
+        
+        return current_alerts
+        
+    except Exception as e:
+        logger.error(f"Error evaluando umbrales: {e}")
+        return []
+
+def evaluate_ph_threshold(value: float, threshold, timestamp: datetime, sensor_id: str) -> Optional[ActiveAlert]:
+    """Evalúa alerta de pH específica para arándanos en Chile"""
+    if value < threshold.critical_min or value > threshold.critical_max:
+        return ActiveAlert(
+            type=AlertType.PH_RANGE,
+            level=AlertLevel.CRITICAL,
+            title="pH Crítico para Arándanos",
+            message=f"pH del agua ({value:.1f}) está fuera del rango crítico para arándanos",
+            value=value,
+            threshold_info=f"Rango óptimo para arándanos: {threshold.optimal_min}-{threshold.optimal_max}",
+            location="Sistema de Riego",
+            sensor_id=sensor_id,
+            created_at=timestamp
+        )
+    elif value < threshold.warning_min or value > threshold.warning_max:
+        return ActiveAlert(
+            type=AlertType.PH_RANGE,
+            level=AlertLevel.WARNING,
+            title="pH Subóptimo para Arándanos", 
+            message=f"pH del agua ({value:.1f}) no está en el rango óptimo para arándanos",
+            value=value,
+            threshold_info=f"Rango óptimo para arándanos: {threshold.optimal_min}-{threshold.optimal_max}",
+            location="Sistema de Riego",
+            sensor_id=sensor_id,
+            created_at=timestamp
+        )
+    return None
+
+def evaluate_conductivity_threshold(value: float, threshold, timestamp: datetime, sensor_id: str) -> Optional[ActiveAlert]:
+    """Evalúa conductividad eléctrica - crítica para arándanos"""
+    if value > threshold.critical_max:
+        return ActiveAlert(
+            type=AlertType.CONDUCTIVITY,
+            level=AlertLevel.CRITICAL,
+            title="Conductividad Crítica",
+            message=f"Conductividad eléctrica ({value:.1f} dS/m) demasiado alta para arándanos",
+            value=value,
+            threshold_info=f"Conductividad óptima para arándanos: < {threshold.optimal_max} dS/m",
+            location="Sistema de Riego",
+            sensor_id=sensor_id,
+            created_at=timestamp
+        )
+    elif value > threshold.warning_max:
+        return ActiveAlert(
+            type=AlertType.CONDUCTIVITY,
+            level=AlertLevel.WARNING,
+            title="Conductividad Elevada",
+            message=f"Conductividad eléctrica ({value:.1f} dS/m) por encima del óptimo para arándanos",
+            value=value,
+            threshold_info=f"Conductividad óptima para arándanos: < {threshold.optimal_max} dS/m",
+            location="Sistema de Riego",
+            sensor_id=sensor_id,
+            created_at=timestamp
+        )
+    return None
+
+def evaluate_temperature_threshold(value: float, threshold, timestamp: datetime, sensor_id: str) -> Optional[ActiveAlert]:
+    """Evalúa temperatura ambiente"""
+    if value < threshold.critical_min or value > threshold.critical_max:
+        return ActiveAlert(
+            type=AlertType.TEMPERATURE,
+            level=AlertLevel.CRITICAL,
+            title="Temperatura Crítica",
+            message=f"Temperatura ({value:.1f}°C) en rango crítico",
+            value=value,
+            threshold_info=f"Rango óptimo: {threshold.optimal_min}°C - {threshold.optimal_max}°C",
+            location="Campo de Cultivo",
+            sensor_id=sensor_id,
+            created_at=timestamp
+        )
+    elif value < threshold.warning_min or value > threshold.warning_max:
+        return ActiveAlert(
+            type=AlertType.TEMPERATURE,
+            level=AlertLevel.WARNING,
+            title="Temperatura Subóptima",
+            message=f"Temperatura ({value:.1f}°C) fuera del rango óptimo",
+            value=value,
+            threshold_info=f"Rango óptimo: {threshold.optimal_min}°C - {threshold.optimal_max}°C",
+            location="Campo de Cultivo",
+            sensor_id=sensor_id,
+            created_at=timestamp
+        )
+    return None
+
+async def evaluate_sensor_disconnection(thresholds: AlertThresholds, current_time: datetime) -> List[ActiveAlert]:
+    """Evalúa sensores desconectados basado en última lectura"""
+    alerts = []
+    
+    try:
+        # Asegurar que current_time sea timezone-aware desde el inicio
+        if current_time.tzinfo is None:
+            current_time_utc = current_time.replace(tzinfo=timezone.utc)
+        else:
+            current_time_utc = current_time
+        
+        # Obtener todos los sensores únicos y su última lectura
+        pipeline = [
+            {"$group": {
+                "_id": "$SensorID",
+                "last_reading": {"$max": "$ReadTime"}
+            }}
+        ]
+        
+        sensors = await sensor_collection.aggregate(pipeline).to_list(length=100)
+
+        
+        for sensor in sensors:
+            sensor_id = sensor["_id"]
+            last_reading = sensor["last_reading"]
+            
+            # Normalizar last_reading a datetime timezone-aware
+            if isinstance(last_reading, str):
+                try:
+                    last_reading_dt = datetime.fromisoformat(last_reading.replace('Z', '+00:00'))
+                except ValueError:
+                    # Si falla el parsing, intentar otros formatos
+                    try:
+                        last_reading_dt = datetime.strptime(last_reading, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
+                    except ValueError:
+                        logger.warning(f"No se pudo parsear fecha del sensor {sensor_id}: {last_reading}")
+                        continue
+            elif isinstance(last_reading, datetime):
+                if last_reading.tzinfo is None:
+                    last_reading_dt = last_reading.replace(tzinfo=timezone.utc)
+                else:
+                    last_reading_dt = last_reading
+            else:
+                logger.warning(f"Formato de fecha desconocido para sensor {sensor_id}: {type(last_reading)}")
+                continue
+            
+            # Calcular diferencia de tiempo
+            try:
+                time_diff = current_time_utc - last_reading_dt
+                minutes_ago = time_diff.total_seconds() / 60
+                
+                logger.debug(f"Sensor {sensor_id}: {minutes_ago:.1f} minutos sin datos")
+            except Exception as e:
+                logger.error(f"Error calculando diferencia de tiempo para sensor {sensor_id}: {e}")
+                continue
+            
+            # Evaluar umbrales de desconexión
+            if minutes_ago > thresholds.sensor_timeout_critical:
+                logger.warning(f"🚨 ALERTA CRÍTICA: Sensor {sensor_id} desconectado hace {int(minutes_ago)} minutos")
+                alerts.append(ActiveAlert(
+                    type=AlertType.SENSOR_DISCONNECTION,
+                    level=AlertLevel.CRITICAL,
+                    title="Sensor Desconectado",
+                    message=f"Sensor {sensor_id} sin datos hace {int(minutes_ago)} minutos ({int(minutes_ago/60)} horas)",
+                    value=minutes_ago,
+                    threshold_info=f"Timeout crítico: {thresholds.sensor_timeout_critical} minutos",
+                    location=f"Embalse {sensor_id}",
+                    sensor_id=sensor_id,
+                    created_at=current_time_utc
+                ))
+            elif minutes_ago > thresholds.sensor_timeout_warning:
+                logger.warning(f"⚠️ ALERTA ADVERTENCIA: Sensor {sensor_id} con retraso de {int(minutes_ago)} minutos")
+                alerts.append(ActiveAlert(
+                    type=AlertType.SENSOR_DISCONNECTION,
+                    level=AlertLevel.WARNING,
+                    title="Sensor con Retraso",
+                    message=f"Sensor {sensor_id} sin datos hace {int(minutes_ago)} minutos",
+                    value=minutes_ago,
+                    threshold_info=f"Timeout advertencia: {thresholds.sensor_timeout_warning} minutos",
+                    location=f"Embalse {sensor_id}",
+                    sensor_id=sensor_id,
+                    created_at=current_time_utc
+                ))
+        
+        return alerts
+        
+    except Exception as e:
+        logger.error(f"Error evaluando sensores desconectados: {e}")
+        return []
+
+@app.get("/api/alerts/active", tags=["Alertas"])
+async def get_active_alerts(current_user: dict = Depends(get_current_user)):
+    """Obtiene alertas activas no resueltas desde la base de datos"""
+    try:
+        # Leer alertas activas desde la base de datos
+        active_alerts_cursor = alerts_collection.find({"is_resolved": False})
+        active_alerts_docs = await active_alerts_cursor.to_list(length=100)
+        
+        # También buscar documentos sin el campo is_resolved (por compatibilidad)
+        no_resolved_field_cursor = alerts_collection.find({"is_resolved": {"$exists": False}})
+        no_resolved_field_docs = await no_resolved_field_cursor.to_list(length=100)
+        
+        # Combinar ambos resultados
+        all_docs = active_alerts_docs + no_resolved_field_docs
+        
+        # Convertir documentos a objetos ActiveAlert
+        active_alerts = []
+        for doc in all_docs:
+            try:
+                # Asegurar que el documento tiene todos los campos requeridos
+                alert = ActiveAlert(
+                    id=doc.get("id", str(doc.get("_id", ""))),
+                    type=AlertType(doc["type"]),
+                    level=AlertLevel(doc["level"]),
+                    title=doc["title"],
+                    message=doc["message"],
+                    value=doc.get("value"),
+                    threshold_info=doc["threshold_info"],
+                    location=doc["location"],
+                    sensor_id=doc.get("sensor_id"),
+                    created_at=doc["created_at"],
+                    is_resolved=doc.get("is_resolved", False),
+                    status=AlertStatus(doc.get("status", "active"))
+                )
+                active_alerts.append(alert)
+            except Exception as e:
+                logger.error(f"❌ Error procesando alerta de BD: {e} - Documento: {doc}")
+                continue
+        
+        return {
+            "alerts": active_alerts,
+            "count": len(active_alerts),
+            "summary": {
+                "critical": len([a for a in active_alerts if a.level == AlertLevel.CRITICAL]),
+                "warning": len([a for a in active_alerts if a.level == AlertLevel.WARNING]),
+                "info": len([a for a in active_alerts if a.level == AlertLevel.INFO]),
+            },
+            "last_check": datetime.now(timezone.utc).isoformat()
+        }
+    
+    except Exception as e:
+        logger.error(f"❌ Error obteniendo alertas activas: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+@app.get("/api/alerts/config", tags=["Alertas"])
+async def get_alert_config(current_user: dict = Depends(get_current_user)):
+    """Obtiene configuración de umbrales del usuario"""
+    user_email = current_user.get("email", "default")
+    thresholds = await get_user_thresholds(user_email)
+    return {
+        "thresholds": thresholds,
+        "is_default": user_email not in user_thresholds,
+        "crop_type": "Arándanos (Chile)"
+    }
+
+@app.put("/api/alerts/config", tags=["Alertas"])
+async def update_alert_config(
+    request: AlertConfigUpdateRequest, 
+    current_user: dict = Depends(get_current_user)
+):
+    """Actualiza configuración de umbrales - Solo Admin"""
+    user_role = current_user.get("role", "operario")
+    user_email = current_user.get("email")
+    
+    if user_role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo administradores pueden modificar la configuración de alertas"
+        )
+    
+    try:
+        # Actualizar en memoria
+        if user_email:
+            user_thresholds[user_email] = request.thresholds
+        
+        # Guardar en base de datos
+        threshold_doc = {
+            "user_email": user_email,
+            "thresholds": request.thresholds.dict(),
+            "updated_by": request.updated_by,
+            "updated_at": datetime.now(timezone.utc),
+            "reason": request.reason
+        }
+        
+        await alert_thresholds_collection.replace_one(
+            {"user_email": user_email},
+            threshold_doc,
+            upsert=True
+        )
+        
+        logger.info(f"Configuración de alertas actualizada por {user_email}")
+        
+        return {
+            "message": "Configuración de alertas actualizada exitosamente",
+            "updated_at": threshold_doc["updated_at"].isoformat(),
+            "thresholds": request.thresholds
+        }
+        
+    except Exception as e:
+        logger.error(f"Error actualizando configuración de alertas: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+@app.post("/api/alerts/dismiss", tags=["Alertas"])
+async def dismiss_alert(
+    request: DismissAlertRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Cierra/descarta una alerta - Operario o Admin"""
+    user_email = current_user.get("email")
+    user_role = current_user.get("role", "operario")
+    
+    try:
+        # Buscar alerta activa
+        alert_doc = await alerts_collection.find_one({"id": request.alert_id, "is_resolved": False})
+        
+        if not alert_doc:
+            raise HTTPException(status_code=404, detail="Alerta no encontrada o ya resuelta")
+        
+        current_time = datetime.now(timezone.utc)
+        
+        # Marcar como resuelta
+        update_result = await alerts_collection.update_one(
+            {"id": request.alert_id},
+            {
+                "$set": {
+                    "is_resolved": True,
+                    "status": AlertStatus.DISMISSED,
+                    "dismissed_by": user_email,
+                    "dismissed_at": current_time,
+                    "resolution_type": "manual_dismiss"
+                }
+            }
+        )
+        
+        if update_result.modified_count == 0:
+            raise HTTPException(status_code=400, detail="No se pudo cerrar la alerta")
+        
+        # Asegurar que created_at sea timezone-aware para el cálculo
+        created_at = alert_doc["created_at"]
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+        
+        # Agregar al historial
+        history_entry = AlertHistory(
+            alert_id=request.alert_id,
+            type=AlertType(alert_doc["type"]),
+            level=AlertLevel(alert_doc["level"]),
+            title=alert_doc["title"],
+            message=alert_doc["message"],
+            value=alert_doc.get("value"),
+            threshold_info=alert_doc["threshold_info"],
+            location=alert_doc["location"],
+            sensor_id=alert_doc.get("sensor_id"),
+            created_at=created_at,
+            dismissed_at=current_time,
+            dismissed_by=user_email,
+            dismissed_by_role=user_role,
+            resolution_type="manual_dismiss",
+            duration_minutes=int((current_time - created_at).total_seconds() / 60)
+        )
+        
+        await alert_history_collection.insert_one(history_entry.dict())
+        
+        logger.info(f"Alerta {request.alert_id} cerrada por {user_email} ({user_role})")
+        
+        return {
+            "message": "Alerta cerrada exitosamente",
+            "dismissed_at": current_time.isoformat(),
+            "dismissed_by": user_email
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error cerrando alerta: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+@app.get("/api/alerts/history", tags=["Alertas"])
+async def get_alert_history(
+    page: int = 1,
+    limit: int = 50,
+    level: Optional[str] = None,
+    type: Optional[str] = None,
+    days: int = 30,
+    current_user: dict = Depends(get_current_user)
+):
+    """Obtiene historial de alertas - Solo Admin"""
+    user_role = current_user.get("role", "operario")
+    
+    if user_role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo administradores pueden ver el historial completo de alertas"
+        )
+    
+    try:
+        # Construir filtros
+        end_time = datetime.now(timezone.utc)
+        start_time = end_time - timedelta(days=days)
+        
+        query: Dict[str, Any] = {"created_at": {"$gte": start_time, "$lte": end_time}}
+        
+        if level:
+            query["level"] = level
+        if type:
+            query["type"] = type
+        
+        # Contar total
+        total = await alert_history_collection.count_documents(query)
+        
+        # Obtener página
+        skip = (page - 1) * limit
+        history_cursor = alert_history_collection.find(query).sort("created_at", -1).skip(skip).limit(limit)
+        history = await history_cursor.to_list(length=limit)
+        
+        return {
+            "history": history,
+            "pagination": {
+                "page": page,
+                "limit": limit,
+                "total": total,
+                "pages": (total + limit - 1) // limit
+            },
+            "filters": {
+                "level": level,
+                "type": type,
+                "days": days
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo historial de alertas: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+@app.get("/api/alerts/summary", tags=["Alertas"])
+async def get_alert_summary(current_user: dict = Depends(get_current_user)):
+    """Obtiene resumen rápido de alertas desde la base de datos"""
+    try:
+        # Contar alertas activas por nivel desde la base de datos
+        critical_count = await alerts_collection.count_documents({"is_resolved": False, "level": "critical"})
+        warning_count = await alerts_collection.count_documents({"is_resolved": False, "level": "warning"})
+        info_count = await alerts_collection.count_documents({"is_resolved": False, "level": "info"})
+        
+        # También contar sin el campo is_resolved por compatibilidad
+        critical_no_field = await alerts_collection.count_documents({"is_resolved": {"$exists": False}, "level": "critical"})
+        warning_no_field = await alerts_collection.count_documents({"is_resolved": {"$exists": False}, "level": "warning"})
+        info_no_field = await alerts_collection.count_documents({"is_resolved": {"$exists": False}, "level": "info"})
+        
+        # Usar las cuentas más altas (incluir las que no tienen is_resolved)
+        total_critical = critical_count + critical_no_field
+        total_warning = warning_count + warning_no_field
+        total_info = info_count + info_no_field
+        
+        total = total_critical + total_warning + total_info
+        
+        return {
+            "total": total,
+            "critical": total_critical,
+            "warning": total_warning,
+            "info": total_info,
+            "has_critical": total_critical > 0,
+            "last_updated": datetime.now(timezone.utc).isoformat()
+        }
+    
+    except Exception as e:
+        logger.error(f"❌ Error obteniendo resumen de alertas: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+
+
+async def alert_monitoring_loop():
+    """Loop de monitoreo de alertas cada 6 minutos"""
+    while True:
+        try:
+            logger.info("🚨 Verificando alertas del sistema...")
+            
+            # Evaluar alertas para configuración predefinida
+            current_alerts = await evaluate_sensor_thresholds("default")
+            
+            # Guardar nuevas alertas en base de datos
+            for alert in current_alerts:
+                if not alert.is_resolved:
+                    # Verificar si ya existe
+                    existing = await alerts_collection.find_one({
+                        "type": alert.type,
+                        "sensor_id": alert.sensor_id,
+                        "is_resolved": False
+                    })
+                    
+                    if not existing:
+                        # Generar ID único para la alerta
+                        import uuid
+                        alert.id = str(uuid.uuid4())
+                        
+                        # Insertar nueva alerta
+                        alert_dict = alert.dict()
+                        await alerts_collection.insert_one(alert_dict)
+                        logger.info(f"Nueva alerta creada: {alert.title} - {alert.message}")
+                    else:
+                        logger.debug(f"Alerta ya existe: {alert.title} para sensor {alert.sensor_id}")
+            
+            # Auto-resolver alertas que ya no aplican
+            await auto_resolve_alerts()
+            
+        except Exception as e:
+            logger.error(f"Error en monitoreo de alertas: {e}")
+        
+        # Esperar 6 minutos (360 segundos) antes de la siguiente verificación
+        await asyncio.sleep(360)
+
+async def auto_resolve_alerts():
+    """Auto-resuelve alertas cuando las condiciones mejoran"""
+    try:
+        # Obtener alertas activas
+        active_alerts_cursor = alerts_collection.find({"is_resolved": False})
+        active_alerts = await active_alerts_cursor.to_list(length=100)
+        
+        current_time = datetime.now(timezone.utc)
+        
+        for alert_doc in active_alerts:
+            alert_type = alert_doc.get("type")
+            sensor_id = alert_doc.get("sensor_id")
+            
+            # Verificar si la condición aún se mantiene
+            should_resolve = await check_if_alert_should_resolve(alert_type, sensor_id)
+            
+            if should_resolve:
+                # Marcar como auto-resuelta
+                await alerts_collection.update_one(
+                    {"_id": alert_doc["_id"]},
+                    {
+                        "$set": {
+                            "is_resolved": True,
+                            "status": AlertStatus.AUTO_RESOLVED,
+                            "resolved_at": current_time,
+                            "resolution_type": "auto_resolved"
+                        }
+                    }
+                )
+                
+                # Agregar al historial
+                history_entry = AlertHistory(
+                    alert_id=alert_doc["id"],
+                    type=AlertType(alert_doc["type"]),
+                    level=AlertLevel(alert_doc["level"]),
+                    title=alert_doc["title"],
+                    message=alert_doc["message"],
+                    value=alert_doc.get("value"),
+                    threshold_info=alert_doc["threshold_info"],
+                    location=alert_doc["location"],
+                    sensor_id=alert_doc.get("sensor_id"),
+                    created_at=alert_doc["created_at"],
+                    resolved_at=current_time,
+                    resolution_type="auto_resolved",
+                    duration_minutes=int((current_time - alert_doc["created_at"]).total_seconds() / 60)
+                )
+                
+                await alert_history_collection.insert_one(history_entry.dict())
+                logger.info(f"Alerta auto-resuelta: {alert_doc['title']}")
+                
+    except Exception as e:
+        logger.error(f"Error en auto-resolución de alertas: {e}")
+
+async def check_if_alert_should_resolve(alert_type: str, sensor_id: str) -> bool:
+    """Verifica si una alerta específica debe auto-resolverse"""
+    try:
+        thresholds = BLUEBERRY_CHILE_THRESHOLDS
+        
+        if alert_type in [AlertType.PH_RANGE, AlertType.CONDUCTIVITY, AlertType.TEMPERATURE]:
+            # Obtener última lectura del sensor específico o general
+            query = {}
+            if sensor_id and sensor_id != "Unknown":
+                query["SensorID"] = sensor_id
+            
+            latest_reading = await sensor_collection.find_one(query, sort=[("ReadTime", -1)])
+            if not latest_reading:
+                return False
+            
+            # Verificar si los valores están ahora en rango normal
+            if alert_type == AlertType.PH_RANGE:
+                ph_value = latest_reading.get("pH_Value", 7.0)
+                return (thresholds.ph.optimal_min <= ph_value <= thresholds.ph.optimal_max)
+            
+            elif alert_type == AlertType.CONDUCTIVITY:
+                ec_value = latest_reading.get("EC", 0)
+                return (ec_value <= thresholds.conductivity.optimal_max)
+            
+            elif alert_type == AlertType.TEMPERATURE:
+                temp_value = latest_reading.get("Temperature", 20)
+                return (thresholds.temperature.optimal_min <= temp_value <= thresholds.temperature.optimal_max)
+        
+        elif alert_type == AlertType.SENSOR_DISCONNECTION:
+            # Verificar si el sensor ya está enviando datos nuevamente
+            if sensor_id:
+                latest_reading = await sensor_collection.find_one(
+                    {"SensorID": sensor_id}, 
+                    sort=[("ReadTime", -1)]
+                )
+                
+                if latest_reading:
+                    last_reading_time = latest_reading.get("ReadTime")
+                    
+                    # Normalizar last_reading_time a datetime timezone-aware
+                    if isinstance(last_reading_time, str):
+                        try:
+                            last_reading_time_dt = datetime.fromisoformat(last_reading_time.replace('Z', '+00:00'))
+                        except ValueError:
+                            try:
+                                last_reading_time_dt = datetime.strptime(last_reading_time, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
+                            except ValueError:
+                                logger.warning(f"No se pudo parsear fecha para resolución del sensor {sensor_id}: {last_reading_time}")
+                                return False
+                    elif isinstance(last_reading_time, datetime):
+                        if last_reading_time.tzinfo is None:
+                            last_reading_time_dt = last_reading_time.replace(tzinfo=timezone.utc)
+                        else:
+                            last_reading_time_dt = last_reading_time
+                    else:
+                        logger.warning(f"Formato de fecha desconocido para resolución del sensor {sensor_id}: {type(last_reading_time)}")
+                        return False
+                    
+                    minutes_ago = (datetime.now(timezone.utc) - last_reading_time_dt).total_seconds() / 60
+
+                    return minutes_ago < thresholds.sensor_timeout_warning
+        
+        return False
+        
+    except Exception as e:
+        logger.error(f"Error verificando resolución de alerta: {e}")
+        return False
+
+# --------------------------------------------------------------------------
 # 9. Eventos de Startup
 # --------------------------------------------------------------------------
 @app.on_event("startup")
@@ -606,3 +1301,7 @@ async def startup_event():
     # Iniciar monitoreo de sensores en background
     asyncio.create_task(check_sensor_timeouts())
     logger.info("⏰ Sistema de monitoreo de sensores iniciado")
+    
+    # Iniciar sistema de alertas cada 6 minutos
+    asyncio.create_task(alert_monitoring_loop())
+    logger.info("🚨 Sistema de alertas iniciado (polling cada 6 minutos)")

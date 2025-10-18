@@ -36,6 +36,12 @@ const router = createRouter({
           component: () => import('../views/UserManagementView.vue'),
           // 2. Añadimos el rol requerido a la metadata de la ruta
           meta: { requiresAuth: true, requiresRole: 'admin' }
+        },
+        {
+          path: 'alerts',
+          name: 'AlertsManagement',
+          component: () => import('../views/AlertsManagementView.vue'),
+          meta: { requiresAuth: true }
         }
       ]
     },

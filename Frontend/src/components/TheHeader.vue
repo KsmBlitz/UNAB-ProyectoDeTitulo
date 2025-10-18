@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { authStore } from '@/auth/store'; // Importar el store de autenticación
+import { alertStore } from '@/stores/alertStore'; // Importar el store de alertas
 
 defineOptions({
   name: 'TheHeader'
@@ -31,6 +32,16 @@ function handleLogout() {
   router.push('/login');
 }
 
+// 4. Función para navegar a alertas
+function navigateToAlerts() {
+  router.push('/alerts');
+}
+
+// 5. Computadas para alertas
+const alertSummary = computed(() => alertStore.summary);
+const hasAlerts = computed(() => alertSummary.value.total > 0);
+const hasCriticalAlerts = computed(() => alertSummary.value.critical > 0);
+
 // 4. Lógica para cerrar el menú al hacer clic fuera
 const handleClickOutside = (event: MouseEvent) => {
   if (userProfileRef.value && !userProfileRef.value.contains(event.target as Node)) {
@@ -40,10 +51,14 @@ const handleClickOutside = (event: MouseEvent) => {
 
 onMounted(() => {
   document.addEventListener('click', handleClickOutside);
+  // Inicializar store de alertas
+  alertStore.startPolling();
 });
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside);
+  // Detener polling de alertas
+  alertStore.stopPolling();
 });
 </script>
 
@@ -58,9 +73,9 @@ onUnmounted(() => {
     </div>
 
     <div class="header-right">
-      <div class="notifications">
-        <i class="pi pi-bell notification-icon"></i>
-        <span class="notification-badge">2</span>
+      <div class="alerts-counter" @click="navigateToAlerts" :class="{ 'has-critical': hasCriticalAlerts }">
+        <i class="pi pi-exclamation-triangle alert-icon"></i>
+        <span v-if="hasAlerts" class="alert-badge">{{ alertSummary.total }}</span>
       </div>
 
       <div class="user-profile" @click="toggleUserMenu" ref="userProfileRef">
@@ -105,7 +120,7 @@ onUnmounted(() => {
 
 <style scoped>
 /* --- Estilos existentes (sin cambios) --- */
-.header-container{display:flex;justify-content:space-between;align-items:center;padding:.75rem 1.5rem;background-color:#fff;border-bottom:1px solid #e9ecef;flex-shrink:0}.header-left,.header-right{display:flex;align-items:center;gap:1.5rem}.location-selector{display:flex;align-items:center;gap:.5rem;border:1px solid #ced4da;padding:.5rem 1rem;border-radius:6px;cursor:pointer}.notifications{position:relative;cursor:pointer}.notification-icon{font-size:1.5rem}.notification-badge{position:absolute;top:-5px;right:-5px;background-color:#d9534f;color:#fff;border-radius:50%;width:20px;height:20px;font-size:.75rem;display:flex;justify-content:center;align-items:center;font-weight:700}.user-avatar{width:40px;height:40px;border-radius:50%;background-color:#f1f1f1;display:flex;justify-content:center;align-items:center}.user-avatar .pi-user{font-size:1.25rem;color:#555}.user-info{display:flex;flex-direction:column;align-items:flex-start}.user-name{font-weight:700;font-size:.875rem}.user-role{font-size:.75rem;color:#6c757d}
+.header-container{display:flex;justify-content:space-between;align-items:center;padding:.75rem 1.5rem;background-color:#fff;border-bottom:1px solid #e9ecef;flex-shrink:0}.header-left,.header-right{display:flex;align-items:center;gap:1.5rem}.location-selector{display:flex;align-items:center;gap:.5rem;border:1px solid #ced4da;padding:.5rem 1rem;border-radius:6px;cursor:pointer}.alerts-counter{position:relative;cursor:pointer;padding:.5rem;border-radius:6px;transition:all .2s ease}.alerts-counter:hover{background-color:#f8f9fa}.alert-icon{font-size:1.5rem;color:#6c757d;transition:color .2s ease}.alerts-counter.has-critical .alert-icon{color:#dc3545}.alert-badge{position:absolute;top:-5px;right:-5px;background-color:#ffc107;color:#000;border-radius:50%;width:20px;height:20px;font-size:.75rem;display:flex;justify-content:center;align-items:center;font-weight:700}.alerts-counter.has-critical .alert-badge{background-color:#dc3545;color:#fff}.user-avatar{width:40px;height:40px;border-radius:50%;background-color:#f1f1f1;display:flex;justify-content:center;align-items:center}.user-avatar .pi-user{font-size:1.25rem;color:#555}.user-info{display:flex;flex-direction:column;align-items:flex-start}.user-name{font-weight:700;font-size:.875rem}.user-role{font-size:.75rem;color:#6c757d}
 
 /* --- NUEVOS ESTILOS PARA EL MENÚ --- */
 
