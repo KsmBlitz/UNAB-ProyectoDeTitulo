@@ -199,14 +199,26 @@
           <i class="pi pi-history"></i>
           Historial de Alertas
         </h2>
-        <button
-          @click="loadHistory"
-          class="action-btn secondary-btn"
-          :disabled="loadingHistory"
-        >
-          <i class="pi pi-refresh" :class="{ 'pi-spin': loadingHistory }"></i>
-          Cargar Historial
-        </button>
+        <div class="header-actions">
+          <button
+            @click="loadHistory"
+            class="action-btn secondary-btn"
+            :disabled="loadingHistory"
+          >
+            <i class="pi pi-refresh" :class="{ 'pi-spin': loadingHistory }"></i>
+            Refrescar Historial
+          </button>
+
+          <button
+            @click="clearHistory"
+            class="action-btn danger-btn"
+            :disabled="clearingHistory || alertHistory.length === 0"
+            title="Borrar todo el historial (solo admin)"
+          >
+            <i class="pi pi-trash" :class="{ 'pi-spin': clearingHistory }"></i>
+            {{ clearingHistory ? 'Borrando...' : 'Borrar Historial' }}
+          </button>
+        </div>
       </div>
 
       <div v-if="alertHistory.length > 0" class="history-table">
@@ -268,9 +280,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { alertStore, type ActiveAlert } from '@/stores/alertStore'
 import { authStore } from '@/auth/store'
+import { API_BASE_URL } from '@/config/api'
 
 defineOptions({
   name: 'AlertsManagementView'
@@ -288,9 +301,23 @@ interface AlertHistoryItem {
   dismissed_by?: string
 }
 
+// Tipo para los datos del API de historial
+interface AlertHistoryApiItem {
+  _id?: string
+  alert_id: string
+  type: string
+  level: 'critical' | 'warning' | 'info'
+  message: string
+  created_at: string
+  dismissed_at?: string
+  duration_minutes?: string | number
+  dismissed_by?: string
+}
+
 // Estado local
 const isLoading = ref(false)
 const loadingHistory = ref(false)
+const clearingHistory = ref(false)
 const showConfigModal = ref(false)
 const dismissingAlerts = ref(new Set<string>())
 const alertHistory = ref<AlertHistoryItem[]>([])
@@ -430,6 +457,11 @@ async function dismissAlert(alert: ActiveAlert): Promise<void> {
 
     // La alerta se removió automáticamente del store
     await refreshAlerts()
+
+    // Actualizar el historial si es admin
+    if (isAdmin.value) {
+      await loadHistory()
+    }
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Error desconocido al cerrar la alerta'
     showErrorMessage(`No se pudo cerrar la alerta: ${errorMsg}`)
@@ -457,11 +489,78 @@ async function loadHistory(): Promise<void> {
 
   loadingHistory.value = true
   try {
-    // Aquí se implementaría la carga del historial desde la API
-    // Por ahora dejamos vacío
-    console.log('Cargando historial de alertas...')
+    const token = localStorage.getItem('userToken')
+    if (!token) {
+      throw new Error('No hay token de autenticación')
+    }
+
+    const response = await fetch(`${API_BASE_URL}/api/alerts/history?limit=50`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error(`Error ${response.status}: ${response.statusText}`)
+    }
+
+    const data = await response.json()
+
+    // Mapear los datos del API al formato esperado por el componente
+    alertHistory.value = data.history?.map((item: AlertHistoryApiItem) => ({
+      id: item._id || item.alert_id,
+      type: item.type,
+      level: item.level,
+      message: item.message,
+      created_at: item.created_at,
+      resolved_at: item.dismissed_at,
+      duration_minutes: typeof item.duration_minutes === 'string' ? parseInt(item.duration_minutes) : item.duration_minutes,
+      dismissed_by: item.dismissed_by
+    })) || []
+
+  } catch (error) {
+    console.error('Error cargando historial:', error)
+    alertHistory.value = []
   } finally {
     loadingHistory.value = false
+  }
+}
+
+async function clearHistory(): Promise<void> {
+  if (!isAdmin.value) return
+
+  if (!confirm('¿Estás seguro de que quieres borrar TODO el historial de alertas? Esta acción no se puede deshacer.')) {
+    return
+  }
+
+  clearingHistory.value = true
+  try {
+    const token = localStorage.getItem('userToken')
+    if (!token) {
+      throw new Error('No hay token de autenticación')
+    }
+
+    const response = await fetch(`${API_BASE_URL}/api/alerts/history/clear`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error(`Error ${response.status}: ${response.statusText}`)
+    }
+
+    // Limpiar el historial local
+    alertHistory.value = []
+
+  } catch (error) {
+    console.error('Error borrando historial:', error)
+    alert('Error al borrar el historial. Por favor, inténtalo de nuevo.')
+  } finally {
+    clearingHistory.value = false
   }
 }
 
@@ -472,9 +571,24 @@ function saveThresholdConfig(): void {
 
 
 
+// Watchers
+watch(
+  () => alertStore.activeAlerts.length,
+  (newLength, oldLength) => {
+    // Si se reduce el número de alertas (se cerró una) y somos admin, actualizar historial
+    if (newLength < oldLength && isAdmin.value) {
+      loadHistory()
+    }
+  }
+)
+
 // Lifecycle
 onMounted(() => {
   refreshAlerts()
+  // Cargar historial automáticamente si es admin
+  if (isAdmin.value) {
+    loadHistory()
+  }
 })
 </script>
 
@@ -580,6 +694,26 @@ onMounted(() => {
 .dismiss-btn:hover:not(:disabled) {
   background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%);
   box-shadow: 0 4px 12px rgba(229, 62, 62, 0.4);
+}
+
+.danger-btn {
+  background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%);
+  color: white;
+  border: 2px solid #c53030;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(197, 48, 48, 0.3);
+}
+
+.danger-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #c53030 0%, #9c2626 100%);
+  border-color: #9c2626;
+  box-shadow: 0 4px 12px rgba(197, 48, 48, 0.4);
+}
+
+.danger-btn:disabled {
+  background: #a0aec0;
+  border-color: #a0aec0;
+  box-shadow: none;
 }
 
 .secondary-btn {

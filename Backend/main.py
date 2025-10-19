@@ -2,6 +2,8 @@
 
 # 1. Imports
 from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.responses import JSONResponse, PlainTextResponse
+import json as _json
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
@@ -628,6 +630,35 @@ async def get_user_thresholds(user_email: str) -> AlertThresholds:
     user_thresholds[user_email] = BLUEBERRY_CHILE_THRESHOLDS
     return BLUEBERRY_CHILE_THRESHOLDS
 
+async def was_alert_recently_dismissed(alert_type: AlertType, sensor_id: str, hours_grace_period: int = 1) -> bool:
+    """Verifica si una alerta del mismo tipo/sensor fue cerrada manualmente en las últimas X horas"""
+    try:
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours_grace_period)
+        
+        # Log de depuración
+        logger.info(f"🔍 Verificando período de gracia para {alert_type.value} sensor {sensor_id} desde {cutoff_time.isoformat()}")
+        
+        # Buscar en historial si hay alguna alerta cerrada manualmente para este tipo/sensor
+        recent_dismissal = await alert_history_collection.find_one({
+            "type": alert_type.value,
+            "sensor_id": sensor_id,
+            "resolution_type": "manual_dismiss",
+            "dismissed_at": {"$gte": cutoff_time}
+        })
+        
+        if recent_dismissal:
+            logger.info(f"✅ Encontrada alerta cerrada recientemente para {alert_type.value}/{sensor_id} - aplicando período de gracia")
+            return True
+        else:
+            # Verificar si hay algún registro en historial para debugging
+            any_history = await alert_history_collection.find_one({"type": alert_type.value})
+            logger.info(f"❌ No hay alerta cerrada reciente para {alert_type.value}/{sensor_id}. Hay historial del tipo: {any_history is not None}")
+            return False
+        
+    except Exception as e:
+        logger.error(f"Error verificando alertas cerradas recientemente: {e}")
+        return False
+
 async def evaluate_sensor_thresholds(user_email: str = "default") -> List[ActiveAlert]:
     """Evalúa las métricas actuales contra los umbrales configurados para arándanos"""
     current_alerts = []
@@ -661,7 +692,6 @@ async def evaluate_sensor_thresholds(user_email: str = "default") -> List[Active
             current_alerts.append(temp_alert)
         
         # Evaluar sensores desconectados
-
         sensor_alerts = await evaluate_sensor_disconnection(thresholds, current_time)
         current_alerts.extend(sensor_alerts)
 
@@ -897,7 +927,7 @@ async def get_active_alerts(current_user: dict = Depends(get_current_user)):
         }
     
     except Exception as e:
-        logger.error(f"❌ Error obteniendo alertas activas: {e}")
+        logger.error(f"Error obteniendo alertas activas: {e}")
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @app.get("/api/alerts/config", tags=["Alertas"])
@@ -999,25 +1029,32 @@ async def dismiss_alert(
             created_at = created_at.replace(tzinfo=timezone.utc)
         
         # Agregar al historial
-        history_entry = AlertHistory(
-            alert_id=request.alert_id,
-            type=AlertType(alert_doc["type"]),
-            level=AlertLevel(alert_doc["level"]),
-            title=alert_doc["title"],
-            message=alert_doc["message"],
-            value=alert_doc.get("value"),
-            threshold_info=alert_doc["threshold_info"],
-            location=alert_doc["location"],
-            sensor_id=alert_doc.get("sensor_id"),
-            created_at=created_at,
-            dismissed_at=current_time,
-            dismissed_by=user_email,
-            dismissed_by_role=user_role,
-            resolution_type="manual_dismiss",
-            duration_minutes=int((current_time - created_at).total_seconds() / 60)
-        )
-        
-        await alert_history_collection.insert_one(history_entry.dict())
+        try:
+            # Crear diccionario simple para historial
+            history_dict = {
+                "alert_id": request.alert_id,
+                "type": alert_doc["type"],
+                "level": alert_doc["level"], 
+                "title": alert_doc["title"],
+                "message": alert_doc["message"],
+                "value": alert_doc.get("value"),
+                "threshold_info": alert_doc["threshold_info"],
+                "location": alert_doc["location"],
+                "sensor_id": alert_doc.get("sensor_id"),
+                "created_at": created_at,
+                "dismissed_at": current_time,
+                "dismissed_by": user_email,
+                "dismissed_by_role": user_role,
+                "resolution_type": "manual_dismiss",
+                "duration_minutes": int((current_time - created_at).total_seconds() / 60)
+            }
+            
+            insert_result = await alert_history_collection.insert_one(history_dict)
+            
+        except Exception as history_error:
+            logger.error(f"Error insertando en historial: {history_error}")
+            # No fallar el dismiss por error en historial
+            pass
         
         logger.info(f"Alerta {request.alert_id} cerrada por {user_email} ({user_role})")
         
@@ -1069,7 +1106,25 @@ async def get_alert_history(
         # Obtener página
         skip = (page - 1) * limit
         history_cursor = alert_history_collection.find(query).sort("created_at", -1).skip(skip).limit(limit)
-        history = await history_cursor.to_list(length=limit)
+        history_raw = await history_cursor.to_list(length=limit)
+        
+        # Convertir datos de manera simple y robusta
+        history = []
+        for item in history_raw:
+            try:
+                # Crear diccionario limpio convertiendo tipos problemáticos
+                clean_item = {}
+                for key, value in item.items():
+                    if isinstance(value, ObjectId):
+                        clean_item[key] = str(value)
+                    elif isinstance(value, datetime):
+                        clean_item[key] = value.isoformat()
+                    else:
+                        clean_item[key] = str(value) if value is not None else None
+                history.append(clean_item)
+            except Exception as e:
+                logger.warning(f"Error procesando item del historial: {e}")
+                continue
         
         return {
             "history": history,
@@ -1083,12 +1138,184 @@ async def get_alert_history(
                 "level": level,
                 "type": type,
                 "days": days
+            },
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        # Construir filtros
+        end_time = datetime.now(timezone.utc)
+        start_time = end_time - timedelta(days=days)
+        
+        query: Dict[str, Any] = {"created_at": {"$gte": start_time, "$lte": end_time}}
+        
+        if level:
+            query["level"] = level
+        if type:
+            query["type"] = type
+        
+        # Contar total
+        total = await alert_history_collection.count_documents(query)
+        
+        # Obtener página
+        skip = (page - 1) * limit
+        history_cursor = alert_history_collection.find(query).sort("created_at", -1).skip(skip).limit(limit)
+        history_raw = await history_cursor.to_list(length=limit)
+        logger.info(f"DEBUG_HISTORY: history_raw length={len(history_raw)} sample_types={[type(x) for x in (history_raw[:3] or [])]}")
+        if len(history_raw) > 0:
+            # Log keys and sample values types for first item
+            sample = history_raw[0]
+            try:
+                logger.info(f"DEBUG_HISTORY: sample keys={list(sample.keys())}")
+                for k in list(sample.keys())[:10]:
+                    try:
+                        logger.info(f"DEBUG_HISTORY: sample[{k}] type={type(sample[k])} value_preview={str(sample[k])[:120]}")
+                    except Exception:
+                        logger.info(f"DEBUG_HISTORY: sample[{k}] type={type(sample.get(k))} (preview failed)")
+            except Exception:
+                logger.info("DEBUG_HISTORY: could not introspect sample item")
+        
+        # Sanear recursivamente la respuesta para que sea JSON-serializable
+        # - ObjectId -> str
+        # - datetime -> ISO string
+        # - dict/list -> recorrer recursivamente
+        from datetime import datetime as _dt
+
+        def sanitize_value(v):
+            # ObjectId -> str
+            if isinstance(v, ObjectId):
+                return str(v)
+            # datetime -> ISO
+            if isinstance(v, _dt):
+                try:
+                    return v.isoformat()
+                except Exception:
+                    return str(v)
+            # dict -> sanitize entries
+            if isinstance(v, dict):
+                return {k: sanitize_value(val) for k, val in v.items()}
+            # list/tuple -> sanitize each
+            if isinstance(v, list):
+                return [sanitize_value(x) for x in v]
+            if isinstance(v, tuple):
+                return tuple(sanitize_value(x) for x in v)
+            # Fallback: return as-is (enums y strings se mantienen)
+            return v
+
+        try:
+            history = [sanitize_value(item) for item in history_raw]
+        except Exception as e:
+            logger.error(f"Error sanitizing history_raw: {e}")
+            # Fallback: convert only top-level ObjectId/datetime if possible
+            history = []
+            for item in history_raw:
+                try:
+                    sanitized = {}
+                    for k, v in item.items():
+                        if isinstance(v, ObjectId):
+                            sanitized[k] = str(v)
+                        elif isinstance(v, _dt):
+                            sanitized[k] = v.isoformat()
+                        else:
+                            sanitized[k] = v
+                    history.append(sanitized)
+                except Exception as e2:
+                    logger.error(f"Fallback sanitize failed for item: {e2}")
+                    history.append({"_raw": str(item)})
+        
+        response_payload = {
+            "history": history,
+            "pagination": {
+                "page": page,
+                "limit": limit,
+                "total": total,
+                "pages": (total + limit - 1) // limit
+            },
+            "filters": {
+                "level": level,
+                "type": type,
+                "days": days
             }
         }
+
+        # Serializar manualmente usando json.dumps con un manejador por defecto
+        def _default_serializer(o):
+            # ObjectId -> str
+            if isinstance(o, ObjectId):
+                return str(o)
+            # datetime -> ISO
+            if isinstance(o, _dt):
+                try:
+                    return o.isoformat()
+                except Exception:
+                    return str(o)
+            # Enums
+            try:
+                from enum import Enum as _Enum
+                if isinstance(o, _Enum):
+                    return o.value
+            except Exception:
+                pass
+            # Fallback
+            return str(o)
+
+        try:
+            json_text = _json.dumps(response_payload, default=_default_serializer, ensure_ascii=False)
+            return PlainTextResponse(content=json_text, media_type="application/json")
+        except Exception as e:
+            logger.error(f"Error serializing response_payload: {e}")
+            # As ultimate fallback, return empty list
+            return PlainTextResponse(content=_json.dumps({"history": []}), media_type="application/json")
         
     except Exception as e:
         logger.error(f"Error obteniendo historial de alertas: {e}")
         raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+@app.get("/api/alerts/test-history", tags=["Alertas"])
+async def test_alert_history(current_user: dict = Depends(get_current_user)):
+    """Endpoint para probar inserción y lectura del historial"""
+    try:
+        # 1. Contar registros actuales
+        count_before = await alert_history_collection.count_documents({})
+        
+        # 2. Insertar un registro de prueba
+        test_record = {
+            "alert_id": "test-123",
+            "type": "test",
+            "level": "info", 
+            "title": "Prueba de historial",
+            "message": "Registro de prueba",
+            "created_at": datetime.now(timezone.utc),
+            "dismissed_at": datetime.now(timezone.utc),
+            "dismissed_by": current_user.get("email"),
+            "resolution_type": "test"
+        }
+        
+        insert_result = await alert_history_collection.insert_one(test_record)
+        
+        # 3. Contar después de insertar
+        count_after = await alert_history_collection.count_documents({})
+        
+        # 4. Leer una muestra
+        sample = await alert_history_collection.find({}).limit(3).to_list(3)
+        
+        return {
+            "count_before": count_before,
+            "count_after": count_after,
+            "insert_id": str(insert_result.inserted_id),
+            "sample_count": len(sample),
+            "sample_titles": [s.get("title", "sin título") for s in sample]
+        }
+        
+    except Exception as e:
+        return {"error": str(e), "count_before": 0}
+
+@app.get("/api/alerts/check-history", tags=["Alertas"])
+async def check_history_simple():
+    """Endpoint simple para verificar historial - sin autenticación"""
+    try:
+        count = await alert_history_collection.count_documents({})
+        return {"history_count": count, "status": "ok"}
+    except Exception as e:
+        return {"error": str(e), "history_count": 0}
 
 @app.get("/api/alerts/summary", tags=["Alertas"])
 async def get_alert_summary(current_user: dict = Depends(get_current_user)):
@@ -1121,9 +1348,40 @@ async def get_alert_summary(current_user: dict = Depends(get_current_user)):
         }
     
     except Exception as e:
-        logger.error(f"❌ Error obteniendo resumen de alertas: {e}")
+        logger.error(f"Error obteniendo resumen de alertas: {e}")
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
+@app.delete("/api/alerts/history/clear", tags=["Alertas"])
+async def clear_alert_history(current_user: dict = Depends(get_current_user)):
+    """Borra todo el historial de alertas - Solo Admin"""
+    user_role = current_user.get("role", "operario")
+    user_email = current_user.get("email", "unknown")
+    
+    if user_role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo administradores pueden borrar el historial de alertas"
+        )
+    
+    try:
+        # Contar registros antes de borrar
+        count_before = await alert_history_collection.count_documents({})
+        
+        # Borrar todos los registros del historial
+        delete_result = await alert_history_collection.delete_many({})
+        
+        logger.info(f"Historial de alertas borrado por {user_email}: {delete_result.deleted_count} registros eliminados")
+        
+        return {
+            "message": "Historial de alertas borrado exitosamente",
+            "deleted_count": delete_result.deleted_count,
+            "deleted_by": user_email,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error borrando historial de alertas: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
 async def alert_monitoring_loop():
@@ -1135,10 +1393,10 @@ async def alert_monitoring_loop():
             # Evaluar alertas para configuración predefinida
             current_alerts = await evaluate_sensor_thresholds("default")
             
-            # Guardar nuevas alertas en base de datos
+            # Guardar nuevas alertas en base de datos (aplicando período de gracia)
             for alert in current_alerts:
                 if not alert.is_resolved:
-                    # Verificar si ya existe
+                    # Verificar si ya existe una alerta activa
                     existing = await alerts_collection.find_one({
                         "type": alert.type,
                         "sensor_id": alert.sensor_id,
@@ -1146,14 +1404,24 @@ async def alert_monitoring_loop():
                     })
                     
                     if not existing:
-                        # Generar ID único para la alerta
-                        import uuid
-                        alert.id = str(uuid.uuid4())
+                        # **NUEVA VERIFICACIÓN**: Aplicar período de gracia antes de crear la alerta
+                        recently_dismissed = await was_alert_recently_dismissed(
+                            AlertType(alert.type), 
+                            alert.sensor_id or "", 
+                            hours_grace_period=1
+                        )
                         
-                        # Insertar nueva alerta
-                        alert_dict = alert.dict()
-                        await alerts_collection.insert_one(alert_dict)
-                        logger.info(f"Nueva alerta creada: {alert.title} - {alert.message}")
+                        if not recently_dismissed:
+                            # Generar ID único para la alerta
+                            import uuid
+                            alert.id = str(uuid.uuid4())
+                            
+                            # Insertar nueva alerta
+                            alert_dict = alert.dict()
+                            await alerts_collection.insert_one(alert_dict)
+                            logger.info(f"Nueva alerta creada: {alert.title} - {alert.message}")
+                        else:
+                            logger.info(f"🚫 Alerta bloqueada por período de gracia: {alert.title} para sensor {alert.sensor_id}")
                     else:
                         logger.debug(f"Alerta ya existe: {alert.title} para sensor {alert.sensor_id}")
             
