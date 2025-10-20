@@ -12,6 +12,8 @@ const isSidebarCollapsed = ref(false);
 const toggleSidebar = () => {
   isSidebarCollapsed.value = !isSidebarCollapsed.value;
 };
+
+// El polling de alertas se manejará desde AlertsManagementView cuando sea necesario
 </script>
 
 <template>
@@ -20,6 +22,7 @@ const toggleSidebar = () => {
 
     <div class="main-content-wrapper">
       <TheHeader />
+
       <main class="dashboard-main">
         <RouterView />
       </main>
