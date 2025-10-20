@@ -81,10 +81,6 @@ const handleSubmit = async () => {
         </ol>
       </div>
 
-      <div class="dev-info">
-        <strong>💻 Modo desarrollo:</strong> Si los emails no están configurados, revisa la consola del servidor backend para obtener el enlace directo.
-      </div>
-
       <div class="action-buttons">
         <RouterLink to="/login" class="back-to-login">
           <i class="pi pi-arrow-left"></i>
@@ -333,16 +329,6 @@ const handleSubmit = async () => {
 .instructions li {
   margin-bottom: 0.5rem;
   color: #495057;
-}
-
-.dev-info {
-  background-color: #fff3cd;
-  color: #856404;
-  border: 1px solid #ffeaa7;
-  padding: 1rem;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  margin-bottom: 2rem;
 }
 
 .action-buttons {

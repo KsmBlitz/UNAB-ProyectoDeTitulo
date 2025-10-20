@@ -18,6 +18,11 @@ import asyncio
 import threading
 import logging
 from collections import defaultdict
+import secrets
+import string
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # Importar core_schema y PydanticCustomError para PyObjectId
 from pydantic_core import CoreSchema, PydanticCustomError, core_schema
@@ -45,12 +50,12 @@ class Settings(BaseSettings):
     ALGORITHM: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int
     
-    # Variables opcionales para AWS IoT (pueden estar en .env pero no son requeridas)
-    smtp_server: Optional[str] = None
-    smtp_port: Optional[str] = None
-    smtp_username: Optional[str] = None
-    smtp_password: Optional[str] = None
-    from_email: Optional[str] = None
+    # Variables opcionales para SMTP (configuración de email)
+    SMTP_SERVER: Optional[str] = None
+    SMTP_PORT: Optional[int] = None
+    SMTP_USERNAME: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    FROM_EMAIL: Optional[str] = None
     aws_iot_endpoint: Optional[str] = None
     aws_region: Optional[str] = None
     aws_iot_root_ca_path: Optional[str] = None
@@ -76,6 +81,8 @@ sensor_collection = db.Sensor_Data
 alerts_collection = db.alerts
 alert_history_collection = db.alert_history
 alert_thresholds_collection = db.alert_thresholds
+# Colección para tokens de recuperación de contraseña
+reset_tokens_collection = db.reset_tokens
 
 # Estado global para alertas
 active_alerts: Dict[str, ActiveAlert] = {}
@@ -127,6 +134,13 @@ class UserPublic(UserBase):
 
 class UserCreate(UserBase):
     password: str
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
 
 class Token(BaseModel):
     access_token: str
@@ -273,6 +287,79 @@ async def get_current_admin_user(current_user: dict = Depends(get_current_user))
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permisos de administrador requeridos")
     return current_user
 
+def generate_reset_token():
+    """Genera un token seguro de 32 caracteres para recuperación de contraseña"""
+    alphabet = string.ascii_letters + string.digits
+    return ''.join(secrets.choice(alphabet) for _ in range(32))
+
+async def send_reset_email(email: str, reset_token: str):
+    """Envía email de recuperación de contraseña"""
+    try:
+        if not all([settings.SMTP_SERVER, settings.SMTP_PORT, settings.SMTP_USERNAME, 
+                   settings.SMTP_PASSWORD, settings.FROM_EMAIL]):
+            logger.warning("Configuración SMTP incompleta - no se puede enviar email")
+            return False
+
+        # Crear el mensaje
+        msg = MIMEMultipart()
+        msg['From'] = settings.FROM_EMAIL or ""
+        msg['To'] = email
+        msg['Subject'] = "Recuperación de Contraseña - Sistema de Embalses IoT"
+
+        # URL de reset (en producción sería tu dominio real)
+        reset_url = f"http://localhost:3000/reset-password?token={reset_token}"
+        
+        # Cuerpo del email en HTML
+        body = f"""
+        <html>
+        <body>
+            <h2>🔐 Recuperación de Contraseña</h2>
+            <p>Hola,</p>
+            <p>Recibimos una solicitud para restablecer tu contraseña en el Sistema de Embalses IoT.</p>
+            
+            <p><strong>Para continuar:</strong></p>
+            <p>Haz clic en el siguiente enlace para crear una nueva contraseña:</p>
+            
+            <p style="text-align: center; margin: 20px 0;">
+                <a href="{reset_url}" style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                    🔑 Restablecer Contraseña
+                </a>
+            </p>
+            
+            <p><strong>⚠️ Importante:</strong></p>
+            <ul>
+                <li>Este enlace expirará en <strong>1 hora</strong> por seguridad</li>
+                <li>Solo puedes usar este enlace una vez</li>
+                <li>Si no solicitaste este cambio, ignora este email</li>
+            </ul>
+            
+            <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
+            <p style="font-size: 0.9em; color: #666;">
+                Sistema de Monitoreo de Embalses IoT para Arándanos<br>
+                Este es un email automático, no responda a este mensaje.
+            </p>
+        </body>
+        </html>
+        """
+        
+        msg.attach(MIMEText(body, 'html'))
+
+        # Conectar al servidor SMTP
+        server = smtplib.SMTP(settings.SMTP_SERVER or "", settings.SMTP_PORT or 587)
+        server.starttls()  # Habilitar encriptación TLS
+        server.login(settings.SMTP_USERNAME or "", settings.SMTP_PASSWORD or "")
+        
+        # Enviar el email
+        server.send_message(msg)
+        server.quit()
+        
+        logger.info(f"Email de recuperación enviado exitosamente a: {email}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error enviando email de recuperación: {e}")
+        return False
+
 # --------------------------------------------------------------------------
 # 7. Inicialización de la App FastAPI
 # --------------------------------------------------------------------------
@@ -308,6 +395,124 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         data={"sub": user["email"], "role": user.get("role"), "full_name": user.get("full_name")}
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
+@app.post("/api/auth/forgot-password", tags=["Autenticación"])
+async def forgot_password(request: ForgotPasswordRequest):
+    """Inicia el proceso de recuperación de contraseña"""
+    try:
+        # Verificar si el usuario existe
+        user = await users_collection.find_one({"email": request.email})
+        if not user:
+            # Por seguridad, siempre devolver éxito aunque el email no exista
+            return {"message": "Si el email existe, recibirás un enlace de recuperación"}
+        
+        # Generar token seguro
+        reset_token = generate_reset_token()
+        
+        # Guardar token en la base de datos con expiración de 1 hora
+        token_data = {
+            "email": request.email,
+            "token": reset_token,
+            "created_at": datetime.now(timezone.utc),
+            "expires_at": datetime.now(timezone.utc) + timedelta(hours=1),
+            "used": False
+        }
+        
+        await reset_tokens_collection.insert_one(token_data)
+        
+        # Enviar email de recuperación
+        email_sent = await send_reset_email(request.email, reset_token)
+        
+        if email_sent:
+            logger.info(f"Email de recuperación enviado exitosamente a: {request.email}")
+        else:
+            # Fallback: mostrar token en logs si el email falla
+            logger.warning(f"Email falló - Token de recuperación para {request.email}: {reset_token}")
+        
+        return {"message": "Si el email existe, recibirás un enlace de recuperación"}
+    
+    except Exception as e:
+        logger.error(f"Error en forgot_password: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+@app.post("/api/auth/reset-password", tags=["Autenticación"])
+async def reset_password(request: ResetPasswordRequest):
+    """Completa el proceso de recuperación de contraseña"""
+    try:
+        # Buscar token válido
+        token_data = await reset_tokens_collection.find_one({
+            "token": request.token,
+            "used": False,
+            "expires_at": {"$gt": datetime.now(timezone.utc)}
+        })
+        
+        if not token_data:
+            raise HTTPException(status_code=400, detail="Token inválido o expirado")
+        
+        # Actualizar contraseña del usuario
+        hashed_password = get_password_hash(request.new_password)
+        
+        result = await users_collection.update_one(
+            {"email": token_data["email"]},
+            {"$set": {"hashed_password": hashed_password}}
+        )
+        
+        if result.modified_count == 0:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        
+        # Marcar token como usado
+        await reset_tokens_collection.update_one(
+            {"token": request.token},
+            {"$set": {"used": True, "used_at": datetime.now(timezone.utc)}}
+        )
+        
+        logger.info(f"Contraseña actualizada para usuario: {token_data['email']}")
+        
+        return {"message": "Contraseña actualizada exitosamente"}
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error en reset_password: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+@app.get("/api/auth/validate-reset-token/{token}", tags=["Autenticación"])
+async def validate_reset_token(token: str):
+    """Valida si un token de reset es válido y devuelve información"""
+    try:
+        # Buscar token válido
+        token_data = await reset_tokens_collection.find_one({
+            "token": token,
+            "used": False,
+            "expires_at": {"$gt": datetime.now(timezone.utc)}
+        })
+        
+        if not token_data:
+            raise HTTPException(status_code=404, detail="Token inválido o expirado")
+        
+        # Calcular tiempo restante en minutos
+        expires_at = token_data["expires_at"]
+        now = datetime.now(timezone.utc)
+        
+        # Asegurar que expires_at tenga timezone si no lo tiene
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        
+        time_remaining = expires_at - now
+        minutes_remaining = int(time_remaining.total_seconds() / 60)
+        
+        return {
+            "valid": True,
+            "email": token_data["email"],
+            "expires_in_minutes": max(0, minutes_remaining),
+            "expires_at": expires_at.isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error validating reset token: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @app.get("/api/users", response_model=List[UserPublic], tags=["Usuarios"])
 async def read_users(admin_user: dict = Depends(get_current_admin_user)):

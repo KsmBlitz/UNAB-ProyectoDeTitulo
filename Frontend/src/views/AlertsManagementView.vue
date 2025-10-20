@@ -25,7 +25,7 @@
 
         <button
           v-if="isAdmin"
-          @click="showConfigModal = true"
+          @click="openConfigModal"
           class="action-btn config-btn"
           title="Configurar umbrales de alertas"
         >
@@ -262,16 +262,138 @@
         </div>
 
         <div class="modal-body">
-          <!-- Aquí iría el formulario de configuración de umbrales -->
-          <p>Formulario de configuración de umbrales (pendiente implementar)</p>
+          <div v-if="loadingConfig" class="loading-state">
+            <i class="pi pi-spin pi-spinner"></i>
+            <span>Cargando configuración...</span>
+          </div>
+
+          <form v-else @submit.prevent="saveThresholdConfig" class="threshold-form">
+            <!-- Mensaje de estado -->
+            <div v-if="configMessage" class="config-message" :class="{ success: configMessage.includes('exitosamente'), error: !configMessage.includes('exitosamente') }">
+              {{ configMessage }}
+            </div>
+
+            <!-- Configuración de pH -->
+            <div class="form-section">
+              <h4><i class="pi pi-chart-bar"></i> Niveles de pH</h4>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="ph_min">pH Mínimo:</label>
+                  <input
+                    id="ph_min"
+                    v-model.number="thresholdConfig.ph_min"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="14"
+                    :class="{ error: configErrors.ph_min }"
+                  >
+                  <span v-if="configErrors.ph_min" class="error-text">{{ configErrors.ph_min }}</span>
+                </div>
+                <div class="form-group">
+                  <label for="ph_max">pH Máximo:</label>
+                  <input
+                    id="ph_max"
+                    v-model.number="thresholdConfig.ph_max"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="14"
+                    :class="{ error: configErrors.ph_max }"
+                  >
+                  <span v-if="configErrors.ph_max" class="error-text">{{ configErrors.ph_max }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Configuración de Conductividad -->
+            <div class="form-section">
+              <h4><i class="pi pi-bolt"></i> Conductividad Eléctrica</h4>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="conductivity_max">Conductividad Máxima (dS/m):</label>
+                  <input
+                    id="conductivity_max"
+                    v-model.number="thresholdConfig.conductivity_max"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    :class="{ error: configErrors.conductivity_max }"
+                  >
+                  <span v-if="configErrors.conductivity_max" class="error-text">{{ configErrors.conductivity_max }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Configuración de Nivel de Agua -->
+            <div class="form-section">
+              <h4><i class="pi pi-tint"></i> Nivel de Agua</h4>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="water_level_min">Nivel Mínimo (%):</label>
+                  <input
+                    id="water_level_min"
+                    v-model.number="thresholdConfig.water_level_min"
+                    type="number"
+                    min="0"
+                    max="100"
+                    :class="{ error: configErrors.water_level_min }"
+                  >
+                  <span v-if="configErrors.water_level_min" class="error-text">{{ configErrors.water_level_min }}</span>
+                </div>
+                <div class="form-group">
+                  <label for="water_level_max">Nivel Máximo (%):</label>
+                  <input
+                    id="water_level_max"
+                    v-model.number="thresholdConfig.water_level_max"
+                    type="number"
+                    min="0"
+                    max="100"
+                    :class="{ error: configErrors.water_level_max }"
+                  >
+                  <span v-if="configErrors.water_level_max" class="error-text">{{ configErrors.water_level_max }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Configuración de Temperatura -->
+            <div class="form-section">
+              <h4><i class="pi pi-sun"></i> Temperatura</h4>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="temperature_min">Temperatura Mínima (°C):</label>
+                  <input
+                    id="temperature_min"
+                    v-model.number="thresholdConfig.temperature_min"
+                    type="number"
+                    step="0.1"
+                    :class="{ error: configErrors.temperature_min }"
+                  >
+                  <span v-if="configErrors.temperature_min" class="error-text">{{ configErrors.temperature_min }}</span>
+                </div>
+                <div class="form-group">
+                  <label for="temperature_max">Temperatura Máxima (°C):</label>
+                  <input
+                    id="temperature_max"
+                    v-model.number="thresholdConfig.temperature_max"
+                    type="number"
+                    step="0.1"
+                    :class="{ error: configErrors.temperature_max }"
+                  >
+                  <span v-if="configErrors.temperature_max" class="error-text">{{ configErrors.temperature_max }}</span>
+                </div>
+              </div>
+            </div>
+          </form>
         </div>
 
         <div class="modal-footer">
-          <button @click="showConfigModal = false" class="action-btn secondary-btn">
+          <button @click="showConfigModal = false" class="action-btn secondary-btn" :disabled="savingConfig">
             Cancelar
           </button>
-          <button @click="saveThresholdConfig" class="action-btn primary-btn">
-            Guardar Cambios
+          <button @click="saveThresholdConfig" class="action-btn primary-btn" :disabled="loadingConfig || savingConfig">
+            <i v-if="savingConfig" class="pi pi-spin pi-spinner"></i>
+            {{ savingConfig ? 'Guardando...' : 'Guardar Cambios' }}
           </button>
         </div>
       </div>
@@ -280,7 +402,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { alertStore, type ActiveAlert } from '@/stores/alertStore'
 import { authStore } from '@/auth/store'
 import { API_BASE_URL } from '@/config/api'
@@ -319,8 +441,24 @@ const isLoading = ref(false)
 const loadingHistory = ref(false)
 const clearingHistory = ref(false)
 const showConfigModal = ref(false)
+const loadingConfig = ref(false)
+const savingConfig = ref(false)
 const dismissingAlerts = ref(new Set<string>())
 const alertHistory = ref<AlertHistoryItem[]>([])
+
+// Configuración de umbrales
+const thresholdConfig = ref({
+  ph_min: 4.5,
+  ph_max: 6.5,
+  conductivity_max: 1.5,
+  water_level_min: 20,
+  water_level_max: 85,
+  temperature_min: 5,
+  temperature_max: 35
+})
+
+const configErrors = ref<Record<string, string>>({})
+const configMessage = ref('')
 
 // Filtros
 const filters = ref({
@@ -375,7 +513,11 @@ function getAlertIcon(level: string): string {
 function formatAlertTime(dateString: string): string {
   try {
     const date = new Date(dateString)
-    const now = new Date()
+
+    // Obtener hora actual en zona horaria de Chile
+    const nowInChile = new Date().toLocaleString('sv-SE', { timeZone: 'America/Santiago' })
+    const now = new Date(nowInChile)
+
     const diffMs = now.getTime() - date.getTime()
     const diffMinutes = Math.floor(diffMs / 60000)
 
@@ -387,12 +529,14 @@ function formatAlertTime(dateString: string): string {
     if (diffHours === 1) return 'Hace 1 hora'
     if (diffHours < 24) return `Hace ${diffHours} horas`
 
+    // Forzar zona horaria de Chile
     return date.toLocaleDateString('es-CL', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      timeZone: 'America/Santiago'
     })
   } catch {
     return 'Fecha inválida'
@@ -402,12 +546,14 @@ function formatAlertTime(dateString: string): string {
 function formatHistoryDate(dateString: string): string {
   try {
     const date = new Date(dateString)
+    // Forzar zona horaria de Chile
     return date.toLocaleDateString('es-CL', {
       day: '2-digit',
       month: '2-digit',
       year: '2-digit',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      timeZone: 'America/Santiago'
     })
   } catch {
     return 'N/A'
@@ -491,8 +637,11 @@ async function loadHistory(): Promise<void> {
   try {
     const token = localStorage.getItem('userToken')
     if (!token) {
+      console.error('No hay token de autenticación')
       throw new Error('No hay token de autenticación')
     }
+
+    console.log('Cargando historial desde:', `${API_BASE_URL}/api/alerts/history?limit=50`)
 
     const response = await fetch(`${API_BASE_URL}/api/alerts/history?limit=50`, {
       headers: {
@@ -501,11 +650,24 @@ async function loadHistory(): Promise<void> {
       }
     })
 
+    console.log('Response status:', response.status)
+    console.log('Response headers:', Object.fromEntries(response.headers.entries()))
+
     if (!response.ok) {
+      const errorText = await response.text()
+      console.error('Error response:', errorText)
       throw new Error(`Error ${response.status}: ${response.statusText}`)
     }
 
+    const contentType = response.headers.get('content-type')
+    if (!contentType || !contentType.includes('application/json')) {
+      const responseText = await response.text()
+      console.error('Respuesta no es JSON:', responseText.substring(0, 200))
+      throw new Error('La respuesta del servidor no es JSON válido')
+    }
+
     const data = await response.json()
+    console.log('Data recibida:', data)
 
     // Mapear los datos del API al formato esperado por el componente
     alertHistory.value = data.history?.map((item: AlertHistoryApiItem) => ({
@@ -564,9 +726,208 @@ async function clearHistory(): Promise<void> {
   }
 }
 
-function saveThresholdConfig(): void {
-  // Implementar guardado de configuración
-  showConfigModal.value = false
+// Funciones de configuración de umbrales
+async function loadThresholdConfig(): Promise<void> {
+  if (!isAdmin.value) return
+
+  loadingConfig.value = true
+  configErrors.value = {}
+
+  try {
+    const token = localStorage.getItem('userToken')
+    if (!token) {
+      console.error('No hay token de autenticación')
+      throw new Error('No hay token de autenticación')
+    }
+
+    console.log('Cargando configuración desde:', `${API_BASE_URL}/api/alerts/config`)
+
+    const response = await fetch(`${API_BASE_URL}/api/alerts/config`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    console.log('Config response status:', response.status)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('Config error response:', errorText)
+      throw new Error(`Error ${response.status}: ${response.statusText}`)
+    }
+
+    const contentType = response.headers.get('content-type')
+    if (!contentType || !contentType.includes('application/json')) {
+      const responseText = await response.text()
+      console.error('Config respuesta no es JSON:', responseText.substring(0, 200))
+      throw new Error('La respuesta del servidor no es JSON válido')
+    }
+
+    const data = await response.json()
+    console.log('Config data recibida:', data)
+
+    // Convertir del formato del backend al formato del frontend
+    const thresholds = data.thresholds
+
+    thresholdConfig.value = {
+      ph_min: thresholds?.ph?.warning_min || 4.5,
+      ph_max: thresholds?.ph?.warning_max || 6.5,
+      conductivity_max: thresholds?.conductivity?.warning_max || 1.5,
+      water_level_min: thresholds?.water_level?.warning_min || 20,
+      water_level_max: thresholds?.water_level?.warning_max || 85,
+      temperature_min: thresholds?.temperature?.warning_min || 5,
+      temperature_max: thresholds?.temperature?.warning_max || 35
+    }
+
+  } catch (error) {
+    console.error('Error cargando configuración:', error)
+    configMessage.value = 'Error al cargar la configuración'
+  } finally {
+    loadingConfig.value = false
+  }
+}
+
+function validateConfig(): boolean {
+  configErrors.value = {}
+  let isValid = true
+
+  // Validar pH
+  if (thresholdConfig.value.ph_min < 0 || thresholdConfig.value.ph_min > 14) {
+    configErrors.value.ph_min = 'El pH mínimo debe estar entre 0 y 14'
+    isValid = false
+  }
+  if (thresholdConfig.value.ph_max < 0 || thresholdConfig.value.ph_max > 14) {
+    configErrors.value.ph_max = 'El pH máximo debe estar entre 0 y 14'
+    isValid = false
+  }
+  if (thresholdConfig.value.ph_min >= thresholdConfig.value.ph_max) {
+    configErrors.value.ph_min = 'El pH mínimo debe ser menor que el máximo'
+    isValid = false
+  }
+
+  // Validar conductividad
+  if (thresholdConfig.value.conductivity_max <= 0) {
+    configErrors.value.conductivity_max = 'La conductividad máxima debe ser mayor a 0'
+    isValid = false
+  }
+
+  // Validar nivel de agua
+  if (thresholdConfig.value.water_level_min < 0 || thresholdConfig.value.water_level_min > 100) {
+    configErrors.value.water_level_min = 'El nivel mínimo debe estar entre 0% y 100%'
+    isValid = false
+  }
+  if (thresholdConfig.value.water_level_max < 0 || thresholdConfig.value.water_level_max > 100) {
+    configErrors.value.water_level_max = 'El nivel máximo debe estar entre 0% y 100%'
+    isValid = false
+  }
+  if (thresholdConfig.value.water_level_min >= thresholdConfig.value.water_level_max) {
+    configErrors.value.water_level_min = 'El nivel mínimo debe ser menor que el máximo'
+    isValid = false
+  }
+
+  // Validar temperatura
+  if (thresholdConfig.value.temperature_min >= thresholdConfig.value.temperature_max) {
+    configErrors.value.temperature_min = 'La temperatura mínima debe ser menor que la máxima'
+    isValid = false
+  }
+
+  return isValid
+}
+
+async function saveThresholdConfig(): Promise<void> {
+  if (!isAdmin.value) return
+
+  // Validar antes de guardar
+  if (!validateConfig()) {
+    configMessage.value = 'Por favor corrige los errores antes de guardar'
+    return
+  }
+
+  savingConfig.value = true
+  configMessage.value = ''
+
+  try {
+    const token = localStorage.getItem('userToken')
+    if (!token) {
+      throw new Error('No hay token de autenticación')
+    }
+
+    // Convertir el formato del frontend al formato que espera el backend
+    const backendFormat = {
+      thresholds: {
+        ph: {
+          warning_min: thresholdConfig.value.ph_min,
+          warning_max: thresholdConfig.value.ph_max,
+          critical_min: thresholdConfig.value.ph_min - 0.5,
+          critical_max: thresholdConfig.value.ph_max + 0.5,
+          optimal_min: thresholdConfig.value.ph_min + 0.5,
+          optimal_max: thresholdConfig.value.ph_max - 0.5
+        },
+        conductivity: {
+          warning_max: thresholdConfig.value.conductivity_max,
+          critical_max: thresholdConfig.value.conductivity_max + 0.5,
+          optimal_max: thresholdConfig.value.conductivity_max - 0.5,
+          optimal_min: 0.0,
+          warning_min: 0.0,
+          critical_min: 0.0
+        },
+        water_level: {
+          warning_min: thresholdConfig.value.water_level_min,
+          warning_max: thresholdConfig.value.water_level_max,
+          critical_min: thresholdConfig.value.water_level_min - 10,
+          critical_max: thresholdConfig.value.water_level_max + 5,
+          optimal_min: thresholdConfig.value.water_level_min + 10,
+          optimal_max: thresholdConfig.value.water_level_max - 5
+        },
+        temperature: {
+          warning_min: thresholdConfig.value.temperature_min,
+          warning_max: thresholdConfig.value.temperature_max,
+          critical_min: thresholdConfig.value.temperature_min - 5,
+          critical_max: thresholdConfig.value.temperature_max + 5,
+          optimal_min: thresholdConfig.value.temperature_min + 5,
+          optimal_max: thresholdConfig.value.temperature_max - 5
+        },
+        sensor_timeout_warning: 6,
+        sensor_timeout_critical: 15
+      },
+      updated_by: authStore.user?.email || 'admin',
+      reason: 'Configuración actualizada desde la interfaz web'
+    }
+
+    const response = await fetch(`${API_BASE_URL}/api/alerts/config`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(backendFormat)
+    })
+
+    if (!response.ok) {
+      throw new Error(`Error ${response.status}: ${response.statusText}`)
+    }
+
+    configMessage.value = 'Configuración guardada exitosamente'
+
+    // Cerrar modal después de un breve delay
+    setTimeout(() => {
+      showConfigModal.value = false
+      configMessage.value = ''
+    }, 1500)
+
+  } catch (error) {
+    console.error('Error guardando configuración:', error)
+    configMessage.value = 'Error al guardar la configuración'
+  } finally {
+    savingConfig.value = false
+  }
+}
+
+// Cargar configuración al abrir modal
+function openConfigModal(): void {
+  showConfigModal.value = true
+  loadThresholdConfig()
 }
 
 
@@ -585,11 +946,25 @@ watch(
 // Lifecycle
 onMounted(() => {
   refreshAlerts()
-  // Cargar historial automáticamente si es admin
-  if (isAdmin.value) {
-    loadHistory()
-  }
+
+  // Usar nextTick para asegurar que el auth store esté inicializado
+  nextTick(() => {
+    if (isAdmin.value) {
+      loadHistory()
+    }
+  })
 })
+
+// Watcher para cargar historial cuando el usuario se autentique como admin
+watch(
+  () => isAdmin.value,
+  (isAdminNow) => {
+    if (isAdminNow && alertHistory.value.length === 0) {
+      loadHistory()
+    }
+  },
+  { immediate: true }
+)
 </script>
 
 <style scoped>
@@ -1087,6 +1462,114 @@ onMounted(() => {
   gap: 1rem;
   padding: 1.5rem;
   border-top: 1px solid #e2e8f0;
+}
+
+/* Estilos del formulario de configuración */
+.threshold-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.form-section {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 1rem;
+  background-color: #f8fafc;
+}
+
+.form-section h4 {
+  margin: 0 0 1rem 0;
+  color: #2d3748;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.form-group label {
+  font-weight: 600;
+  color: #4a5568;
+  font-size: 0.875rem;
+}
+
+.form-group input {
+  padding: 0.75rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 1rem;
+  transition: border-color 0.2s;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #4299e1;
+  box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+}
+
+.form-group input.error {
+  border-color: #e53e3e;
+  background-color: #fed7d7;
+}
+
+.error-text {
+  color: #e53e3e;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.config-message {
+  padding: 0.75rem;
+  border-radius: 6px;
+  font-weight: 500;
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.config-message.success {
+  background-color: #c6f6d5;
+  color: #22543d;
+  border: 1px solid #9ae6b4;
+}
+
+.config-message.error {
+  background-color: #fed7d7;
+  color: #742a2a;
+  border: 1px solid #fc8181;
+}
+
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2rem;
+  color: #4a5568;
+}
+
+/* Responsive para formulario */
+@media (max-width: 640px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-content {
+    width: 95%;
+    margin: 1rem;
+  }
 }
 
 /* Responsive */
