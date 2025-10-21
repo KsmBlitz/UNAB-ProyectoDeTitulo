@@ -70,13 +70,14 @@ graph TB
     WEB <-->|REST API| API
     WEB -->|JWT Auth| AUTH
     
-    style ESP32 fill:#ff9999
-    style API fill:#99ccff
-    style WEB fill:#99ff99
-    style DB fill:#ffcc99
+    style ESP32 fill:#2196F3,stroke:#1976D2,stroke-width:2px,color:#fff
+    style AWS fill:#FF9800,stroke:#F57C00,stroke-width:2px,color:#fff
+    style API fill:#4CAF50,stroke:#388E3C,stroke-width:2px,color:#fff
+    style DB fill:#9C27B0,stroke:#7B1FA2,stroke-width:2px,color:#fff
+    style SMTP fill:#F44336,stroke:#D32F2F,stroke-width:2px,color:#fff
+    style WEB fill:#00BCD4,stroke:#0097A7,stroke-width:2px,color:#fff
+    style AUTH fill:#795548,stroke:#5D4037,stroke-width:2px,color:#fff
 ```
-
-<img width="1048" height="953" alt="Arquitectura del Sistema" src="https://github.com/user-attachments/assets/1a876814-8bb4-4074-bcfa-0d846f5fbc25" />
 
 
 ## Funcionalidades Implementadas
