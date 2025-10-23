@@ -75,15 +75,18 @@ async function handleDeleteUser(user: User) {
 </script>
 
 <template>
-  <div class="view-container">
-    <header class="view-header">
-      <h1>Gestión de Usuarios</h1>
-      <button @click="isCreateModalOpen = true" class="add-user-btn">
+  <div class="p-8">
+    <header class="flex justify-between items-center mb-4">
+      <h1 class="text-3xl font-bold text-gray-800 m-0">Gestión de Usuarios</h1>
+      <button
+        @click="isCreateModalOpen = true"
+        class="bg-success-500 text-white border-none rounded-md px-4 py-3 text-base font-medium cursor-pointer flex items-center gap-2 hover:bg-success-600 transition-colors"
+      >
         <i class="pi pi-plus"></i>
         <span>Crear Nuevo Usuario</span>
       </button>
     </header>
-    <p>Desde aquí podrás administrar los usuarios del sistema.</p>
+    <p class="text-gray-600 mb-6">Desde aquí podrás administrar los usuarios del sistema.</p>
 
     <UsersTable
       ref="usersTableRef"
@@ -104,8 +107,3 @@ async function handleDeleteUser(user: User) {
     />
   </div>
 </template>
-
-<style scoped>
-/* Estilos sin cambios */
-.view-container{padding:2rem}.view-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem}.view-header h1{margin:0}.add-user-btn{background-color:#28a745;color:#fff;border:none;border-radius:6px;padding:.75rem 1rem;font-size:1rem;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:.5rem}.add-user-btn:hover{background-color:#218838}
-</style>

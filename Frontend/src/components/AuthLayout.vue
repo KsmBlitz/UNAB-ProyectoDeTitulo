@@ -6,39 +6,21 @@ defineProps<{
 </script>
 
 <template>
-  <div class="auth-container">
-    <div class="auth-card">
-      <div class="logo">
-        <i class="pi pi-shield" style="font-size: 3rem; color: #3498db;"></i>
-        <h2>{{ title }}</h2>
-        <p v-if="subtitle">{{ subtitle }}</p>
+  <div class="flex justify-center items-center min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 p-4 relative overflow-hidden">
+    <!-- Decorative background elements -->
+    <div class="absolute top-0 left-0 w-96 h-96 bg-blue-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+    <div class="absolute top-0 right-0 w-96 h-96 bg-purple-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+    <div class="absolute bottom-0 left-1/2 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+
+    <div class="bg-white/80 backdrop-blur-sm py-12 px-12 rounded-2xl shadow-2xl border border-gray-100 w-full max-w-[480px] text-center relative z-10">
+      <div class="mb-10">
+        <div class="flex justify-center mb-6">
+          <img src="@/assets/Logo Embalse IoT.png" alt="Embalses IoT Logo" class="h-24 w-auto object-contain drop-shadow-lg">
+        </div>
+        <h2 class="my-3 text-gray-800 text-3xl font-bold tracking-tight">{{ title }}</h2>
+        <p v-if="subtitle" class="text-gray-600 m-0 text-lg">{{ subtitle }}</p>
       </div>
       <slot />
     </div>
   </div>
 </template>
-
-<style scoped>
-.auth-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-  background-color: #f4f6f9;
-  padding: 1rem;
-}
-
-.auth-card {
-  background-color: #fff;
-  padding: 2.5rem 3rem;
-  border-radius: 12px;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-  width: 100%;
-  max-width: 480px;
-  text-align: center;
-}
-
-.logo { margin-bottom: 2rem; }
-.logo h2 { margin: 0.5rem 0; color: #2c3e50; }
-.logo p { color: #6c757d; margin: 0; }
-</style>

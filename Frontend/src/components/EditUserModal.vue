@@ -92,30 +92,55 @@ async function handleUpdate() {
 </script>
 
 <template>
-  <div class="modal-overlay" @click.self="emit('close')">
-    <div class="modal-content">
-      <h2>Editar Usuario</h2>
-      <p class="user-email">{{ user.email }}</p>
+  <div class="fixed top-0 left-0 w-full h-full bg-black/50 flex justify-center items-center z-[1000]" @click.self="emit('close')">
+    <div class="bg-white p-8 rounded-lg w-[90%] max-w-[500px] shadow-2xl">
+      <h2 class="mt-0 mb-2 text-2xl font-bold text-gray-800">Editar Usuario</h2>
+      <p class="text-gray-500 -mt-4 mb-6 block">{{ user.email }}</p>
       <form @submit.prevent="handleUpdate">
-        <div v-if="error" class="error-message">{{ error }}</div>
-        <div class="form-group">
-          <label for="fullName">Nombre Completo</label>
-          <input id="fullName" v-model="fullName" type="text" required>
+        <div v-if="error" class="text-danger-500 mb-4 p-3 bg-danger-50 rounded border border-danger-200">{{ error }}</div>
+        <div class="mb-4">
+          <label for="fullName" class="block mb-2 font-medium text-gray-700">Nombre Completo</label>
+          <input
+            id="fullName"
+            v-model="fullName"
+            type="text"
+            required
+            class="w-full px-4 py-2 text-base rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          >
         </div>
-        <div class="form-group">
-          <label for="role">Rol</label>
-          <select id="role" v-model="role">
+        <div class="mb-4">
+          <label for="role" class="block mb-2 font-medium text-gray-700">Rol</label>
+          <select
+            id="role"
+            v-model="role"
+            class="w-full px-4 py-2 text-base rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          >
             <option value="operario">Operario</option>
             <option value="admin">Administrador</option>
           </select>
         </div>
-        <div class="form-group-checkbox">
-          <input id="disabled" v-model="disabled" type="checkbox">
-          <label for="disabled">Usuario Deshabilitado</label>
+        <div class="flex items-center gap-2 mb-4">
+          <input
+            id="disabled"
+            v-model="disabled"
+            type="checkbox"
+            class="w-4 h-4 cursor-pointer accent-primary-500"
+          >
+          <label for="disabled" class="font-medium text-gray-700 cursor-pointer">Usuario Deshabilitado</label>
         </div>
-        <div class="form-actions">
-          <button type="button" @click="emit('close')" class="btn-cancel">Cancelar</button>
-          <button type="submit" class="btn-submit" :disabled="isLoading">
+        <div class="mt-6 flex justify-end gap-4">
+          <button
+            type="button"
+            @click="emit('close')"
+            class="px-6 py-3 border-none rounded-md font-bold cursor-pointer bg-gray-500 text-white hover:bg-gray-600 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            class="px-6 py-3 border-none rounded-md font-bold cursor-pointer bg-primary-500 text-white hover:bg-primary-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+            :disabled="isLoading"
+          >
             {{ isLoading ? 'Guardando...' : 'Guardar Cambios' }}
           </button>
         </div>
@@ -123,8 +148,3 @@ async function handleUpdate() {
     </div>
   </div>
 </template>
-
-<style scoped>
-/* Estilos sin cambios */
-.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background-color:rgba(0,0,0,.5);display:flex;justify-content:center;align-items:center;z-index:1000}.modal-content{background:#fff;padding:2rem;border-radius:8px;width:90%;max-width:500px;box-shadow:0 5px 15px rgba(0,0,0,.3)}.modal-content h2{margin-top:0}.user-email{color:#6c757d;margin-top:-1rem;margin-bottom:1.5rem;display:block}.form-group{margin-bottom:1rem}.form-group label{display:block;margin-bottom:.5rem}.form-group input,.form-group select{width:100%;padding:.5rem;font-size:1rem;border-radius:4px;border:1px solid #ccc;box-sizing:border-box}.form-group-checkbox{display:flex;align-items:center;gap:.5rem;margin-bottom:1rem}.form-actions{margin-top:1.5rem;display:flex;justify-content:flex-end;gap:1rem}.btn-submit,.btn-cancel{padding:.75rem 1.5rem;border:none;border-radius:6px;font-weight:700;cursor:pointer}.btn-cancel{background-color:#6c757d;color:#fff}.btn-submit{background-color:#007bff;color:#fff}.btn-submit:disabled{background-color:#aaa}.error-message{color:red;margin-bottom:1rem}
-</style>

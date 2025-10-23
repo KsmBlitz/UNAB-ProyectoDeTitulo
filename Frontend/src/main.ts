@@ -2,6 +2,7 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
 import 'primeicons/primeicons.css';
+import './assets/styles.css'; // Tailwind CSS
 
 import { authStore } from './auth/store';
 import { jwtDecode } from 'jwt-decode';

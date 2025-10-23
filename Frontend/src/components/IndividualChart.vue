@@ -202,164 +202,47 @@ onMounted(fetchData);
 </script>
 
 <template>
-  <div class="individual-chart">
+  <div class="h-full bg-white rounded-lg p-4 flex flex-col overflow-hidden">
     <!-- Header del gráfico individual -->
-    <div class="chart-header">
-      <div class="chart-title">
-        <i :class="icon" class="chart-icon"></i>
-        <h4>{{ title }}</h4>
+    <div class="flex justify-between items-center mb-4 pb-2 border-b border-gray-200 flex-shrink-0">
+      <div class="flex items-center gap-2">
+        <i :class="icon" class="text-base" :style="{ color: props.color }"></i>
+        <h4 class="m-0 text-sm font-semibold text-gray-800">{{ title }}</h4>
       </div>
-      <div class="chart-status">
-        <span v-if="isLoading" class="status-loading">
+      <div class="flex items-center">
+        <span v-if="isLoading" class="text-primary-500">
           <i class="pi pi-spin pi-spinner"></i>
         </span>
-        <span v-else-if="error" class="status-error">
+        <span v-else-if="error" class="text-danger-500">
           <i class="pi pi-exclamation-triangle"></i>
         </span>
-        <span v-else class="status-success">
+        <span v-else class="text-success-500">
           <i class="pi pi-check-circle"></i>
         </span>
       </div>
     </div>
 
     <!-- Contenido del gráfico con ALTURA CONTROLADA -->
-    <div class="chart-content">
-      <div v-if="error" class="error-state">
+    <div class="flex-grow flex items-center justify-center min-h-0 overflow-hidden">
+      <div v-if="error" class="flex flex-col items-center gap-2 text-danger-500 text-center">
         <i class="pi pi-exclamation-triangle"></i>
-        <p>{{ error }}</p>
-        <button @click="fetchData" class="retry-btn">Reintentar</button>
+        <p class="m-0 text-xs">{{ error }}</p>
+        <button
+          @click="fetchData"
+          class="px-3 py-1.5 bg-danger-500 text-white border-none rounded cursor-pointer text-xs hover:bg-danger-600 transition-colors"
+        >
+          Reintentar
+        </button>
       </div>
 
-      <div v-else-if="isLoading" class="loading-state">
+      <div v-else-if="isLoading" class="flex flex-col items-center gap-2 text-gray-500 text-center">
         <i class="pi pi-spin pi-spinner"></i>
-        <p>Cargando...</p>
+        <p class="m-0 text-xs">Cargando...</p>
       </div>
 
-      <div v-else class="chart-wrapper">
+      <div v-else class="relative h-full w-full min-h-[200px] max-h-[280px] md:min-h-[180px] md:max-h-[250px]">
         <Line :data="chartData" :options="chartOptions" />
       </div>
     </div>
   </div>
 </template>
-
-<style scoped>
-.individual-chart {
-  height: 100%; /* IMPORTANTE: Ocupa todo el espacio del contenedor padre */
-  background-color: #fff;
-  border-radius: 8px;
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden; /* IMPORTANTE: Evita el crecimiento infinito */
-}
-
-.chart-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid #f0f0f0;
-  flex-shrink: 0; /* No se encoge */
-}
-
-.chart-title {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.chart-icon {
-  font-size: 1rem;
-  color: v-bind('props.color');
-}
-
-.chart-title h4 {
-  margin: 0;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #2c3e50;
-}
-
-.chart-status {
-  display: flex;
-  align-items: center;
-}
-
-.status-loading {
-  color: #3498db;
-}
-
-.status-error {
-  color: #e74c3c;
-}
-
-.status-success {
-  color: #27ae60;
-}
-
-.chart-content {
-  flex-grow: 1; /* IMPORTANTE: Crece para ocupar el espacio restante */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 0; /* IMPORTANTE: Permite que se encoja si es necesario */
-  overflow: hidden; /* IMPORTANTE: Evita desbordamiento */
-}
-
-.chart-wrapper {
-  position: relative;
-  height: 100%; /* IMPORTANTE: Ocupa todo el alto disponible */
-  width: 100%;
-  min-height: 200px; /* Altura mínima razonable */
-  max-height: 280px; /* IMPORTANTE: Límite máximo de altura */
-}
-
-.loading-state, .error-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  color: #6c757d;
-  text-align: center;
-}
-
-.error-state {
-  color: #dc3545;
-}
-
-.error-state p, .loading-state p {
-  margin: 0;
-  font-size: 0.8rem;
-}
-
-.retry-btn {
-  padding: 0.4rem 0.8rem;
-  background-color: #dc3545;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.75rem;
-}
-
-.retry-btn:hover {
-  background-color: #c82333;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .individual-chart {
-    padding: 0.75rem;
-  }
-
-  .chart-title h4 {
-    font-size: 0.8rem;
-  }
-
-  .chart-wrapper {
-    min-height: 180px;
-    max-height: 250px;
-  }
-}
-</style>

@@ -59,41 +59,51 @@ defineExpose({
 </script>
 
 <template>
-  <div class="users-table-card">
-    <div v-if="isLoading">Cargando usuarios...</div>
-    <div v-else-if="error" class="error-message">{{ error }}</div>
-    <table v-else-if="users.length > 0">
-      <thead>
-        <tr>
-          <th>Nombre Completo</th>
-          <th>Email</th>
-          <th>Rol</th>
-          <th>Estado</th>
-          <th>Acciones</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="user in users" :key="user.id">
-          <td>{{ user.full_name }}</td>
-          <td>{{ user.email }}</td>
-          <td>{{ user.role }}</td>
-          <td>
-            <span class="status-pill" :class="user.disabled ? 'status-inactive' : 'status-active'">
-              {{ user.disabled ? 'Deshabilitado' : 'Activo' }}
-            </span>
-          </td>
-          <td>
-            <button @click="emit('edit-user', user)" class="action-btn">Editar</button>
-            <button @click="emit('delete-user', user)" class="action-btn-delete">Eliminar</button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-    <div v-else>No se encontraron usuarios.</div>
+  <div class="bg-white rounded-lg p-6 shadow-sm mt-8">
+    <div v-if="isLoading" class="text-center py-8 text-gray-500">Cargando usuarios...</div>
+    <div v-else-if="error" class="text-danger-500 font-bold">{{ error }}</div>
+    <div v-else-if="users.length > 0" class="overflow-x-auto">
+      <table class="w-full border-collapse">
+        <thead>
+          <tr>
+            <th class="p-4 text-left border-b border-gray-200 text-gray-500 font-medium text-sm uppercase">Nombre Completo</th>
+            <th class="p-4 text-left border-b border-gray-200 text-gray-500 font-medium text-sm uppercase">Email</th>
+            <th class="p-4 text-left border-b border-gray-200 text-gray-500 font-medium text-sm uppercase">Rol</th>
+            <th class="p-4 text-left border-b border-gray-200 text-gray-500 font-medium text-sm uppercase">Estado</th>
+            <th class="p-4 text-left border-b border-gray-200 text-gray-500 font-medium text-sm uppercase">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="user in users" :key="user.id" class="hover:bg-gray-50 transition-colors">
+            <td class="p-4 border-b border-gray-200">{{ user.full_name }}</td>
+            <td class="p-4 border-b border-gray-200">{{ user.email }}</td>
+            <td class="p-4 border-b border-gray-200 capitalize">{{ user.role }}</td>
+            <td class="p-4 border-b border-gray-200">
+              <span
+                class="px-3 py-1 rounded-full text-sm font-medium capitalize"
+                :class="user.disabled ? 'bg-gray-200 text-gray-600' : 'bg-success-100 text-success-700'"
+              >
+                {{ user.disabled ? 'Deshabilitado' : 'Activo' }}
+              </span>
+            </td>
+            <td class="p-4 border-b border-gray-200">
+              <button
+                @click="emit('edit-user', user)"
+                class="mr-2 px-3 py-1.5 border border-gray-300 bg-gray-100 rounded hover:bg-gray-200 font-medium transition-colors"
+              >
+                Editar
+              </button>
+              <button
+                @click="emit('delete-user', user)"
+                class="px-3 py-1.5 border border-danger-500 text-danger-500 bg-white rounded hover:bg-danger-500 hover:text-white font-medium transition-colors"
+              >
+                Eliminar
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div v-else class="text-center py-8 text-gray-500">No se encontraron usuarios.</div>
   </div>
 </template>
-
-<style scoped>
-/* Estilos sin cambios */
-.status-pill{padding:.25rem .75rem;border-radius:9999px;font-size:.875rem;font-weight:500;text-transform:capitalize}.status-active{background-color:#d4edda;color:#155724}.status-inactive{background-color:#e9ecef;color:#6c757d}.users-table-card{background-color:#fff;border-radius:8px;padding:1.5rem;box-shadow:0 2px 4px rgba(0,0,0,.05);margin-top:2rem}.error-message{color:#d9534f;font-weight:700}table{width:100%;border-collapse:collapse}th,td{padding:1rem;text-align:left;border-bottom:1px solid #e9ecef}thead th{color:#6c757d;font-weight:500;font-size:.875rem;text-transform:uppercase}tbody tr:last-child td{border-bottom:none}.action-btn,.action-btn-delete{margin-right:.5rem;padding:.35rem .75rem;border:1px solid #ced4da;background-color:#f8f9fa;border-radius:4px;cursor:pointer;font-weight:500;transition:background-color .2s}.action-btn:hover{background-color:#e2e6ea}.action-btn-delete{border-color:#d9534f;color:#d9534f}.action-btn-delete:hover{background-color:#d9534f;color:#fff}
-</style>

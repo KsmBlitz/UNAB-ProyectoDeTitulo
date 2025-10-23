@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { getStatusColor } from '@/utils/metrics';
+import { METRIC_ICONS } from '@/utils/constants';
 
 defineOptions({
   name: 'MetricCard'
@@ -15,11 +17,13 @@ const props = defineProps<{
   icon?: string;
 }>();
 
-const statusClass = computed(() => {
+const borderColor = computed(() => getStatusColor(props.status || 'normal'));
+
+const statusColor = computed(() => {
   switch (props.status) {
-    case 'warning': return 'status-warning';
-    case 'critical': return 'status-critical';
-    default: return 'status-normal';
+    case 'warning': return 'text-warning-500';
+    case 'critical': return 'text-danger-500';
+    default: return 'text-success-500';
   }
 });
 
@@ -27,170 +31,54 @@ const iconClass = computed(() => {
   if (props.icon) return props.icon;
 
   const title = props.title.toLowerCase();
-  if (title.includes('ph')) return 'pi pi-flask';
-  if (title.includes('temperatura')) return 'pi pi-sun';
-  if (title.includes('conductividad')) return 'pi pi-bolt';
-  if (title.includes('nivel')) return 'pi pi-chart-bar';
-  return 'pi pi-circle';
+  if (title.includes('ph')) return METRIC_ICONS.ph;
+  if (title.includes('temperatura')) return METRIC_ICONS.temperature;
+  if (title.includes('conductividad')) return METRIC_ICONS.conductivity;
+  if (title.includes('nivel')) return METRIC_ICONS.water_level;
+  return METRIC_ICONS.default;
 });
 </script>
 
 <template>
-  <div class="metric-card" :class="statusClass">
-    <div class="card-header">
-      <div class="title-section">
-        <i :class="iconClass" class="metric-icon"></i>
-        <span class="title">{{ title }}</span>
+  <div
+    class="bg-white rounded-card p-6 shadow-card transition-all duration-300 border-2 min-h-[180px] flex flex-col hover:-translate-y-0.5 hover:shadow-card-hover"
+    :style="{ borderColor }"
+  >
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-4">
+      <div class="flex items-center gap-3">
+        <i
+          :class="iconClass"
+          class="text-xl text-primary-500 p-2 bg-primary-50 rounded-full"
+        ></i>
+        <span class="text-sm font-semibold text-gray-600 uppercase tracking-wide">
+          {{ title }}
+        </span>
       </div>
-      <div class="status-indicator" :class="statusClass">
+      <div class="text-xs" :class="statusColor">
         <i class="pi pi-circle-fill"></i>
       </div>
     </div>
 
-    <div class="card-body">
-      <div class="value-section">
-        <span class="value">{{ value }}</span>
-        <span class="unit">{{ unit || '' }}</span>
+    <!-- Body -->
+    <div class="flex-grow flex items-center my-6">
+      <div class="flex items-baseline gap-2 w-full">
+        <span class="text-4xl font-bold text-gray-800 leading-none whitespace-nowrap">
+          {{ value }}
+        </span>
+        <span class="text-xl font-medium text-gray-600 min-h-[1.2rem] inline-block">
+          {{ unit || '' }}
+        </span>
       </div>
     </div>
 
-    <div class="card-footer">
-      <span class="change-text">{{ changeText }}</span>
+    <!-- Footer -->
+    <div class="border-t border-gray-100 pt-4 mt-auto">
+      <span class="text-sm text-gray-600 font-medium">
+        {{ changeText }}
+      </span>
     </div>
   </div>
 </template>
 
-<style scoped>
-.metric-card {
-  background-color: #ffffff;
-  border-radius: 16px;
-  padding: 1.5rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  transition: all 0.3s ease;
-  border: 2px solid #f8f9fa;
-  min-height: 180px;
-  display: flex;
-  flex-direction: column;
-}
-
-/* Bordes dinámicos basados en status */
-.metric-card.status-normal {
-  border-color: #28a745;
-}
-
-.metric-card.status-warning {
-  border-color: #ffc107;
-}
-
-.metric-card.status-critical {
-  border-color: #dc3545;
-}
-
-.metric-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-}
-
-.title-section {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.metric-icon {
-  font-size: 1.25rem;
-  color: #3498db;
-  padding: 0.5rem;
-  background-color: rgba(52, 152, 219, 0.1);
-  border-radius: 50%;
-}
-
-.title {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: #6c757d;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.status-indicator {
-  font-size: 0.75rem;
-}
-
-.status-indicator.status-normal {
-  color: #28a745;
-}
-
-.status-indicator.status-warning {
-  color: #ffc107;
-}
-
-.status-indicator.status-critical {
-  color: #dc3545;
-}
-
-.card-body {
-  flex-grow: 1;
-  display: flex;
-  align-items: center;
-  margin: 1.5rem 0;
-}
-
-.value-section {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  width: 100%;
-}
-
-.value {
-  font-size: 2.5rem;
-  font-weight: 700;
-  color: #2c3e50;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.unit {
-  font-size: 1.2rem;
-  font-weight: 500;
-  color: #6c757d;
-  min-height: 1.2rem;
-  display: inline-block;
-}
-
-.card-footer {
-  border-top: 1px solid #f8f9fa;
-  padding-top: 1rem;
-  margin-top: auto;
-}
-
-.change-text {
-  font-size: 0.85rem;
-  color: #6c757d;
-  font-weight: 500;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .metric-card {
-    padding: 1rem;
-    min-height: 160px;
-  }
-
-  .value {
-    font-size: 2rem;
-  }
-
-  .unit {
-    font-size: 1rem;
-  }
-}
-</style>
+<!-- Todos los estilos ahora son manejados por Tailwind CSS -->

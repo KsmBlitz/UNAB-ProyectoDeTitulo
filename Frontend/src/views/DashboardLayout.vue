@@ -17,52 +17,15 @@ const toggleSidebar = () => {
 </script>
 
 <template>
-  <div class="dashboard-layout">
+  <div class="flex">
     <Sidebar :is-collapsed="isSidebarCollapsed" @toggle-sidebar="toggleSidebar" />
 
-    <div class="main-content-wrapper">
+    <div class="flex-grow flex flex-col h-screen overflow-hidden">
       <TheHeader />
 
-      <main class="dashboard-main">
+      <main class="flex-grow overflow-y-auto">
         <RouterView />
       </main>
     </div>
   </div>
 </template>
-
-<style scoped>
-:root {
-  --sidebar-width: 260px;
-  --sidebar-collapsed-width: 88px;
-  --header-height: 80px; /* Aumentamos la altura para más espacio */
-}
-
-.dashboard-layout {
-  display: flex;
-}
-
-.main-content-wrapper {
-  flex-grow: 1;
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  overflow: hidden; /* Evita el doble scroll en la ventana */
-}
-
-.app-header {
-  height: var(--header-height);
-  padding: 0 2.5rem; /* Aumentamos el padding para más espacio */
-  background-color: #ffffff;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  flex-shrink: 0;
-  z-index: 1000;
-}
-
-.dashboard-main {
-  flex-grow: 1;
-  overflow-y: auto; /* El scroll solo aplicará a esta área */
-}
-</style>
