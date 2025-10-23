@@ -31,7 +31,7 @@ from pydantic_core import CoreSchema, PydanticCustomError, core_schema
 from models.alert_models import (
     AlertThresholds, ActiveAlert, AlertHistory, AlertSummary, 
     AlertConfigUpdateRequest, DismissAlertRequest, AlertLevel, AlertType, AlertStatus,
-    BLUEBERRY_CHILE_THRESHOLDS
+    BLUEBERRY_CHILE_THRESHOLDS, ThresholdConfig
 )
 import uuid
 
@@ -373,6 +373,8 @@ app.add_middleware(
         "http://127.0.0.1:4173",  # ✅ PARA BUILD DE PRODUCCIÓN
         "http://localhost:3000",  # ✅ PARA DOCKER (NGINX)
         "http://127.0.0.1:3000",  # ✅ PARA DOCKER (NGINX)
+        "http://localhost:3002",  # ✅ PARA DOCKER (NGINX) - PUERTO TESTING
+        "http://127.0.0.1:3002",  # ✅ PARA DOCKER (NGINX) - PUERTO TESTING
     ], 
     allow_credentials=True, 
     allow_methods=["*"], 
@@ -555,39 +557,71 @@ async def get_current_user_info(current_user: dict = Depends(get_current_user)):
     """Obtiene información del usuario actual"""
     return UserPublic(**current_user)
 
+def evaluate_metric_status(value: float, threshold_config: ThresholdConfig) -> str:
+    """
+    Evalúa el estado de una métrica basándose en los umbrales configurados.
+    Retorna: 'normal', 'warning', o 'critical'
+    """
+    # Valores críticos (fuera de los límites críticos)
+    if (threshold_config.critical_min is not None and value < threshold_config.critical_min) or \
+       (threshold_config.critical_max is not None and value > threshold_config.critical_max):
+        return "critical"
+    
+    # Valores óptimos (dentro del rango óptimo)
+    if (threshold_config.optimal_min is not None and threshold_config.optimal_max is not None and
+        threshold_config.optimal_min <= value <= threshold_config.optimal_max):
+        return "normal"
+    
+    # Valores de advertencia (fuera del rango óptimo pero dentro del rango de advertencia)
+    if (threshold_config.warning_min is not None and threshold_config.warning_max is not None and
+        threshold_config.warning_min <= value <= threshold_config.warning_max):
+        return "warning"
+    
+    # Por defecto, si no está en ningún rango definido
+    return "warning"
+
 @app.get("/api/metrics/latest", tags=["Datos de Sensores"])
 async def get_latest_metrics(current_user: dict = Depends(get_current_user)):
     latest_reading = await sensor_collection.find_one({}, sort=[("ReadTime", -1)])
     if not latest_reading: raise HTTPException(status_code=404, detail="No se encontraron lecturas de sensores")
     
+    # Usar los umbrales para arándanos chilenos
+    thresholds = BLUEBERRY_CHILE_THRESHOLDS
+    
+    # Obtener valores y evaluar estados
+    temperatura = round(latest_reading.get("Temperature", 0), 1)
+    ph = round(latest_reading.get("pH_Value", 7.0), 1)
+    conductividad = round(latest_reading.get("EC", 0), 2)
+    nivel_agua = round(latest_reading.get("Water_Level", 0), 1)
+    
     return {
         "temperatura_agua": {
-            "value": round(latest_reading.get("Temperature", 0), 1), 
+            "value": temperatura, 
             "unit": "°C", 
             "changeText": "Temperatura del agua",
             "isPositive": True,
-            "status": "normal"
+            "status": evaluate_metric_status(temperatura, thresholds.temperature)
         },
         "ph": {
-            "value": round(latest_reading.get("pH_Value", 7.0), 1), 
+            "value": ph, 
             "unit": "", 
             "changeText": "Nivel de acidez", 
             "isPositive": True,
-            "status": "normal" if 6.5 <= latest_reading.get("pH_Value", 7.0) <= 8.5 else "warning"
+            "status": evaluate_metric_status(ph, thresholds.ph)
         },
         "conductividad": {
-            "value": round(latest_reading.get("EC", 0), 2), 
+            "value": conductividad, 
             "unit": "dS/m", 
             "changeText": "Conductividad eléctrica", 
             "isPositive": True,
-            "status": "normal"
+            "status": evaluate_metric_status(conductividad, thresholds.conductivity)
         },
         "nivel_agua": {
-            "value": round(latest_reading.get("Water_Level", 0), 1), 
+            "value": nivel_agua, 
             "unit": "m", 
             "changeText": "Nivel del embalse", 
             "isPositive": True,
-            "status": "normal"
+            "status": evaluate_metric_status(nivel_agua, thresholds.water_level)
         }
     }
 

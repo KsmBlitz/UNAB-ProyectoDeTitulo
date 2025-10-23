@@ -62,30 +62,33 @@ const iconClass = computed(() => {
 
 <style scoped>
 .metric-card {
-  background-color: #fff;
-  border-radius: 12px;
+  background-color: #ffffff;
+  border-radius: 16px;
   padding: 1.5rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-  border-left: 4px solid #28a745;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
+  border: 2px solid #f8f9fa;
   min-height: 180px;
   display: flex;
   flex-direction: column;
 }
 
-.metric-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+/* Bordes dinámicos basados en status */
+.metric-card.status-normal {
+  border-color: #28a745;
 }
 
 .metric-card.status-warning {
-  border-left-color: #ffc107;
+  border-color: #ffc107;
 }
 
 .metric-card.status-critical {
-  border-left-color: #dc3545;
+  border-color: #dc3545;
+}
+
+.metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
 }
 
 .card-header {

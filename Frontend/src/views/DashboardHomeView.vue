@@ -34,51 +34,9 @@ const isLoadingMetrics = ref(true);
 const sensorsTableRef = ref<InstanceType<typeof SensorsTable> | null>(null);
 const chartsGridRef = ref<InstanceType<typeof HistoricalChartGrid> | null>(null);
 
-// Control de auto-refresh
-const isAutoRefreshEnabled = ref(true);
-let refreshInterval: number | null = null;
-
 onMounted(async () => {
   await fetchMetrics();
-  startAutoRefresh();
 });
-
-// Función de refresh inteligente
-async function smartRefresh() {
-  // Solo actualizar métricas y tabla de sensores, NO los gráficos
-  await Promise.all([
-    fetchMetrics(),
-    sensorsTableRef.value?.fetchSensorsStatus()
-  ]);
-}
-
-// Función de refresh completo (manual)
-async function fullRefresh() {
-  await Promise.all([
-    fetchMetrics(),
-    sensorsTableRef.value?.fetchSensorsStatus(),
-    chartsGridRef.value?.refreshAllCharts()
-  ]);
-}
-
-function startAutoRefresh() {
-  if (refreshInterval) clearInterval(refreshInterval);
-
-  if (isAutoRefreshEnabled.value) {
-    // Auto-refresh cada 30 segundos (solo métricas y sensores)
-    refreshInterval = setInterval(smartRefresh, 30000);
-  }
-}
-
-function toggleAutoRefresh() {
-  isAutoRefreshEnabled.value = !isAutoRefreshEnabled.value;
-  if (isAutoRefreshEnabled.value) {
-    startAutoRefresh();
-  } else if (refreshInterval) {
-    clearInterval(refreshInterval);
-    refreshInterval = null;
-  }
-}
 
 async function fetchMetrics() {
   // No cambiar isLoadingMetrics si ya hay datos (para evitar parpadeo)
@@ -131,30 +89,11 @@ async function fetchMetrics() {
 
 <template>
   <div class="dashboard-content">
-    <!-- Header con controles mejorados -->
+    <!-- Header simplificado -->
     <header class="dashboard-header">
       <div class="header-info">
         <h1>Monitoreo del Embalse</h1>
         <p>Sistema de control de calidad del agua</p>
-      </div>
-      <div class="header-actions">
-        <!-- Indicador de auto-refresh -->
-        <div class="auto-refresh-indicator">
-          <button
-            @click="toggleAutoRefresh"
-            class="auto-refresh-btn"
-            :class="{ active: isAutoRefreshEnabled }"
-          >
-            <i class="pi" :class="isAutoRefreshEnabled ? 'pi-pause' : 'pi-play'"></i>
-            <span>{{ isAutoRefreshEnabled ? 'Pausar' : 'Reanudar' }}</span>
-          </button>
-        </div>
-
-        <!-- Botón de refresh completo -->
-        <button @click="fullRefresh" class="refresh-btn">
-          <i class="pi pi-refresh"></i>
-          Actualizar Todo
-        </button>
       </div>
     </header>
 
@@ -163,11 +102,6 @@ async function fetchMetrics() {
       <h2 class="section-title">
         <i class="pi pi-gauge"></i>
         Últimas Mediciones
-        <!-- Indicador de actualización en tiempo real -->
-        <span v-if="isAutoRefreshEnabled" class="live-indicator">
-          <i class="pi pi-circle-fill"></i>
-          EN VIVO
-        </span>
       </h2>
 
       <div v-if="errorMetrics" class="error-message">
@@ -225,6 +159,28 @@ async function fetchMetrics() {
           icon="pi pi-chart-bar"
         />
       </div>
+
+      <!-- Leyenda de colores -->
+      <div v-if="metrics" class="status-legend">
+        <h3 class="legend-title">
+          <i class="pi pi-info-circle"></i>
+          Valores ideales para arándanos
+        </h3>
+        <div class="legend-items">
+          <div class="legend-item">
+            <div class="legend-color status-normal"></div>
+            <span>Óptimo</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color status-warning"></div>
+            <span>Advertencia</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color status-critical"></div>
+            <span>Crítico</span>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- 2. Grid de gráficos históricos (4 gráficos) -->
@@ -276,88 +232,7 @@ async function fetchMetrics() {
   font-size: 1.1rem;
 }
 
-.header-actions {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-}
 
-/* Estilos para auto-refresh */
-.auto-refresh-indicator {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.auto-refresh-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  background-color: #f8f9fa;
-  color: #6c757d;
-  border: 1px solid #dee2e6;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: all 0.3s ease;
-}
-
-.auto-refresh-btn.active {
-  background-color: #28a745;
-  color: white;
-  border-color: #28a745;
-}
-
-.auto-refresh-btn:hover {
-  transform: translateY(-1px);
-}
-
-.refresh-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
-  color: white;
-  border: none;
-  border-radius: 12px;
-  cursor: pointer;
-  font-weight: 600;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 12px rgba(49, 130, 206, 0.25);
-}
-
-.refresh-btn:hover {
-  transform: translateY(-2px);
-  background: linear-gradient(135deg, #3182ce 0%, #2c5aa0 100%);
-  box-shadow: 0 6px 16px rgba(49, 130, 206, 0.35);
-}
-
-/* Indicador en vivo */
-.live-indicator {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-left: 1rem;
-  padding: 0.25rem 0.75rem;
-  background-color: rgba(40, 167, 69, 0.1);
-  color: #28a745;
-  border-radius: 20px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.live-indicator i {
-  font-size: 0.5rem;
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
-}
 
 .metrics-section, .sensors-section, .charts-section {
   margin-bottom: 2rem;
@@ -435,6 +310,75 @@ async function fetchMetrics() {
   margin-left: auto;
 }
 
+/* Estilos para la leyenda de estados */
+.status-legend {
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 12px;
+}
+
+.legend-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #495057;
+  margin: 0 0 1rem 0;
+}
+
+.legend-title i {
+  color: #6c757d;
+  font-size: 0.9rem;
+}
+
+.legend-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+  color: #495057;
+}
+
+.legend-color {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: 2px solid;
+  flex-shrink: 0;
+}
+
+.legend-color.status-normal {
+  background-color: #d4edda;
+  border-color: #28a745;
+}
+
+.legend-color.status-warning {
+  background-color: #fff3cd;
+  border-color: #ffc107;
+}
+
+.legend-color.status-critical {
+  background-color: #f8d7da;
+  border-color: #dc3545;
+}
+
+/* Responsive para la leyenda */
+@media (max-width: 768px) {
+  .legend-items {
+    flex-direction: column;
+    gap: 1rem;
+  }
+}
+
 .retry-btn:hover {
   background-color: #e0a800;
 }
@@ -449,10 +393,7 @@ async function fetchMetrics() {
     font-size: 1.5rem;
   }
 
-  .header-actions {
-    flex-direction: column;
-    gap: 0.5rem;
-  }
+
 
   .metrics-grid {
     grid-template-columns: 1fr;
