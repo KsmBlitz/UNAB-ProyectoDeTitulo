@@ -1,8 +1,15 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: 'class', // Habilita dark mode basado en clase
   content: [
     "./index.html",
     "./src/**/*.{vue,js,ts,jsx,tsx}",
+    "./src/components/**/*.{vue,js,ts,jsx,tsx}", // Añadido para asegurar que los componentes sean procesados
+    "./src/views/**/*.{vue,js,ts,jsx,tsx}", // Añadido para asegurar que las vistas sean procesadas
+  ],
+  safelist: [
+    'bg-white',
+    'dark:bg-slate-800'
   ],
   theme: {
     extend: {

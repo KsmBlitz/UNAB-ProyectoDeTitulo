@@ -92,55 +92,69 @@ async function handleUpdate() {
 </script>
 
 <template>
-  <div class="fixed top-0 left-0 w-full h-full bg-black/50 flex justify-center items-center z-[1000]" @click.self="emit('close')">
-    <div class="bg-white p-8 rounded-lg w-[90%] max-w-[500px] shadow-2xl">
-      <h2 class="mt-0 mb-2 text-2xl font-bold text-gray-800">Editar Usuario</h2>
-      <p class="text-gray-500 -mt-4 mb-6 block">{{ user.email }}</p>
-      <form @submit.prevent="handleUpdate">
-        <div v-if="error" class="text-danger-500 mb-4 p-3 bg-danger-50 rounded border border-danger-200">{{ error }}</div>
+  <div class="fixed top-0 left-0 w-full h-full bg-black/60 backdrop-blur-sm flex justify-center items-center z-[1000]" @click.self="emit('close')">
+    <div class="bg-white p-8 rounded-xl w-[90%] max-w-[500px] shadow-2xl border border-gray-200">
+      <!-- Header -->
+      <div class="flex items-center gap-3 mb-2 pb-4 border-b border-gray-200">
+        <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-md">
+          <i class="pi pi-user-edit text-base text-white"></i>
+        </div>
+        <div class="flex-1">
+          <h2 class="text-xl font-bold text-gray-900">Editar Usuario</h2>
+          <p class="text-sm text-gray-500 mt-0.5">{{ user.email }}</p>
+        </div>
+      </div>
+
+      <form @submit.prevent="handleUpdate" class="mt-6">
+        <div v-if="error" class="text-red-700 mb-4 p-3 bg-red-50 rounded-lg border border-red-200 text-sm">{{ error }}</div>
+
         <div class="mb-4">
-          <label for="fullName" class="block mb-2 font-medium text-gray-700">Nombre Completo</label>
+          <label for="fullName" class="block mb-2 text-sm font-semibold text-gray-700">Nombre Completo</label>
           <input
             id="fullName"
             v-model="fullName"
             type="text"
             required
-            class="w-full px-4 py-2 text-base rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            class="w-full px-4 py-2.5 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
           >
         </div>
+
         <div class="mb-4">
-          <label for="role" class="block mb-2 font-medium text-gray-700">Rol</label>
+          <label for="role" class="block mb-2 text-sm font-semibold text-gray-700">Rol</label>
           <select
             id="role"
             v-model="role"
-            class="w-full px-4 py-2 text-base rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            class="w-full px-4 py-2.5 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white"
           >
             <option value="operario">Operario</option>
             <option value="admin">Administrador</option>
           </select>
         </div>
-        <div class="flex items-center gap-2 mb-4">
+
+        <div class="flex items-center gap-3 mb-6 p-3 bg-gray-50 rounded-lg border border-gray-200">
           <input
             id="disabled"
             v-model="disabled"
             type="checkbox"
-            class="w-4 h-4 cursor-pointer accent-primary-500"
+            class="w-4 h-4 cursor-pointer accent-blue-600 rounded"
           >
-          <label for="disabled" class="font-medium text-gray-700 cursor-pointer">Usuario Deshabilitado</label>
+          <label for="disabled" class="text-sm font-medium text-gray-700 cursor-pointer">Usuario Deshabilitado</label>
         </div>
-        <div class="mt-6 flex justify-end gap-4">
+
+        <div class="mt-6 flex justify-end gap-3 pt-4 border-t border-gray-200">
           <button
             type="button"
             @click="emit('close')"
-            class="px-6 py-3 border-none rounded-md font-bold cursor-pointer bg-gray-500 text-white hover:bg-gray-600 transition-colors"
+            class="px-6 py-2.5 rounded-lg font-semibold text-sm cursor-pointer bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all border border-gray-300"
           >
             Cancelar
           </button>
           <button
             type="submit"
-            class="px-6 py-3 border-none rounded-md font-bold cursor-pointer bg-primary-500 text-white hover:bg-primary-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+            class="px-6 py-2.5 rounded-lg font-semibold text-sm cursor-pointer bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 transition-all shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
             :disabled="isLoading"
           >
+            <i v-if="isLoading" class="pi pi-spin pi-spinner mr-2"></i>
             {{ isLoading ? 'Guardando...' : 'Guardar Cambios' }}
           </button>
         </div>

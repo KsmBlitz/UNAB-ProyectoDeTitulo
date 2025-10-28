@@ -1,86 +1,92 @@
 <template>
   <div class="p-8">
     <!-- Header de la vista -->
-    <div class="flex justify-between items-start mb-8 flex-wrap gap-4">
-      <div>
-        <h1 class="text-3xl font-bold text-gray-800 flex items-center gap-3 m-0 mb-3">
-          <i class="pi pi-exclamation-triangle text-warning-500"></i>
-          Gestión de Alertas del Sistema
-        </h1>
-        <p class="text-gray-600 m-0">
-          Monitoreo en tiempo real de condiciones críticas para el cultivo de arándanos
-        </p>
-      </div>
+    <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-200 mb-8">
+      <div class="flex justify-between items-start flex-wrap gap-4">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center shadow-md">
+            <i class="pi pi-bell text-xl text-white"></i>
+          </div>
+          <div>
+            <h1 class="text-2xl font-bold text-gray-800 m-0 mb-1">
+              Gestión de Alertas del Sistema
+            </h1>
+            <p class="text-gray-600 m-0 text-sm">
+              Monitoreo en tiempo real de condiciones críticas para el cultivo de arándanos
+            </p>
+          </div>
+        </div>
 
-      <div class="flex gap-3 flex-wrap">
-        <button
-          @click="refreshAlerts"
-          class="px-4 py-2.5 bg-primary-500 text-white border-none rounded-md font-medium cursor-pointer transition-all hover:bg-primary-600 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
-          :disabled="isLoading"
-          title="Actualizar alertas"
-        >
-          <i class="pi pi-refresh" :class="{ 'pi-spin': isLoading }"></i>
-          Actualizar
-        </button>
+        <div class="flex gap-3 flex-wrap">
+          <button
+            @click="refreshAlerts"
+            class="px-4 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg font-semibold cursor-pointer transition-all hover:from-blue-600 hover:to-blue-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 shadow-md hover:shadow-lg text-sm"
+            :disabled="isLoading"
+            title="Actualizar alertas"
+          >
+            <i class="pi pi-refresh text-sm" :class="{ 'pi-spin': isLoading }"></i>
+            Actualizar
+          </button>
 
-        <button
-          v-if="isAdmin"
-          @click="openConfigModal"
-          class="px-4 py-2.5 bg-gray-600 text-white border-none rounded-md font-medium cursor-pointer transition-all hover:bg-gray-700 flex items-center gap-2"
-          title="Configurar umbrales de alertas"
-        >
-          <i class="pi pi-cog"></i>
-          Configurar Umbrales
-        </button>
+          <button
+            v-if="isAdmin"
+            @click="openConfigModal"
+            class="px-4 py-2.5 bg-slate-600 text-white rounded-lg font-semibold cursor-pointer transition-all hover:bg-slate-700 flex items-center gap-2 shadow-md hover:shadow-lg text-sm"
+            title="Configurar umbrales de alertas"
+          >
+            <i class="pi pi-cog text-sm"></i>
+            Configurar Umbrales
+          </button>
+        </div>
       </div>
     </div>
 
     <!-- Resumen de alertas -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-      <div v-if="alertStore.summary.critical > 0" class="bg-gradient-to-br from-danger-500 to-danger-600 rounded-xl p-6 text-white shadow-lg">
+      <div v-if="alertStore.summary.critical > 0" class="bg-white border-l-4 border-red-500 rounded-xl p-6 shadow-lg">
         <div class="flex items-center gap-4">
-          <div class="text-5xl opacity-90">
-            <i class="pi pi-exclamation-triangle"></i>
+          <div class="w-12 h-12 bg-gradient-to-br from-red-500 to-red-600 rounded-lg flex items-center justify-center shadow-md">
+            <i class="pi pi-exclamation-triangle text-xl text-white"></i>
           </div>
           <div>
-            <div class="text-4xl font-bold mb-1">{{ alertStore.summary.critical }}</div>
-            <div class="text-sm opacity-90 font-medium">Alertas Críticas</div>
+            <div class="text-3xl font-bold text-gray-800 mb-1">{{ alertStore.summary.critical }}</div>
+            <div class="text-sm text-gray-600 font-medium">Alertas Críticas</div>
           </div>
         </div>
       </div>
 
-      <div v-if="alertStore.summary.warning > 0" class="bg-gradient-to-br from-warning-500 to-warning-600 rounded-xl p-6 text-white shadow-lg">
+      <div v-if="alertStore.summary.warning > 0" class="bg-white border-l-4 border-orange-500 rounded-xl p-6 shadow-lg">
         <div class="flex items-center gap-4">
-          <div class="text-5xl opacity-90">
-            <i class="pi pi-exclamation-circle"></i>
+          <div class="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center shadow-md">
+            <i class="pi pi-exclamation-circle text-xl text-white"></i>
           </div>
           <div>
-            <div class="text-4xl font-bold mb-1">{{ alertStore.summary.warning }}</div>
-            <div class="text-sm opacity-90 font-medium">Advertencias</div>
+            <div class="text-3xl font-bold text-gray-800 mb-1">{{ alertStore.summary.warning }}</div>
+            <div class="text-sm text-gray-600 font-medium">Advertencias</div>
           </div>
         </div>
       </div>
 
-      <div v-if="alertStore.summary.info > 0" class="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg">
+      <div v-if="alertStore.summary.info > 0" class="bg-white border-l-4 border-blue-500 rounded-xl p-6 shadow-lg">
         <div class="flex items-center gap-4">
-          <div class="text-5xl opacity-90">
-            <i class="pi pi-info-circle"></i>
+          <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-md">
+            <i class="pi pi-info-circle text-xl text-white"></i>
           </div>
           <div>
-            <div class="text-4xl font-bold mb-1">{{ alertStore.summary.info }}</div>
-            <div class="text-sm opacity-90 font-medium">Informativas</div>
+            <div class="text-3xl font-bold text-gray-800 mb-1">{{ alertStore.summary.info }}</div>
+            <div class="text-sm text-gray-600 font-medium">Informativas</div>
           </div>
         </div>
       </div>
 
-      <div v-if="!alertStore.hasAnyAlerts" class="bg-gradient-to-br from-success-500 to-success-600 rounded-xl p-6 text-white shadow-lg">
+      <div v-if="!alertStore.hasAnyAlerts" class="bg-white border-l-4 border-green-500 rounded-xl p-6 shadow-lg">
         <div class="flex items-center gap-4">
-          <div class="text-5xl opacity-90">
-            <i class="pi pi-check-circle"></i>
+          <div class="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-lg flex items-center justify-center shadow-md">
+            <i class="pi pi-check-circle text-xl text-white"></i>
           </div>
           <div>
-            <div class="text-4xl font-bold mb-1">0</div>
-            <div class="text-sm opacity-90 font-medium">Todo Normal</div>
+            <div class="text-3xl font-bold text-gray-800 mb-1">0</div>
+            <div class="text-sm text-gray-600 font-medium">Todo Normal</div>
           </div>
         </div>
       </div>

@@ -75,19 +75,19 @@ const handleLogin = async () => {
   <AuthLayout title="Embalses IoT" subtitle="Sistema de monitoreo">
     <form @submit.prevent="handleLogin" class="flex flex-col">
       <!-- Error message with icon -->
-      <div v-if="errorMessage" class="bg-danger-50 text-danger-700 px-4 py-3 rounded-lg mb-6 border border-danger-200 flex items-start gap-3 animate-shake">
+      <div v-if="errorMessage" class="px-4 py-3 rounded-lg mb-6 border flex items-start gap-3 animate-shake transition-colors bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800">
         <i class="pi pi-exclamation-circle text-lg mt-0.5"></i>
         <span class="flex-1 text-left">{{ errorMessage }}</span>
       </div>
 
       <!-- Email field with icon -->
       <div class="mb-6 text-left">
-        <label for="email" class="block mb-2.5 font-semibold text-gray-700 text-sm tracking-wide">
+  <label for="email" class="block mb-2.5 font-semibold text-sm tracking-wide transition-colors text-gray-900 dark:text-gray-300">
           Correo Electrónico
         </label>
         <div class="relative">
           <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-            <i class="pi pi-envelope text-gray-400"></i>
+            <i class="pi pi-envelope transition-colors text-gray-400 dark:text-gray-500"></i>
           </div>
           <input
             type="email"
@@ -95,19 +95,19 @@ const handleLogin = async () => {
             v-model="email"
             required
             placeholder="admin@embalses.cl"
-            class="w-full pl-11 pr-4 py-3.5 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-400"
+            class="w-full pl-11 pr-4 py-3.5 border rounded-lg text-base focus:outline-none focus:ring-2 transition-all duration-200 bg-white dark:bg-slate-700 border-gray-400 dark:border-slate-600 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:ring-blue-500 focus:border-transparent hover:border-gray-500 dark:hover:border-slate-500"
           >
         </div>
       </div>
 
       <!-- Password field with icon -->
       <div class="mb-2 text-left">
-        <label for="password" class="block mb-2.5 font-semibold text-gray-700 text-sm tracking-wide">
+  <label for="password" class="block mb-2.5 font-semibold text-sm tracking-wide transition-colors text-gray-900 dark:text-gray-300">
           Contraseña
         </label>
         <div class="relative">
           <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-            <i class="pi pi-lock text-gray-400"></i>
+            <i class="pi pi-lock transition-colors text-gray-400 dark:text-gray-500"></i>
           </div>
           <input
             type="password"
@@ -115,14 +115,14 @@ const handleLogin = async () => {
             v-model="password"
             required
             placeholder="••••••••"
-            class="w-full pl-11 pr-4 py-3.5 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-400"
+            class="w-full pl-11 pr-4 py-3.5 border rounded-lg text-base focus:outline-none focus:ring-2 transition-all duration-200 bg-white dark:bg-slate-700 border-gray-400 dark:border-slate-600 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:ring-blue-500 focus:border-transparent hover:border-gray-500 dark:hover:border-slate-500"
           >
         </div>
       </div>
 
       <!-- Forgot password link -->
       <div class="mb-6 text-right">
-        <RouterLink to="/forgot-password" class="text-blue-600 no-underline text-sm hover:text-blue-700 hover:underline transition-colors">
+        <RouterLink to="/forgot-password" class="no-underline text-sm hover:underline transition-colors text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300">
           ¿Olvidaste tu contraseña?
         </RouterLink>
       </div>
@@ -130,7 +130,7 @@ const handleLogin = async () => {
       <!-- Submit button with hover effect -->
       <button
         type="submit"
-        class="w-full px-6 py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white border-none rounded-lg text-base font-semibold cursor-pointer hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
+        class="w-full px-6 py-3.5 bg-gradient-to-r text-white border-none rounded-lg text-base font-semibold cursor-pointer transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center justify-center gap-2 from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 dark:from-blue-500 dark:to-blue-600 dark:hover:from-blue-600 dark:hover:to-blue-700"
       >
         <i class="pi pi-sign-in"></i>
         <span>Iniciar Sesión</span>

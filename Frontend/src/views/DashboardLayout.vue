@@ -17,13 +17,13 @@ const toggleSidebar = () => {
 </script>
 
 <template>
-  <div class="flex">
+  <div class="flex h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50">
     <Sidebar :is-collapsed="isSidebarCollapsed" @toggle-sidebar="toggleSidebar" />
 
     <div class="flex-grow flex flex-col h-screen overflow-hidden">
       <TheHeader />
 
-      <main class="flex-grow overflow-y-auto">
+      <main class="flex-grow overflow-y-auto bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50">
         <RouterView />
       </main>
     </div>

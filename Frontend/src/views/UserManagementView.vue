@@ -76,17 +76,27 @@ async function handleDeleteUser(user: User) {
 
 <template>
   <div class="p-8">
-    <header class="flex justify-between items-center mb-4">
-      <h1 class="text-3xl font-bold text-gray-800 m-0">Gestión de Usuarios</h1>
-      <button
-        @click="isCreateModalOpen = true"
-        class="bg-success-500 text-white border-none rounded-md px-4 py-3 text-base font-medium cursor-pointer flex items-center gap-2 hover:bg-success-600 transition-colors"
-      >
-        <i class="pi pi-plus"></i>
-        <span>Crear Nuevo Usuario</span>
-      </button>
-    </header>
-    <p class="text-gray-600 mb-6">Desde aquí podrás administrar los usuarios del sistema.</p>
+    <!-- Header Card -->
+    <div class="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-6 mb-6 shadow-lg">
+      <div class="flex justify-between items-center">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center">
+            <i class="pi pi-users text-2xl text-white"></i>
+          </div>
+          <div>
+            <h1 class="text-2xl font-bold text-white m-0">Gestión de Usuarios</h1>
+            <p class="text-blue-100 text-sm mt-1">Administra los usuarios del sistema</p>
+          </div>
+        </div>
+        <button
+          @click="isCreateModalOpen = true"
+          class="bg-white text-blue-600 rounded-lg px-5 py-2.5 text-sm font-semibold cursor-pointer flex items-center gap-2 hover:bg-blue-50 transition-all shadow-md hover:shadow-lg"
+        >
+          <i class="pi pi-plus text-sm"></i>
+          <span>Crear Nuevo Usuario</span>
+        </button>
+      </div>
+    </div>
 
     <UsersTable
       ref="usersTableRef"

@@ -52,8 +52,8 @@ onMounted(() => {
     <!-- Controles de filtro temporal (compartidos por todos los gráficos) -->
     <div class="flex justify-end mb-6 pb-4 border-b-2 border-gray-100">
       <div class="flex items-center gap-4 flex-col md:flex-row">
-        <label class="text-sm font-semibold text-gray-500">Período:</label>
-        <div class="flex gap-1 bg-gray-100 rounded-md p-1 flex-wrap">
+        <label class="text-sm font-semibold text-gray-600">Período:</label>
+        <div class="flex gap-2 bg-gray-100 rounded-lg p-1.5 flex-wrap">
           <button
             v-for="range in [
               { hours: 1, label: '1h' },
@@ -66,8 +66,8 @@ onMounted(() => {
             ]"
             :key="range.hours"
             @click="handleTimeRangeChange(range.hours)"
-            :class="globalTimeRange === range.hours ? 'bg-primary-500 text-white' : 'bg-transparent hover:bg-gray-200'"
-            class="px-4 py-2 rounded border-none cursor-pointer font-medium transition-all text-sm min-w-[60px]"
+            :class="globalTimeRange === range.hours ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'"
+            class="px-4 py-2 rounded-lg cursor-pointer font-semibold transition-all text-sm min-w-[60px]"
           >
             {{ range.label }}
           </button>

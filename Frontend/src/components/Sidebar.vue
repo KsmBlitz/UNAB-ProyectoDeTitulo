@@ -16,90 +16,86 @@ const emit = defineEmits(['toggle-sidebar']);
 
 <template>
   <aside
-    class="bg-gray-800 text-gray-100 flex flex-col justify-between shadow-lg transition-all duration-300 flex-shrink-0"
-    :class="isCollapsed ? 'w-[88px]' : 'w-sidebar-expanded'"
+    class="bg-gradient-to-b from-slate-900 to-slate-800 text-gray-100 flex flex-col justify-between shadow-xl transition-all duration-300 flex-shrink-0 border-r border-slate-700/50 m-3 mr-0 rounded-l-2xl"
+    :class="isCollapsed ? 'w-[80px]' : 'w-sidebar-expanded'"
   >
     <!-- Sidebar Content -->
     <div class="flex flex-col h-full">
       <!-- Header -->
       <div
-        class="flex items-center gap-3 h-header flex-shrink-0 overflow-hidden border-b border-gray-700"
-        :class="isCollapsed ? 'justify-center px-0' : 'px-7'"
+        class="flex items-center gap-4 h-header flex-shrink-0 overflow-hidden border-b border-slate-700/50 bg-slate-900/50 mt-0 rounded-tl-2xl"
+        :class="isCollapsed ? 'justify-center px-0' : 'px-6'"
       >
-        <i class="pi pi-shield text-3xl flex-shrink-0"></i>
-        <h2 v-if="!isCollapsed" class="text-xl font-semibold whitespace-nowrap">
+        <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center flex-shrink-0 shadow-lg">
+          <img src="@/assets/Logo Embalse IoT.png" alt="Logo" class="w-7 h-7 object-contain">
+        </div>
+        <h2 v-if="!isCollapsed" class="text-lg font-bold whitespace-nowrap tracking-wide text-white">
           {{ APP_NAME }}
         </h2>
       </div>
 
       <!-- Navigation -->
-      <nav class="p-4">
+      <nav class="p-3 mt-0">
         <!-- Dashboard Link -->
         <RouterLink
           to="/"
-          class="flex items-center px-4 py-3.5 text-gray-400 no-underline rounded-md mb-2 transition-all duration-200 whitespace-nowrap hover:bg-gray-700 hover:text-white"
+          class="flex items-center px-4 py-3 text-gray-300 no-underline rounded-lg mb-1 transition-all duration-200 whitespace-nowrap hover:bg-slate-700/50 hover:text-white group"
           :class="isCollapsed ? 'justify-center' : ''"
-          active-class="!bg-primary-500 !text-white font-medium"
+          active-class="!bg-gradient-to-r !from-blue-600 !to-blue-500 !text-white !shadow-lg !shadow-blue-500/30"
         >
-          <i class="pi pi-th-large text-2xl w-6 text-center flex-shrink-0" :class="isCollapsed ? '' : 'mr-6'"></i>
-          <span v-if="!isCollapsed">Dashboard</span>
+          <i class="pi pi-th-large text-lg w-5 text-center flex-shrink-0 group-hover:scale-110 transition-transform" :class="isCollapsed ? '' : 'mr-4'"></i>
+          <span v-if="!isCollapsed" class="font-medium text-sm">Dashboard</span>
         </RouterLink>
 
         <!-- Alerts Link -->
         <RouterLink
           to="/alerts"
-          class="flex items-center px-4 py-3.5 text-gray-400 no-underline rounded-md mb-2 transition-all duration-200 whitespace-nowrap hover:bg-gray-700 hover:text-white relative"
+          class="flex items-center px-4 py-3 text-gray-300 no-underline rounded-lg mb-1 transition-all duration-200 whitespace-nowrap hover:bg-slate-700/50 hover:text-white relative group"
           :class="[
             isCollapsed ? 'justify-center' : '',
-            alertStore.summary.total > 0 && !alertStore.summary.critical ? 'bg-warning-500/10 border-l-4 border-warning-500' : '',
-            alertStore.summary.critical > 0 ? 'bg-danger-500/10 border-l-4 border-danger-500' : ''
+            alertStore.summary.total > 0 && !alertStore.summary.critical ? 'bg-orange-500/10 border-l-2 border-orange-500' : '',
+            alertStore.summary.critical > 0 ? 'bg-red-500/10 border-l-2 border-red-500 animate-pulse' : ''
           ]"
-          active-class="!bg-primary-500 !text-white font-medium"
+          active-class="!bg-gradient-to-r !from-blue-600 !to-blue-500 !text-white !shadow-lg !shadow-blue-500/30"
         >
           <div class="relative flex items-center">
             <!-- Icon based on alert status -->
             <i
               v-if="alertStore.summary.critical > 0"
-              class="pi pi-exclamation-triangle text-2xl w-6 text-center flex-shrink-0 text-danger-500 animate-pulse"
-              :class="isCollapsed ? '' : 'mr-6'"
+              class="pi pi-exclamation-triangle text-lg w-5 text-center flex-shrink-0 text-red-400 group-hover:scale-110 transition-transform"
+              :class="isCollapsed ? '' : 'mr-4'"
             ></i>
             <i
               v-else-if="alertStore.summary.total > 0"
-              class="pi pi-exclamation-circle text-2xl w-6 text-center flex-shrink-0 text-warning-500"
-              :class="isCollapsed ? '' : 'mr-6'"
+              class="pi pi-exclamation-circle text-lg w-5 text-center flex-shrink-0 text-orange-400 group-hover:scale-110 transition-transform"
+              :class="isCollapsed ? '' : 'mr-4'"
             ></i>
             <i
               v-else
-              class="pi pi-bell text-2xl w-6 text-center flex-shrink-0"
-              :class="isCollapsed ? '' : 'mr-6'"
+              class="pi pi-bell text-lg w-5 text-center flex-shrink-0 group-hover:scale-110 transition-transform"
+              :class="isCollapsed ? '' : 'mr-4'"
             ></i>
-
-            <!-- Alert indicator (dot when expanded) -->
-            <span
-              v-if="alertStore.summary.total > 0 && !isCollapsed"
-              class="absolute -top-0.5 -right-0.5 w-2 h-2 bg-danger-500 rounded-full animate-pulse"
-            ></span>
 
             <!-- Alert badge (number when collapsed) -->
             <span
               v-if="alertStore.summary.total > 0 && isCollapsed"
-              class="absolute -top-2 -right-2 bg-danger-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center font-bold border-2 border-gray-800"
+              class="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-[10px] flex items-center justify-center font-bold border border-slate-900 shadow-lg"
             >
               {{ alertStore.summary.total }}
             </span>
           </div>
 
-          <span v-if="!isCollapsed" class="flex items-center">
+          <span v-if="!isCollapsed" class="flex items-center font-medium text-sm">
             Alertas
             <span
-              class="font-bold ml-2"
+              v-if="alertStore.summary.total > 0"
+              class="ml-auto px-2 py-0.5 rounded-full text-xs font-bold"
               :class="{
-                'text-danger-500': alertStore.summary.critical > 0,
-                'text-warning-500': alertStore.summary.warning > 0 && alertStore.summary.critical === 0,
-                'text-gray-400': alertStore.summary.total === 0
+                'bg-red-500/20 text-red-300': alertStore.summary.critical > 0,
+                'bg-orange-500/20 text-orange-300': alertStore.summary.warning > 0 && alertStore.summary.critical === 0,
               }"
             >
-              ({{ alertStore.summary.total }})
+              {{ alertStore.summary.total }}
             </span>
           </span>
         </RouterLink>
@@ -108,24 +104,24 @@ const emit = defineEmits(['toggle-sidebar']);
         <RouterLink
           v-if="authStore.user?.role === 'admin'"
           to="/users"
-          class="flex items-center px-4 py-3.5 text-gray-400 no-underline rounded-md mb-2 transition-all duration-200 whitespace-nowrap hover:bg-gray-700 hover:text-white"
+          class="flex items-center px-4 py-3 text-gray-300 no-underline rounded-lg mb-1 transition-all duration-200 whitespace-nowrap hover:bg-slate-700/50 hover:text-white group"
           :class="isCollapsed ? 'justify-center' : ''"
-          active-class="!bg-primary-500 !text-white font-medium"
+          active-class="!bg-gradient-to-r !from-blue-600 !to-blue-500 !text-white !shadow-lg !shadow-blue-500/30"
         >
-          <i class="pi pi-users text-2xl w-6 text-center flex-shrink-0" :class="isCollapsed ? '' : 'mr-6'"></i>
-          <span v-if="!isCollapsed">Usuarios</span>
+          <i class="pi pi-users text-lg w-5 text-center flex-shrink-0 group-hover:scale-110 transition-transform" :class="isCollapsed ? '' : 'mr-4'"></i>
+          <span v-if="!isCollapsed" class="font-medium text-sm">Usuarios</span>
         </RouterLink>
       </nav>
     </div>
 
     <!-- Footer Toggle Button -->
-    <div class="p-4 border-t border-gray-700">
+    <div class="p-3 border-t border-slate-700/50 bg-slate-900/30">
       <button
         @click="emit('toggle-sidebar')"
         title="Colapsar/Expandir Menú"
-        class="w-full bg-gray-700 border-none text-gray-400 text-2xl cursor-pointer p-2 rounded-md flex justify-center items-center transition-all duration-300 hover:bg-gray-600 hover:text-white"
+        class="w-full bg-slate-700/50 border-none text-gray-400 text-lg cursor-pointer p-2.5 rounded-lg flex justify-center items-center transition-all duration-200 hover:bg-slate-600/50 hover:text-white"
       >
-        <i class="pi" :class="isCollapsed ? 'pi-align-right' : 'pi-align-left'"></i>
+        <i class="pi" :class="isCollapsed ? 'pi-angle-right' : 'pi-angle-left'"></i>
       </button>
     </div>
   </aside>

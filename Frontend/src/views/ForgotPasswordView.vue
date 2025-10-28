@@ -66,36 +66,50 @@ const handleSubmit = async () => {
   <!-- ✅ USAR EL NUEVO LAYOUT BASE -->
   <AuthLayout title="Recuperar Contraseña">
     <div v-if="isSuccess" class="text-center">
-      <div class="mb-6 inline-flex items-center justify-center w-20 h-20 bg-success-100 rounded-full">
-        <i class="pi pi-check-circle text-4xl text-success-600"></i>
+      <!-- Ticket verde con check animado -->
+      <div class="mx-auto mb-6 w-32 h-32 flex items-center justify-center">
+        <img src="@/assets/Status/verificado.gif" alt="Verificado" class="w-full h-full object-contain">
       </div>
       <h3 class="mb-3 text-gray-800 text-2xl font-bold">Solicitud Enviada</h3>
       <p class="mb-8 text-gray-600 leading-relaxed text-lg">{{ message }}</p>
 
+      <!-- Lista de próximos pasos -->
       <div class="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl mb-8 text-left border border-blue-200">
-        <h4 class="m-0 mb-4 text-gray-800 font-semibold flex items-center gap-2">
+        <h4 class="m-0 mb-4 text-gray-800 font-semibold flex items-center gap-2 text-lg">
           <i class="pi pi-list-check text-blue-600"></i>
           Próximos pasos
         </h4>
-        <ol class="m-0 pl-6 space-y-3">
-          <li class="text-gray-700">Revisa tu bandeja de entrada en <strong class="text-blue-700">{{ email }}</strong></li>
-          <li class="text-gray-700">Si no encuentras el email, revisa tu carpeta de spam</li>
-          <li class="text-gray-700">Haz clic en el enlace del email para cambiar tu contraseña</li>
-          <li class="text-gray-700">El enlace expirará en <strong>1 hora</strong> por seguridad</li>
-        </ol>
+        <ul class="m-0 space-y-3 list-none pl-0">
+          <li class="flex items-start gap-3 text-gray-700">
+            <i class="pi pi-circle-fill text-[8px] text-blue-600 mt-2"></i>
+            <span>Revisa tu bandeja de entrada en <strong class="text-blue-700">{{ email }}</strong></span>
+          </li>
+          <li class="flex items-start gap-3 text-gray-700">
+            <i class="pi pi-circle-fill text-[8px] text-blue-600 mt-2"></i>
+            <span>Si no encuentras el email, revisa tu carpeta de spam</span>
+          </li>
+          <li class="flex items-start gap-3 text-gray-700">
+            <i class="pi pi-circle-fill text-[8px] text-blue-600 mt-2"></i>
+            <span>Haz clic en el enlace del email para cambiar tu contraseña</span>
+          </li>
+          <li class="flex items-start gap-3 text-gray-700">
+            <i class="pi pi-circle-fill text-[8px] text-blue-600 mt-2"></i>
+            <span>El enlace expirará en <strong>1 hora</strong> por seguridad</span>
+          </li>
+        </ul>
       </div>
 
       <div class="flex gap-3 justify-center flex-wrap">
         <RouterLink
           to="/login"
-          class="inline-flex items-center gap-2 px-6 py-3.5 no-underline rounded-lg font-semibold transition-all duration-200 bg-gradient-to-r from-success-600 to-success-700 text-white hover:from-success-700 hover:to-success-800 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+          class="inline-flex items-center gap-2 px-6 py-3.5 no-underline rounded-lg font-semibold transition-all duration-200 bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
         >
           <i class="pi pi-arrow-left"></i>
           Volver al inicio de sesión
         </RouterLink>
         <button
           @click="isSuccess = false; email = ''; message = ''"
-          class="inline-flex items-center gap-2 px-6 py-3.5 rounded-lg font-semibold transition-all duration-200 bg-gray-200 text-gray-700 border-none cursor-pointer hover:bg-gray-300 shadow-md hover:shadow-lg"
+          class="inline-flex items-center gap-2 px-6 py-3.5 rounded-lg font-semibold transition-all duration-200 bg-gray-100 text-gray-700 border border-gray-300 cursor-pointer hover:bg-gray-200 shadow-md hover:shadow-lg"
         >
           <i class="pi pi-refresh"></i>
           Intentar con otro email
@@ -116,9 +130,17 @@ const handleSubmit = async () => {
         </div>
       </div>
 
-      <div v-if="error" class="bg-danger-50 text-danger-700 border border-danger-200 px-4 py-3.5 mb-6 rounded-lg flex items-start gap-3 animate-shake">
-        <i class="pi pi-exclamation-triangle text-lg mt-0.5"></i>
-        <span>{{ error }}</span>
+      <!-- Error con cruz roja -->
+      <div v-if="error" class="mb-6 text-center">
+        <div class="mx-auto w-28 h-28 bg-gradient-to-br from-danger-500 to-danger-600 rounded-3xl shadow-2xl flex items-center justify-center mb-4">
+          <svg class="w-20 h-20 text-white" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+          </svg>
+        </div>
+        <div class="bg-danger-50 text-danger-700 border border-danger-200 px-4 py-3.5 rounded-lg flex items-start gap-3 animate-shake">
+          <i class="pi pi-exclamation-triangle text-lg mt-0.5"></i>
+          <span>{{ error }}</span>
+        </div>
       </div>
 
       <div class="mb-6 text-left">

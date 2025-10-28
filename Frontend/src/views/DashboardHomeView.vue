@@ -1,6 +1,9 @@
 <!-- eslint-disable @typescript-eslint/no-explicit-any -->
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
+import { themeStore } from '@/stores/themeStore';
+// Store para modo oscuro/claro
+// themeStore es reactivo por diseño
 import MetricCard from '@/components/MetricCard.vue';
 import SensorsTable from '@/components/SensorsTable.vue';
 import HistoricalChartGrid from '@/components/HistoricalChartGrid.vue';
@@ -34,8 +37,15 @@ const isLoadingMetrics = ref(true);
 const sensorsTableRef = ref<InstanceType<typeof SensorsTable> | null>(null);
 const chartsGridRef = ref<InstanceType<typeof HistoricalChartGrid> | null>(null);
 
+
 onMounted(async () => {
+  themeStore.applyTheme();
   await fetchMetrics();
+});
+
+// Forzar actualización de clases de tema al cambiar
+watch(() => themeStore.isDark, () => {
+  themeStore.applyTheme();
 });
 
 async function fetchMetrics() {
@@ -88,34 +98,60 @@ async function fetchMetrics() {
 </script>
 
 <template>
-  <div class="p-6 max-w-[1400px] mx-auto">
-    <!-- Header simplificado -->
-    <header class="flex justify-between items-center mb-8 pb-4 border-b-2 border-gray-100">
-      <div>
-        <h1 class="text-3xl font-bold text-gray-800 mb-2">Monitoreo del Embalse</h1>
-        <p class="text-gray-600 text-lg">Sistema de control de calidad del agua</p>
+  <!-- Fondo dependiente del modo (igual que login) -->
+  <div
+    class="min-h-screen p-8 max-w-[1400px] mx-auto transition-colors duration-300"
+    :class="[
+      'bg-gradient-to-br',
+      themeStore.isDark
+        ? 'from-slate-900 via-slate-800 to-slate-900'
+        : 'from-white via-blue-100 to-blue-200'
+    ]"
+  >
+    <!-- Header mejorado -->
+    <header class="mb-10">
+      <div class="bg-white dark:bg-slate-800 rounded-2xl p-8 shadow-lg border border-gray-200 dark:border-slate-700 transition-colors duration-300">
+        <div class="flex items-center gap-4 mb-3">
+          <div class="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-md">
+            <i class="pi pi-chart-line text-2xl text-white"></i>
+          </div>
+          <div>
+            <h1 class="text-3xl font-bold text-gray-800 mb-1">Monitoreo del Embalse</h1>
+            <p class="text-gray-600 text-base">Sistema de control de calidad del agua</p>
+          </div>
+        </div>
       </div>
     </header>
 
     <!-- 1. Métricas principales (Cards) -->
-    <section class="mb-8">
-      <h2 class="section-title">
-        <i class="pi pi-gauge text-primary-500"></i>
-        Últimas Mediciones
-      </h2>
+    <section class="mb-10">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+          <i class="pi pi-gauge text-white text-lg"></i>
+        </div>
+  <h2 class="text-2xl font-bold text-gray-800 dark:text-gray-100 transition-colors">Últimas Mediciones</h2>
+      </div>
 
       <!-- Error Message -->
-      <div v-if="errorMetrics" class="flex items-center gap-3 p-6 bg-warning-100 border border-warning-300 rounded-lg text-warning-800">
-        <i class="pi pi-exclamation-triangle text-xl"></i>
-        {{ errorMetrics }}
-        <button @click="fetchMetrics" class="btn btn-primary ml-auto">Reintentar</button>
+  <div v-if="errorMetrics" class="flex items-start gap-4 p-6 bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900 dark:to-orange-800 border border-orange-300 dark:border-orange-700 rounded-xl text-orange-800 dark:text-orange-200 shadow-md transition-colors">
+        <div class="w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center flex-shrink-0">
+          <i class="pi pi-exclamation-triangle text-xl text-white"></i>
+        </div>
+        <div class="flex-1">
+          <p class="font-semibold mb-2">Error al cargar datos</p>
+          <p class="text-sm">{{ errorMetrics }}</p>
+        </div>
+        <button @click="fetchMetrics" class="px-5 py-2.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors duration-200 font-semibold shadow-md hover:shadow-lg flex items-center gap-2 flex-shrink-0">
+          <i class="pi pi-refresh"></i>
+          Reintentar
+        </button>
       </div>
 
       <!-- Loading State -->
       <div v-else-if="isLoadingMetrics" class="py-8">
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div v-for="i in 4" :key="i" class="h-36 rounded-xl overflow-hidden relative bg-gray-100">
-            <div class="absolute inset-0 bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 animate-pulse"></div>
+          <div v-for="i in 4" :key="i" class="h-36 rounded-xl overflow-hidden relative bg-gray-100 dark:bg-slate-800">
+            <div class="absolute inset-0 bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 dark:from-slate-800 dark:via-slate-700 dark:to-slate-800 animate-pulse"></div>
           </div>
         </div>
       </div>
@@ -164,43 +200,51 @@ async function fetchMetrics() {
       </div>
 
       <!-- Leyenda de colores -->
-      <div v-if="metrics" class="mt-6 p-5 bg-gray-50 border border-gray-200 rounded-xl">
-        <h3 class="flex items-center gap-2 text-base font-semibold text-gray-700 mb-4">
-          <i class="pi pi-info-circle text-gray-600 text-sm"></i>
-          Valores ideales para arándanos
-        </h3>
-        <div class="flex flex-wrap gap-6">
-          <div class="flex items-center gap-3 text-sm text-gray-700">
-            <div class="w-5 h-5 rounded border-2 border-success-500 bg-success-100 flex-shrink-0"></div>
-            <span>Óptimo</span>
+  <div v-if="metrics" class="mt-8 p-6 bg-white dark:bg-slate-800 border-2 border-blue-200 dark:border-blue-700 rounded-xl shadow-md transition-colors">
+        <div class="flex items-center gap-3 mb-5">
+          <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-md">
+            <i class="pi pi-info-circle text-white text-base"></i>
           </div>
-          <div class="flex items-center gap-3 text-sm text-gray-700">
-            <div class="w-5 h-5 rounded border-2 border-warning-500 bg-warning-100 flex-shrink-0"></div>
-            <span>Advertencia</span>
+          <h3 class="text-lg font-bold text-gray-800 dark:text-gray-100 m-0 transition-colors">
+            Valores Ideales Para el Cultivo de Arándanos
+          </h3>
+        </div>
+        <div class="flex flex-wrap gap-8">
+          <div class="flex items-center gap-3">
+            <div class="w-6 h-6 rounded-lg border-2 border-green-500 bg-green-100 flex-shrink-0 shadow-sm"></div>
+            <span class="font-semibold text-gray-700 dark:text-green-200">Óptimo</span>
           </div>
-          <div class="flex items-center gap-3 text-sm text-gray-700">
-            <div class="w-5 h-5 rounded border-2 border-danger-500 bg-danger-100 flex-shrink-0"></div>
-            <span>Crítico</span>
+          <div class="flex items-center gap-3">
+            <div class="w-6 h-6 rounded-lg border-2 border-orange-500 bg-orange-100 flex-shrink-0 shadow-sm"></div>
+            <span class="font-semibold text-gray-700 dark:text-orange-200">Advertencia</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="w-6 h-6 rounded-lg border-2 border-red-500 bg-red-100 flex-shrink-0 shadow-sm"></div>
+            <span class="font-semibold text-gray-700 dark:text-red-200">Crítico</span>
           </div>
         </div>
       </div>
     </section>
 
     <!-- 2. Grid de gráficos históricos (4 gráficos) -->
-    <section class="mb-8">
-      <h2 class="section-title">
-        <i class="pi pi-chart-line text-primary-500"></i>
-        Tendencia Histórica por Parámetro
-      </h2>
+    <section class="mb-10">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+          <i class="pi pi-chart-line text-white text-lg"></i>
+        </div>
+        <h2 class="text-2xl font-bold text-gray-800">Tendencia Histórica por Parámetro</h2>
+      </div>
       <HistoricalChartGrid ref="chartsGridRef" />
     </section>
 
     <!-- 3. Tabla de sensores detallada -->
-    <section class="mb-8">
-      <h2 class="section-title">
-        <i class="pi pi-microchip text-primary-500"></i>
-        Estado de Sensores IoT
-      </h2>
+    <section class="mb-10">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="w-10 h-10 bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-xl flex items-center justify-center shadow-lg">
+          <i class="pi pi-microchip text-white text-lg"></i>
+        </div>
+        <h2 class="text-2xl font-bold text-gray-800">Estado de Sensores IoT</h2>
+      </div>
       <SensorsTable ref="sensorsTableRef" />
     </section>
   </div>

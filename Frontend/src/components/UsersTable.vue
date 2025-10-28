@@ -59,51 +59,67 @@ defineExpose({
 </script>
 
 <template>
-  <div class="bg-white rounded-lg p-6 shadow-sm mt-8">
-    <div v-if="isLoading" class="text-center py-8 text-gray-500">Cargando usuarios...</div>
-    <div v-else-if="error" class="text-danger-500 font-bold">{{ error }}</div>
-    <div v-else-if="users.length > 0" class="overflow-x-auto">
+  <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+    <div v-if="isLoading" class="flex items-center justify-center gap-2 py-12 text-gray-500">
+      <i class="pi pi-spin pi-spinner text-lg"></i>
+      <span class="text-sm">Cargando usuarios...</span>
+    </div>
+    <div v-else-if="error" class="text-red-700 font-semibold p-4 bg-red-50 rounded-lg border border-red-200">{{ error }}</div>
+    <div v-else-if="users.length > 0" class="overflow-x-auto rounded-lg border border-gray-200">
       <table class="w-full border-collapse">
         <thead>
-          <tr>
-            <th class="p-4 text-left border-b border-gray-200 text-gray-500 font-medium text-sm uppercase">Nombre Completo</th>
-            <th class="p-4 text-left border-b border-gray-200 text-gray-500 font-medium text-sm uppercase">Email</th>
-            <th class="p-4 text-left border-b border-gray-200 text-gray-500 font-medium text-sm uppercase">Rol</th>
-            <th class="p-4 text-left border-b border-gray-200 text-gray-500 font-medium text-sm uppercase">Estado</th>
-            <th class="p-4 text-left border-b border-gray-200 text-gray-500 font-medium text-sm uppercase">Acciones</th>
+          <tr class="bg-gradient-to-r from-slate-50 to-gray-100">
+            <th class="p-4 text-left border-b border-gray-300 text-gray-700 font-semibold text-xs uppercase tracking-wider">Nombre Completo</th>
+            <th class="p-4 text-left border-b border-gray-300 text-gray-700 font-semibold text-xs uppercase tracking-wider">Email</th>
+            <th class="p-4 text-left border-b border-gray-300 text-gray-700 font-semibold text-xs uppercase tracking-wider">Rol</th>
+            <th class="p-4 text-left border-b border-gray-300 text-gray-700 font-semibold text-xs uppercase tracking-wider">Estado</th>
+            <th class="p-4 text-left border-b border-gray-300 text-gray-700 font-semibold text-xs uppercase tracking-wider">Acciones</th>
           </tr>
         </thead>
-        <tbody>
-          <tr v-for="user in users" :key="user.id" class="hover:bg-gray-50 transition-colors">
-            <td class="p-4 border-b border-gray-200">{{ user.full_name }}</td>
-            <td class="p-4 border-b border-gray-200">{{ user.email }}</td>
-            <td class="p-4 border-b border-gray-200 capitalize">{{ user.role }}</td>
-            <td class="p-4 border-b border-gray-200">
+        <tbody class="bg-white">
+          <tr v-for="user in users" :key="user.id" class="hover:bg-blue-50/50 transition-colors">
+            <td class="p-4 border-b border-gray-100 text-gray-900 font-medium">{{ user.full_name }}</td>
+            <td class="p-4 border-b border-gray-100 text-gray-600 text-sm">{{ user.email }}</td>
+            <td class="p-4 border-b border-gray-100">
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 capitalize">
+                <i class="pi" :class="user.role === 'admin' ? 'pi-shield' : 'pi-user'"></i>
+                {{ user.role }}
+              </span>
+            </td>
+            <td class="p-4 border-b border-gray-100">
               <span
-                class="px-3 py-1 rounded-full text-sm font-medium capitalize"
-                :class="user.disabled ? 'bg-gray-200 text-gray-600' : 'bg-success-100 text-success-700'"
+                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold"
+                :class="user.disabled ? 'bg-gray-50 text-gray-700 border border-gray-200' : 'bg-green-50 text-green-700 border border-green-200'"
               >
+                <i class="pi text-[6px]" :class="user.disabled ? 'pi-circle-fill' : 'pi-circle-fill'"></i>
                 {{ user.disabled ? 'Deshabilitado' : 'Activo' }}
               </span>
             </td>
-            <td class="p-4 border-b border-gray-200">
-              <button
-                @click="emit('edit-user', user)"
-                class="mr-2 px-3 py-1.5 border border-gray-300 bg-gray-100 rounded hover:bg-gray-200 font-medium transition-colors"
-              >
-                Editar
-              </button>
-              <button
-                @click="emit('delete-user', user)"
-                class="px-3 py-1.5 border border-danger-500 text-danger-500 bg-white rounded hover:bg-danger-500 hover:text-white font-medium transition-colors"
-              >
-                Eliminar
-              </button>
+            <td class="p-4 border-b border-gray-100">
+              <div class="flex gap-2">
+                <button
+                  @click="emit('edit-user', user)"
+                  class="px-3 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-medium text-sm transition-all shadow-sm hover:shadow-md flex items-center gap-1.5"
+                >
+                  <i class="pi pi-pencil text-xs"></i>
+                  Editar
+                </button>
+                <button
+                  @click="emit('delete-user', user)"
+                  class="px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium text-sm transition-all shadow-sm hover:shadow-md flex items-center gap-1.5"
+                >
+                  <i class="pi pi-trash text-xs"></i>
+                  Eliminar
+                </button>
+              </div>
             </td>
           </tr>
         </tbody>
       </table>
     </div>
-    <div v-else class="text-center py-8 text-gray-500">No se encontraron usuarios.</div>
+    <div v-else class="text-center py-12 text-gray-500">
+      <i class="pi pi-users text-4xl mb-3 text-gray-300"></i>
+      <p class="text-sm">No se encontraron usuarios.</p>
+    </div>
   </div>
 </template>
