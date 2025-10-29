@@ -7,7 +7,8 @@ import { themeStore } from '@/stores/themeStore';
 import MetricCard from '@/components/MetricCard.vue';
 import SensorsTable from '@/components/SensorsTable.vue';
 import HistoricalChartGrid from '@/components/HistoricalChartGrid.vue';
-import { API_BASE_URL } from '@/config/api';  // ✅ AGREGAR IMPORT
+import { API_BASE_URL } from '@/config/api';
+import { evaluateMetricStatus, BLUEBERRY_THRESHOLDS } from '@/utils/metrics';
 
 defineOptions({
   name: 'DashboardHomeView'
@@ -18,7 +19,7 @@ interface MetricData {
   unit: string;
   changeText: string;
   isPositive: boolean;
-  status: 'normal' | 'warning' | 'critical';
+  status: 'optimal' | 'warning' | 'critical';
 }
 
 interface Metrics {
@@ -100,17 +101,11 @@ async function fetchMetrics() {
 <template>
   <!-- Fondo dependiente del modo (igual que login) -->
   <div
-    class="min-h-screen p-8 max-w-[1400px] mx-auto transition-colors duration-300"
-    :class="[
-      'bg-gradient-to-br',
-      themeStore.isDark
-        ? 'from-slate-900 via-slate-800 to-slate-900'
-        : 'from-white via-blue-100 to-blue-200'
-    ]"
+    class="min-h-screen p-8 transition-colors duration-300 bg-gradient-to-br from-white via-blue-100 to-blue-200"
   >
     <!-- Header mejorado -->
     <header class="mb-10">
-      <div class="bg-white dark:bg-slate-800 rounded-2xl p-8 shadow-lg border border-gray-200 dark:border-slate-700 transition-colors duration-300">
+  <div class="bg-white rounded-2xl p-8 shadow-lg border border-gray-200">
         <div class="flex items-center gap-4 mb-3">
           <div class="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-md">
             <i class="pi pi-chart-line text-2xl text-white"></i>
@@ -129,11 +124,11 @@ async function fetchMetrics() {
         <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
           <i class="pi pi-gauge text-white text-lg"></i>
         </div>
-  <h2 class="text-2xl font-bold text-gray-800 dark:text-gray-100 transition-colors">Últimas Mediciones</h2>
+  <h2 class="text-2xl font-bold text-gray-800">Últimas Mediciones</h2>
       </div>
 
       <!-- Error Message -->
-  <div v-if="errorMetrics" class="flex items-start gap-4 p-6 bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900 dark:to-orange-800 border border-orange-300 dark:border-orange-700 rounded-xl text-orange-800 dark:text-orange-200 shadow-md transition-colors">
+  <div v-if="errorMetrics" class="flex items-start gap-4 p-6 bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-300 rounded-xl text-orange-800 shadow-md">
         <div class="w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center flex-shrink-0">
           <i class="pi pi-exclamation-triangle text-xl text-white"></i>
         </div>
@@ -150,23 +145,25 @@ async function fetchMetrics() {
       <!-- Loading State -->
       <div v-else-if="isLoadingMetrics" class="py-8">
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div v-for="i in 4" :key="i" class="h-36 rounded-xl overflow-hidden relative bg-gray-100 dark:bg-slate-800">
-            <div class="absolute inset-0 bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 dark:from-slate-800 dark:via-slate-700 dark:to-slate-800 animate-pulse"></div>
+          <div v-for="i in 4" :key="i" class="h-36 rounded-xl overflow-hidden relative bg-gray-100">
+            <div class="absolute inset-0 bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 animate-pulse"></div>
           </div>
         </div>
       </div>
 
       <!-- Metrics Grid -->
       <div v-else-if="metrics" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+
         <MetricCard
           title="Temperatura del Agua"
           :value="String(metrics.temperatura_agua.value)"
           :unit="metrics.temperatura_agua.unit"
           :changeText="metrics.temperatura_agua.changeText"
           :isPositive="metrics.temperatura_agua.isPositive"
-          :status="metrics.temperatura_agua.status"
+          :status="metrics.temperatura_agua.status || evaluateMetricStatus(metrics.temperatura_agua.value, BLUEBERRY_THRESHOLDS.temperature)"
           icon="pi pi-sun"
         />
+
 
         <MetricCard
           title="Nivel de pH"
@@ -174,9 +171,10 @@ async function fetchMetrics() {
           :unit="metrics.ph.unit"
           :changeText="metrics.ph.changeText"
           :isPositive="metrics.ph.isPositive"
-          :status="metrics.ph.status"
+          :status="metrics.ph.status || evaluateMetricStatus(metrics.ph.value, BLUEBERRY_THRESHOLDS.ph)"
           icon="pi pi-flask"
         />
+
 
         <MetricCard
           title="Conductividad Eléctrica"
@@ -184,9 +182,10 @@ async function fetchMetrics() {
           :unit="metrics.conductividad.unit"
           :changeText="metrics.conductividad.changeText"
           :isPositive="metrics.conductividad.isPositive"
-          :status="metrics.conductividad.status"
+          :status="metrics.conductividad.status || evaluateMetricStatus(metrics.conductividad.value, BLUEBERRY_THRESHOLDS.conductivity)"
           icon="pi pi-bolt"
         />
+
 
         <MetricCard
           title="Nivel del Agua"
@@ -194,33 +193,33 @@ async function fetchMetrics() {
           :unit="metrics.nivel_agua.unit"
           :changeText="metrics.nivel_agua.changeText"
           :isPositive="metrics.nivel_agua.isPositive"
-          :status="metrics.nivel_agua.status"
+          :status="metrics.nivel_agua.status || evaluateMetricStatus(metrics.nivel_agua.value, BLUEBERRY_THRESHOLDS.water_level)"
           icon="pi pi-chart-bar"
         />
       </div>
 
       <!-- Leyenda de colores -->
-  <div v-if="metrics" class="mt-8 p-6 bg-white dark:bg-slate-800 border-2 border-blue-200 dark:border-blue-700 rounded-xl shadow-md transition-colors">
+  <div v-if="metrics" class="mt-8 p-6 bg-white border-2 border-blue-200 rounded-xl shadow-md">
         <div class="flex items-center gap-3 mb-5">
           <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-md">
             <i class="pi pi-info-circle text-white text-base"></i>
           </div>
-          <h3 class="text-lg font-bold text-gray-800 dark:text-gray-100 m-0 transition-colors">
+          <h3 class="text-lg font-normal text-gray-800 m-0">
             Valores Ideales Para el Cultivo de Arándanos
           </h3>
         </div>
         <div class="flex flex-wrap gap-8">
           <div class="flex items-center gap-3">
             <div class="w-6 h-6 rounded-lg border-2 border-green-500 bg-green-100 flex-shrink-0 shadow-sm"></div>
-            <span class="font-semibold text-gray-700 dark:text-green-200">Óptimo</span>
+            <span class="font-semibold text-gray-700">Óptimo</span>
           </div>
           <div class="flex items-center gap-3">
             <div class="w-6 h-6 rounded-lg border-2 border-orange-500 bg-orange-100 flex-shrink-0 shadow-sm"></div>
-            <span class="font-semibold text-gray-700 dark:text-orange-200">Advertencia</span>
+            <span class="font-semibold text-gray-700">Advertencia</span>
           </div>
           <div class="flex items-center gap-3">
             <div class="w-6 h-6 rounded-lg border-2 border-red-500 bg-red-100 flex-shrink-0 shadow-sm"></div>
-            <span class="font-semibold text-gray-700 dark:text-red-200">Crítico</span>
+            <span class="font-semibold text-gray-700">Crítico</span>
           </div>
         </div>
       </div>

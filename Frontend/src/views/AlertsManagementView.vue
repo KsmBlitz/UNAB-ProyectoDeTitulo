@@ -169,26 +169,26 @@
         <div
           v-for="alert in filteredActiveAlerts"
           :key="alert.id"
-          class="border-l-4 rounded-lg p-6 transition-all hover:shadow-lg"
+          class="border-l-8 rounded-xl p-7 transition-all hover:shadow-xl bg-white"
           :class="{
-            'border-danger-500 bg-danger-50': alert.level === 'critical',
-            'border-warning-500 bg-warning-50': alert.level === 'warning',
-            'border-blue-500 bg-blue-50': alert.level === 'info'
+            'border-red-500 bg-red-50/40': alert.level === 'critical',
+            'border-orange-400 bg-orange-50/40': alert.level === 'warning',
+            'border-blue-500 bg-blue-50/40': alert.level === 'info'
           }"
         >
           <div class="flex gap-6 items-start">
-            <div class="text-4xl flex-shrink-0" :class="{
-              'text-danger-500': alert.level === 'critical',
-              'text-warning-500': alert.level === 'warning',
+            <div class="text-4xl flex-shrink-0 mt-1" :class="{
+              'text-red-500': alert.level === 'critical',
+              'text-orange-400': alert.level === 'warning',
               'text-blue-500': alert.level === 'info'
             }">
               <i :class="getAlertIcon(alert.level)"></i>
             </div>
 
             <div class="flex-grow">
-              <div class="text-xl font-bold mb-2" :class="{
-                'text-danger-700': alert.level === 'critical',
-                'text-warning-700': alert.level === 'warning',
+              <div class="text-xl font-semibold mb-2" :class="{
+                'text-red-700': alert.level === 'critical',
+                'text-orange-700': alert.level === 'warning',
                 'text-blue-700': alert.level === 'info'
               }">{{ alert.title }}</div>
               <div class="text-gray-700 mb-4">{{ alert.message }}</div>
@@ -274,11 +274,11 @@
               <td class="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">{{ formatHistoryDate(historyItem.created_at) }}</td>
               <td class="px-6 py-4 text-sm text-gray-700">{{ getTypeLabel(historyItem.type) }}</td>
               <td class="px-6 py-4 text-sm">
-                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold"
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border"
                       :class="{
-                        'bg-danger-100 text-danger-800': historyItem.level === 'critical',
-                        'bg-warning-100 text-warning-800': historyItem.level === 'warning',
-                        'bg-blue-100 text-blue-800': historyItem.level === 'info'
+                        'bg-red-50 border-red-400 text-red-700': historyItem.level === 'critical',
+                        'bg-orange-50 border-orange-400 text-orange-700': historyItem.level === 'warning',
+                        'bg-blue-50 border-blue-400 text-blue-700': historyItem.level === 'info'
                       }">
                   {{ getLevelLabel(historyItem.level) }}
                 </span>

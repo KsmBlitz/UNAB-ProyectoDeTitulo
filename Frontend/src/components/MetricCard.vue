@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { getStatusColor } from '@/utils/metrics';
 import { METRIC_ICONS } from '@/utils/constants';
 
 defineOptions({
   name: 'MetricCard'
 });
+
 
 const props = defineProps<{
   title: string;
@@ -13,17 +13,31 @@ const props = defineProps<{
   unit: string;
   changeText: string;
   isPositive: boolean;
-  status?: 'normal' | 'warning' | 'critical';
+  status?: 'optimal' | 'warning' | 'critical';
   icon?: string;
 }>();
 
-const borderColor = computed(() => getStatusColor(props.status || 'normal'));
+
+
+const borderLeftClass = computed(() => {
+  switch (props.status) {
+    case 'critical':
+      return 'border-l-red-500';
+    case 'warning':
+      return 'border-l-orange-500';
+    case 'optimal':
+      return 'border-l-green-500';
+    default:
+      return 'border-l-gray-200';
+  }
+});
 
 const statusColor = computed(() => {
   switch (props.status) {
-    case 'warning': return 'text-warning-500';
-    case 'critical': return 'text-danger-500';
-    default: return 'text-success-500';
+    case 'critical': return 'text-red-500';
+    case 'warning': return 'text-orange-500';
+    case 'optimal': return 'text-green-500';
+    default: return 'text-gray-400';
   }
 });
 
@@ -41,8 +55,8 @@ const iconClass = computed(() => {
 
 <template>
   <div
-    class="bg-white rounded-xl p-6 shadow-sm transition-all duration-300 border-l-4 border-y border-r border-gray-200 min-h-[180px] flex flex-col hover:-translate-y-0.5 hover:shadow-md group"
-    :style="{ borderLeftColor: borderColor }"
+    class="bg-white rounded-xl p-6 shadow-sm transition-all duration-300 border-l-4 border-y border-r min-h-[180px] flex flex-col hover:-translate-y-0.5 hover:shadow-md group border-y border-r border-gray-200"
+    :class="borderLeftClass"
   >
     <!-- Header -->
     <div class="flex justify-between items-center mb-4">
@@ -57,7 +71,7 @@ const iconClass = computed(() => {
       <div class="flex items-center gap-1.5">
         <i class="pi pi-circle-fill text-[6px]" :class="statusColor"></i>
         <span class="text-xs font-medium" :class="statusColor">
-          {{ status === 'critical' ? 'Crítico' : status === 'warning' ? 'Alerta' : 'Normal' }}
+          {{ status === 'critical' ? 'Crítico' : status === 'warning' ? 'Advertencia' : status === 'optimal' ? 'Óptimo' : 'Sin dato' }}
         </span>
       </div>
     </div>
