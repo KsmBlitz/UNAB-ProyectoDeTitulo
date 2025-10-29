@@ -59,41 +59,67 @@ defineExpose({
 </script>
 
 <template>
-  <div class="users-table-card">
-    <div v-if="isLoading">Cargando usuarios...</div>
-    <div v-else-if="error" class="error-message">{{ error }}</div>
-    <table v-else-if="users.length > 0">
-      <thead>
-        <tr>
-          <th>Nombre Completo</th>
-          <th>Email</th>
-          <th>Rol</th>
-          <th>Estado</th>
-          <th>Acciones</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="user in users" :key="user.id">
-          <td>{{ user.full_name }}</td>
-          <td>{{ user.email }}</td>
-          <td>{{ user.role }}</td>
-          <td>
-            <span class="status-pill" :class="user.disabled ? 'status-inactive' : 'status-active'">
-              {{ user.disabled ? 'Deshabilitado' : 'Activo' }}
-            </span>
-          </td>
-          <td>
-            <button @click="emit('edit-user', user)" class="action-btn">Editar</button>
-            <button @click="emit('delete-user', user)" class="action-btn-delete">Eliminar</button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-    <div v-else>No se encontraron usuarios.</div>
+  <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+    <div v-if="isLoading" class="flex items-center justify-center gap-2 py-12 text-gray-500">
+      <i class="pi pi-spin pi-spinner text-lg"></i>
+      <span class="text-sm">Cargando usuarios...</span>
+    </div>
+    <div v-else-if="error" class="text-red-700 font-semibold p-4 bg-red-50 rounded-lg border border-red-200">{{ error }}</div>
+    <div v-else-if="users.length > 0" class="overflow-x-auto rounded-lg border border-gray-200">
+      <table class="w-full border-collapse">
+        <thead>
+          <tr class="bg-gradient-to-r from-slate-50 to-gray-100">
+            <th class="p-4 text-left border-b border-gray-300 text-gray-700 font-semibold text-xs uppercase tracking-wider">Nombre Completo</th>
+            <th class="p-4 text-left border-b border-gray-300 text-gray-700 font-semibold text-xs uppercase tracking-wider">Email</th>
+            <th class="p-4 text-left border-b border-gray-300 text-gray-700 font-semibold text-xs uppercase tracking-wider">Rol</th>
+            <th class="p-4 text-left border-b border-gray-300 text-gray-700 font-semibold text-xs uppercase tracking-wider">Estado</th>
+            <th class="p-4 text-left border-b border-gray-300 text-gray-700 font-semibold text-xs uppercase tracking-wider">Acciones</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white">
+          <tr v-for="user in users" :key="user.id" class="hover:bg-blue-50/50 transition-colors">
+            <td class="p-4 border-b border-gray-100 text-gray-900 font-medium">{{ user.full_name }}</td>
+            <td class="p-4 border-b border-gray-100 text-gray-600 text-sm">{{ user.email }}</td>
+            <td class="p-4 border-b border-gray-100">
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 capitalize">
+                <i class="pi" :class="user.role === 'admin' ? 'pi-shield' : 'pi-user'"></i>
+                {{ user.role }}
+              </span>
+            </td>
+            <td class="p-4 border-b border-gray-100">
+              <span
+                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold"
+                :class="user.disabled ? 'bg-gray-50 text-gray-700 border border-gray-200' : 'bg-green-50 text-green-700 border border-green-200'"
+              >
+                <i class="pi text-[6px]" :class="user.disabled ? 'pi-circle-fill' : 'pi-circle-fill'"></i>
+                {{ user.disabled ? 'Deshabilitado' : 'Activo' }}
+              </span>
+            </td>
+            <td class="p-4 border-b border-gray-100">
+              <div class="flex gap-2">
+                <button
+                  @click="emit('edit-user', user)"
+                  class="px-3 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-medium text-sm transition-all shadow-sm hover:shadow-md flex items-center gap-1.5"
+                >
+                  <i class="pi pi-pencil text-xs"></i>
+                  Editar
+                </button>
+                <button
+                  @click="emit('delete-user', user)"
+                  class="px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium text-sm transition-all shadow-sm hover:shadow-md flex items-center gap-1.5"
+                >
+                  <i class="pi pi-trash text-xs"></i>
+                  Eliminar
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div v-else class="text-center py-12 text-gray-500">
+      <i class="pi pi-users text-4xl mb-3 text-gray-300"></i>
+      <p class="text-sm">No se encontraron usuarios.</p>
+    </div>
   </div>
 </template>
-
-<style scoped>
-/* Estilos sin cambios */
-.status-pill{padding:.25rem .75rem;border-radius:9999px;font-size:.875rem;font-weight:500;text-transform:capitalize}.status-active{background-color:#d4edda;color:#155724}.status-inactive{background-color:#e9ecef;color:#6c757d}.users-table-card{background-color:#fff;border-radius:8px;padding:1.5rem;box-shadow:0 2px 4px rgba(0,0,0,.05);margin-top:2rem}.error-message{color:#d9534f;font-weight:700}table{width:100%;border-collapse:collapse}th,td{padding:1rem;text-align:left;border-bottom:1px solid #e9ecef}thead th{color:#6c757d;font-weight:500;font-size:.875rem;text-transform:uppercase}tbody tr:last-child td{border-bottom:none}.action-btn,.action-btn-delete{margin-right:.5rem;padding:.35rem .75rem;border:1px solid #ced4da;background-color:#f8f9fa;border-radius:4px;cursor:pointer;font-weight:500;transition:background-color .2s}.action-btn:hover{background-color:#e2e6ea}.action-btn-delete{border-color:#d9534f;color:#d9534f}.action-btn-delete:hover{background-color:#d9534f;color:#fff}
-</style>

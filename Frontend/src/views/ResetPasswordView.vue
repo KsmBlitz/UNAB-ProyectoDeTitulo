@@ -145,66 +145,84 @@ const handleSubmit = async () => {
 </script>
 
 <template>
-  <!-- ✅ USAR EL NUEVO LAYOUT BASE -->
   <AuthLayout title="Crear Nueva Contraseña">
-    <!-- Contenido existente sin el wrapper duplicado -->
-    <div v-if="isValidating" class="validating-message">
-      <i class="pi pi-spin pi-spinner"></i>
-      <p>Validando enlace de seguridad...</p>
+    <div v-if="isValidating" class="text-gray-600 flex flex-col items-center gap-4 py-8">
+      <i class="pi pi-spin pi-spinner text-4xl text-blue-600"></i>
+      <p class="text-lg">Validando enlace de seguridad...</p>
     </div>
 
-    <div v-else-if="!isTokenValid" class="error-state">
-      <i class="pi pi-times-circle" style="font-size: 4rem; color: #dc3545; margin-bottom: 1rem;"></i>
-      <h3>❌ Enlace No Válido</h3>
-      <p>{{ error }}</p>
-      <div class="help-text">
-        <p><strong>Posibles causas:</strong></p>
-        <ul>
+    <div v-else-if="!isTokenValid" class="text-center">
+      <div class="mb-6 inline-flex items-center justify-center w-20 h-20 bg-danger-100 rounded-full">
+        <i class="pi pi-times-circle text-4xl text-danger-600"></i>
+      </div>
+      <h3 class="text-gray-800 mb-3 font-bold text-2xl">Enlace No Válido</h3>
+      <p class="text-gray-600 mb-8 text-lg leading-relaxed">{{ error }}</p>
+      <div class="bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-xl mb-8 text-left border border-orange-200">
+        <p class="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+          <i class="pi pi-info-circle text-orange-600"></i>
+          Posibles causas
+        </p>
+        <ul class="m-0 ml-6 text-gray-700 space-y-2">
           <li>El enlace ha expirado (válido por 1 hora)</li>
-          <li>Ya has usado este enlace</li>
-          <li>El enlace no es válido</li>
+          <li>Ya has usado este enlace anteriormente</li>
+          <li>El enlace no es válido o está incompleto</li>
         </ul>
       </div>
-      <div class="action-buttons">
-        <router-link to="/forgot-password" class="retry-link">
+      <div class="flex gap-3 justify-center flex-wrap">
+        <router-link
+          to="/forgot-password"
+          class="inline-flex items-center gap-2 px-6 py-3.5 no-underline rounded-lg font-semibold transition-all duration-200 bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+        >
           <i class="pi pi-refresh"></i>
           Solicitar nuevo enlace
         </router-link>
-        <router-link to="/login" class="login-link">
+        <router-link
+          to="/login"
+          class="inline-flex items-center gap-2 px-6 py-3.5 no-underline rounded-lg font-semibold transition-all duration-200 bg-gray-200 text-gray-700 hover:bg-gray-300 shadow-md hover:shadow-lg"
+        >
           <i class="pi pi-sign-in"></i>
           Ir al login
         </router-link>
       </div>
     </div>
 
-    <form v-else @submit.prevent="handleSubmit" class="reset-password-form">
-      <div class="user-info">
-        <i class="pi pi-user"></i>
-        <div>
-          <p><strong>Usuario:</strong> {{ email }}</p>
-          <p class="expires-info">
+    <form v-else @submit.prevent="handleSubmit" class="flex flex-col">
+      <div class="flex items-start gap-4 bg-gradient-to-r from-blue-50 to-blue-100 px-5 py-4 rounded-xl mb-8 text-left border border-blue-200">
+        <div class="flex-shrink-0 w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center mt-1">
+          <i class="pi pi-user text-white text-lg"></i>
+        </div>
+        <div class="flex-1">
+          <p class="m-0 mb-2 text-gray-800"><strong>Usuario:</strong> <span class="text-blue-700">{{ email }}</span></p>
+          <p class="flex items-center gap-2 text-orange-600 text-sm m-0 font-medium">
             <i class="pi pi-clock"></i>
-            Este enlace expira en {{ expiresInMinutes }} minutos
+            Este enlace expira en <strong>{{ expiresInMinutes }} minutos</strong>
           </p>
         </div>
       </div>
 
-      <div class="instruction">
-        <h3>🔐 Crear Nueva Contraseña</h3>
-        <p>Tu nueva contraseña debe ser segura y fácil de recordar para ti.</p>
+      <div class="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl mb-8 text-left border border-purple-200">
+        <div class="flex items-start gap-3">
+          <div class="flex-shrink-0 w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center">
+            <i class="pi pi-lock text-white text-lg"></i>
+          </div>
+          <div>
+            <h3 class="m-0 mb-2 text-gray-800 font-semibold text-lg">Crear Nueva Contraseña</h3>
+            <p class="m-0 text-gray-600 text-sm">Tu nueva contraseña debe ser segura y fácil de recordar para ti.</p>
+          </div>
+        </div>
       </div>
 
-      <div v-if="error" class="error-message">
+      <div v-if="error" class="bg-danger-50 text-danger-700 border border-danger-200 px-4 py-3 mb-4 rounded-lg flex items-center gap-2">
         <i class="pi pi-exclamation-triangle"></i>
         {{ error }}
       </div>
 
-      <div class="form-group">
-        <label for="newPassword">
+      <div class="mb-6 text-left">
+        <label for="newPassword" class="flex items-center gap-2 mb-2 font-semibold text-gray-700">
           <i class="pi pi-key"></i>
           Nueva Contraseña
         </label>
-        <div class="password-input-container">
+        <div class="relative flex items-center">
           <input
             :type="showPassword ? 'text' : 'password'"
             id="newPassword"
@@ -213,10 +231,11 @@ const handleSubmit = async () => {
             placeholder="Mínimo 8 caracteres"
             :disabled="isLoading"
             autocomplete="new-password"
+            class="w-full pr-12 pl-4 py-3.5 border-2 border-gray-300 rounded-lg text-base transition-colors focus:outline-none focus:border-primary-500 disabled:bg-gray-100 disabled:opacity-70"
           >
           <button
             type="button"
-            class="toggle-password"
+            class="absolute right-3 bg-transparent border-none text-gray-500 cursor-pointer p-2 hover:text-primary-500"
             @click="showPassword = !showPassword"
             :disabled="isLoading"
           >
@@ -225,10 +244,10 @@ const handleSubmit = async () => {
         </div>
 
         <!-- Indicador de fortaleza de contraseña -->
-        <div v-if="newPassword" class="password-strength">
-          <div class="strength-bar">
+        <div v-if="newPassword" class="mt-2 flex items-center gap-3">
+          <div class="flex-grow h-1 bg-gray-200 rounded-full overflow-hidden">
             <div
-              class="strength-fill"
+              class="h-full transition-all duration-300"
               :style="{
                 width: getPasswordStrength().strength === 'weak' ? '33%' :
                        getPasswordStrength().strength === 'medium' ? '66%' : '100%',
@@ -236,40 +255,52 @@ const handleSubmit = async () => {
               }"
             ></div>
           </div>
-          <span :style="{ color: getPasswordStrength().color }">
+          <span class="text-sm font-medium" :style="{ color: getPasswordStrength().color }">
             Seguridad: {{ getPasswordStrength().text }}
           </span>
         </div>
 
-        <div class="password-requirements">
-          <small>La contraseña debe contener:</small>
-          <ul>
-            <li :class="{ valid: newPassword.length >= 8 }">
-              <i :class="newPassword.length >= 8 ? 'pi pi-check' : 'pi pi-times'"></i>
+        <div class="mt-3 px-3 py-2.5 bg-gray-100 rounded-md">
+          <small class="text-gray-600">La contraseña debe contener:</small>
+          <ul class="list-none p-0 m-0 mt-2">
+            <li
+              class="flex items-center gap-2 mb-1 transition-colors"
+              :class="newPassword.length >= 8 ? 'text-success-500' : 'text-gray-500'"
+            >
+              <i class="text-xs" :class="newPassword.length >= 8 ? 'pi pi-check' : 'pi pi-times'"></i>
               Al menos 8 caracteres
             </li>
-            <li :class="{ valid: /(?=.*[a-z])/.test(newPassword) }">
-              <i :class="/(?=.*[a-z])/.test(newPassword) ? 'pi pi-check' : 'pi pi-times'"></i>
+            <li
+              class="flex items-center gap-2 mb-1 transition-colors"
+              :class="/(?=.*[a-z])/.test(newPassword) ? 'text-success-500' : 'text-gray-500'"
+            >
+              <i class="text-xs" :class="/(?=.*[a-z])/.test(newPassword) ? 'pi pi-check' : 'pi pi-times'"></i>
               Una letra minúscula
             </li>
-            <li :class="{ valid: /(?=.*[A-Z])/.test(newPassword) }">
-              <i :class="/(?=.*[A-Z])/.test(newPassword) ? 'pi pi-check' : 'pi pi-times'"></i>
+            <li
+              class="flex items-center gap-2 mb-1 transition-colors"
+              :class="/(?=.*[A-Z])/.test(newPassword) ? 'text-success-500' : 'text-gray-500'"
+            >
+              <i class="text-xs" :class="/(?=.*[A-Z])/.test(newPassword) ? 'pi pi-check' : 'pi pi-times'"></i>
               Una letra mayúscula
             </li>
-            <li :class="{ valid: /(?=.*\d)/.test(newPassword) }">
-              <i :class="/(?=.*\d)/.test(newPassword) ? 'pi pi-check' : 'pi pi-times'"></i>
+            <li
+              class="flex items-center gap-2 mb-1 transition-colors"
+              :class="/(?=.*\d)/.test(newPassword) ? 'text-success-500' : 'text-gray-500'"
+            >
+              <i class="text-xs" :class="/(?=.*\d)/.test(newPassword) ? 'pi pi-check' : 'pi pi-times'"></i>
               Un número
             </li>
           </ul>
         </div>
       </div>
 
-      <div class="form-group">
-        <label for="confirmPassword">
+      <div class="mb-6 text-left">
+        <label for="confirmPassword" class="flex items-center gap-2 mb-2 font-semibold text-gray-700">
           <i class="pi pi-check"></i>
           Confirmar Nueva Contraseña
         </label>
-        <div class="password-input-container">
+        <div class="relative flex items-center">
           <input
             :type="showConfirmPassword ? 'text' : 'password'"
             id="confirmPassword"
@@ -278,37 +309,45 @@ const handleSubmit = async () => {
             placeholder="Repite tu nueva contraseña"
             :disabled="isLoading"
             autocomplete="new-password"
+            class="w-full pr-12 pl-4 py-3.5 border-2 border-gray-300 rounded-lg text-base transition-colors focus:outline-none focus:border-primary-500 disabled:bg-gray-100 disabled:opacity-70"
           >
           <button
             type="button"
-            class="toggle-password"
+            class="absolute right-3 bg-transparent border-none text-gray-500 cursor-pointer p-2 hover:text-primary-500"
             @click="showConfirmPassword = !showConfirmPassword"
             :disabled="isLoading"
           >
             <i :class="showConfirmPassword ? 'pi pi-eye-slash' : 'pi pi-eye'"></i>
           </button>
         </div>
-        <div v-if="confirmPassword" class="password-match">
+        <div v-if="confirmPassword" class="mt-2 flex items-center gap-2 text-sm" :class="newPassword === confirmPassword ? 'text-success-500' : 'text-danger-500'">
           <i :class="newPassword === confirmPassword ? 'pi pi-check' : 'pi pi-times'"></i>
-          <span :class="{ valid: newPassword === confirmPassword }">
+          <span>
             {{ newPassword === confirmPassword ? 'Las contraseñas coinciden' : 'Las contraseñas no coinciden' }}
           </span>
         </div>
       </div>
 
-      <button type="submit" class="submit-button" :disabled="isLoading">
+      <button
+        type="submit"
+        class="w-full px-6 py-4 bg-success-500 text-white border-none rounded-lg text-lg font-bold cursor-pointer transition-all mt-4 flex items-center justify-center gap-2 hover:bg-success-600 hover:-translate-y-0.5 disabled:bg-gray-400 disabled:cursor-not-allowed disabled:transform-none"
+        :disabled="isLoading"
+      >
         <i v-if="isLoading" class="pi pi-spin pi-spinner"></i>
         <i v-else class="pi pi-save"></i>
         {{ isLoading ? 'Actualizando...' : 'Actualizar Contraseña' }}
       </button>
 
-      <div class="security-info">
+      <div class="flex items-center gap-2 mt-4 px-3 py-2.5 bg-blue-50 rounded-md text-blue-700">
         <i class="pi pi-info-circle"></i>
-        <p>Después de cambiar tu contraseña, será necesario que inicies sesión nuevamente.</p>
+        <p class="m-0 text-sm">Después de cambiar tu contraseña, será necesario que inicies sesión nuevamente.</p>
       </div>
 
-      <div class="form-footer">
-        <router-link to="/login" class="back-link">
+      <div class="mt-8">
+        <router-link
+          to="/login"
+          class="text-gray-500 no-underline flex items-center justify-center gap-2 text-sm hover:text-primary-500 transition-colors"
+        >
           <i class="pi pi-arrow-left"></i>
           Cancelar y volver al login
         </router-link>
@@ -316,335 +355,3 @@ const handleSubmit = async () => {
     </form>
   </AuthLayout>
 </template>
-
-<style scoped>
-.reset-password-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-  background-color: #f4f6f9;
-  padding: 1rem;
-}
-
-.reset-password-card {
-  background-color: #fff;
-  padding: 2.5rem 3rem;
-  border-radius: 12px;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-  width: 100%;
-  max-width: 500px;
-  text-align: center;
-}
-
-.logo {
-  margin-bottom: 2rem;
-}
-
-.logo h2 {
-  margin: 0.5rem 0 0;
-  color: #2c3e50;
-}
-
-.validating-message {
-  color: #6c757d;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-}
-
-.error-state {
-  text-align: center;
-}
-
-.error-state h3 {
-  color: #2c3e50;
-  margin-bottom: 1rem;
-}
-
-.help-text {
-  background-color: #f8f9fa;
-  padding: 1.5rem;
-  border-radius: 8px;
-  margin: 1.5rem 0;
-  text-align: left;
-}
-
-.help-text ul {
-  margin: 0.5rem 0 0 1rem;
-  color: #6c757d;
-}
-
-.action-buttons {
-  display: flex;
-  gap: 1rem;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-
-.retry-link, .login-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  text-decoration: none;
-  border-radius: 8px;
-  font-weight: 600;
-  transition: all 0.2s;
-}
-
-.retry-link {
-  background-color: #3498db;
-  color: white;
-}
-
-.retry-link:hover {
-  background-color: #2980b9;
-}
-
-.login-link {
-  background-color: #6c757d;
-  color: white;
-}
-
-.login-link:hover {
-  background-color: #5a6268;
-}
-
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  background-color: #e3f2fd;
-  padding: 1rem;
-  border-radius: 8px;
-  margin-bottom: 2rem;
-  text-align: left;
-}
-
-.user-info i {
-  font-size: 1.5rem;
-  color: #1976d2;
-}
-
-.expires-info {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: #f57c00;
-  font-size: 0.9rem;
-  margin-top: 0.5rem;
-}
-
-.instruction {
-  background-color: #f8f9fa;
-  padding: 1.5rem;
-  border-radius: 8px;
-  margin-bottom: 2rem;
-  text-align: left;
-}
-
-.instruction h3 {
-  margin: 0 0 1rem 0;
-  color: #2c3e50;
-}
-
-.instruction p {
-  margin: 0;
-  color: #6c757d;
-}
-
-.reset-password-form {
-  display: flex;
-  flex-direction: column;
-}
-
-.form-group {
-  margin-bottom: 1.5rem;
-  text-align: left;
-}
-
-.form-group label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-  font-weight: 600;
-  color: #34495e;
-}
-
-.password-input-container {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.form-group input {
-  width: 100%;
-  padding: 0.875rem 3rem 0.875rem 1rem;
-  border: 2px solid #ced4da;
-  border-radius: 8px;
-  font-size: 1rem;
-  box-sizing: border-box;
-  transition: border-color 0.2s;
-}
-
-.form-group input:focus {
-  outline: none;
-  border-color: #3498db;
-}
-
-.form-group input:disabled {
-  background-color: #f8f9fa;
-  opacity: 0.7;
-}
-
-.toggle-password {
-  position: absolute;
-  right: 0.75rem;
-  background: none;
-  border: none;
-  color: #6c757d;
-  cursor: pointer;
-  padding: 0.5rem;
-}
-
-.toggle-password:hover {
-  color: #3498db;
-}
-
-.password-strength {
-  margin-top: 0.5rem;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.strength-bar {
-  flex-grow: 1;
-  height: 4px;
-  background-color: #e9ecef;
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.strength-fill {
-  height: 100%;
-  transition: all 0.3s ease;
-}
-
-.password-requirements {
-  margin-top: 0.75rem;
-  padding: 0.75rem;
-  background-color: #f8f9fa;
-  border-radius: 6px;
-}
-
-.password-requirements ul {
-  list-style: none;
-  padding: 0;
-  margin: 0.5rem 0 0 0;
-}
-
-.password-requirements li {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.25rem;
-  color: #6c757d;
-  transition: color 0.2s;
-}
-
-.password-requirements li.valid {
-  color: #28a745;
-}
-
-.password-requirements li i {
-  font-size: 0.8rem;
-}
-
-.password-match {
-  margin-top: 0.5rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.9rem;
-  color: #dc3545;
-}
-
-.password-match.valid,
-.password-match .valid {
-  color: #28a745;
-}
-
-.submit-button {
-  width: 100%;
-  padding: 1rem 1.5rem;
-  background-color: #28a745;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  font-size: 1.1rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s ease-in-out;
-  margin-top: 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.submit-button:hover:not(:disabled) {
-  background-color: #218838;
-  transform: translateY(-2px);
-}
-
-.submit-button:disabled {
-  background-color: #95a5a6;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.security-info {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 1rem;
-  padding: 0.75rem;
-  background-color: #e3f2fd;
-  border-radius: 6px;
-  color: #1565c0;
-}
-
-.form-footer {
-  margin-top: 2rem;
-}
-
-.back-link {
-  color: #6c757d;
-  text-decoration: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  font-size: 0.9rem;
-}
-
-.back-link:hover {
-  color: #3498db;
-}
-
-.error-message {
-  background-color: #f8d7da;
-  color: #721c24;
-  border: 1px solid #f5c6cb;
-  padding: 1rem;
-  margin-bottom: 1rem;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-</style>

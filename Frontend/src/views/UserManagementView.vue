@@ -75,15 +75,28 @@ async function handleDeleteUser(user: User) {
 </script>
 
 <template>
-  <div class="view-container">
-    <header class="view-header">
-      <h1>Gestión de Usuarios</h1>
-      <button @click="isCreateModalOpen = true" class="add-user-btn">
-        <i class="pi pi-plus"></i>
-        <span>Crear Nuevo Usuario</span>
-      </button>
-    </header>
-    <p>Desde aquí podrás administrar los usuarios del sistema.</p>
+  <div class="p-8">
+    <!-- Header Card -->
+    <div class="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-6 mb-6 shadow-lg">
+      <div class="flex justify-between items-center">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center">
+            <i class="pi pi-users text-2xl text-white"></i>
+          </div>
+          <div>
+            <h1 class="text-2xl font-bold text-white m-0">Gestión de Usuarios</h1>
+            <p class="text-blue-100 text-sm mt-1">Administra los usuarios del sistema</p>
+          </div>
+        </div>
+        <button
+          @click="isCreateModalOpen = true"
+          class="bg-white text-blue-600 rounded-lg px-5 py-2.5 text-sm font-semibold cursor-pointer flex items-center gap-2 hover:bg-blue-50 transition-all shadow-md hover:shadow-lg"
+        >
+          <i class="pi pi-plus text-sm"></i>
+          <span>Crear Nuevo Usuario</span>
+        </button>
+      </div>
+    </div>
 
     <UsersTable
       ref="usersTableRef"
@@ -104,8 +117,3 @@ async function handleDeleteUser(user: User) {
     />
   </div>
 </template>
-
-<style scoped>
-/* Estilos sin cambios */
-.view-container{padding:2rem}.view-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem}.view-header h1{margin:0}.add-user-btn{background-color:#28a745;color:#fff;border:none;border-radius:6px;padding:.75rem 1rem;font-size:1rem;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:.5rem}.add-user-btn:hover{background-color:#218838}
-</style>

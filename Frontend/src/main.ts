@@ -2,10 +2,12 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
 import 'primeicons/primeicons.css';
+import './assets/styles.css'; // Tailwind CSS
 
 import { authStore } from './auth/store';
 import { jwtDecode } from 'jwt-decode';
 import { API_BASE_URL } from './config/api';  // ✅ AGREGAR IMPORT
+import { themeStore } from './stores/themeStore';
 
 const token = localStorage.getItem('userToken');
 if (token) {
@@ -47,4 +49,7 @@ if (token) {
 
 const app = createApp(App)
 app.use(router)
+
+// Forzar sincronización global del tema al montar la app
 app.mount('#app')
+themeStore.applyTheme();

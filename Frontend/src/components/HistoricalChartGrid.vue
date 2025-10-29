@@ -48,12 +48,12 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="charts-grid-container">
+  <div class="bg-white rounded-xl p-6 shadow-md">
     <!-- Controles de filtro temporal (compartidos por todos los gráficos) -->
-    <div class="grid-header">
-      <div class="grid-controls">
-        <label>Período:</label>
-        <div class="time-range-buttons">
+    <div class="flex justify-end mb-6 pb-4 border-b-2 border-gray-100">
+      <div class="flex items-center gap-4 flex-col md:flex-row">
+        <label class="text-sm font-semibold text-gray-600">Período:</label>
+        <div class="flex gap-2 bg-gray-100 rounded-lg p-1.5 flex-wrap">
           <button
             v-for="range in [
               { hours: 1, label: '1h' },
@@ -66,8 +66,8 @@ onMounted(() => {
             ]"
             :key="range.hours"
             @click="handleTimeRangeChange(range.hours)"
-            :class="{ active: globalTimeRange === range.hours }"
-            class="time-btn"
+            :class="globalTimeRange === range.hours ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'"
+            class="px-4 py-2 rounded-lg cursor-pointer font-semibold transition-all text-sm min-w-[60px]"
           >
             {{ range.label }}
           </button>
@@ -76,9 +76,9 @@ onMounted(() => {
     </div>
 
     <!-- Grid 2x2 de gráficos individuales -->
-    <div class="charts-grid">
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
       <!-- Fila superior -->
-      <div class="chart-item">
+      <div class="bg-gray-50 rounded-lg overflow-hidden border border-gray-200 transition-all hover:-translate-y-0.5 hover:shadow-lg h-[350px]">
         <IndividualChart
           ref="temperatureChartRef"
           sensor-type="temperatura"
@@ -90,7 +90,7 @@ onMounted(() => {
         />
       </div>
 
-      <div class="chart-item">
+      <div class="bg-gray-50 rounded-lg overflow-hidden border border-gray-200 transition-all hover:-translate-y-0.5 hover:shadow-lg h-[350px]">
         <IndividualChart
           ref="phChartRef"
           sensor-type="ph"
@@ -103,7 +103,7 @@ onMounted(() => {
       </div>
 
       <!-- Fila inferior -->
-      <div class="chart-item">
+      <div class="bg-gray-50 rounded-lg overflow-hidden border border-gray-200 transition-all hover:-translate-y-0.5 hover:shadow-lg h-[350px]">
         <IndividualChart
           ref="conductivityChartRef"
           sensor-type="conductividad"
@@ -115,7 +115,7 @@ onMounted(() => {
         />
       </div>
 
-      <div class="chart-item">
+      <div class="bg-gray-50 rounded-lg overflow-hidden border border-gray-200 transition-all hover:-translate-y-0.5 hover:shadow-lg h-[350px]">
         <IndividualChart
           ref="waterLevelChartRef"
           sensor-type="nivel"
@@ -129,115 +129,3 @@ onMounted(() => {
     </div>
   </div>
 </template>
-
-<style scoped>
-.charts-grid-container {
-  background-color: #fff;
-  border-radius: 12px;
-  padding: 1.5rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-}
-
-.grid-header {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
-  border-bottom: 2px solid #f8f9fa;
-}
-
-.grid-controls {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.grid-controls label {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #6c757d;
-}
-
-.time-range-buttons {
-  display: flex;
-  gap: 0.25rem;
-  background-color: #f8f9fa;
-  border-radius: 6px;
-  padding: 0.25rem;
-}
-
-.time-btn {
-  padding: 0.5rem 1rem;
-  border: none;
-  background-color: transparent;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: all 0.2s;
-  font-size: 0.85rem;
-}
-
-.time-btn:hover {
-  background-color: #e9ecef;
-}
-
-.time-btn.active {
-  background-color: #3498db;
-  color: white;
-}
-
-/* Grid 2x2 con ALTURA FIJA */
-.charts-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 350px 350px; /* ALTURA FIJA para evitar crecimiento infinito */
-  gap: 1.5rem;
-}
-
-.chart-item {
-  background-color: #f8f9fa;
-  border-radius: 8px;
-  overflow: hidden;
-  border: 1px solid #e9ecef;
-  transition: all 0.3s ease;
-}
-
-.chart-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-}
-
-/* Responsive */
-@media (max-width: 1200px) {
-  .charts-grid {
-    grid-template-columns: 1fr;
-    grid-template-rows: repeat(4, 350px); /* 4 filas de 350px cada una */
-  }
-}
-
-@media (max-width: 768px) {
-  .grid-header {
-    justify-content: center;
-  }
-
-  .grid-controls {
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  .time-range-buttons {
-    width: 100%;
-    flex-wrap: wrap;
-  }
-
-  .time-btn {
-    flex: 1;
-    min-width: 60px;
-  }
-
-  .charts-grid {
-    gap: 1rem;
-    grid-template-rows: repeat(4, 300px); /* Altura reducida en móviles */
-  }
-}
-</style>

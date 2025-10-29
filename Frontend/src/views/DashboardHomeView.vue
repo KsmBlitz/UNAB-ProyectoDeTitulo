@@ -1,10 +1,14 @@
 <!-- eslint-disable @typescript-eslint/no-explicit-any -->
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
+import { themeStore } from '@/stores/themeStore';
+// Store para modo oscuro/claro
+// themeStore es reactivo por diseño
 import MetricCard from '@/components/MetricCard.vue';
 import SensorsTable from '@/components/SensorsTable.vue';
 import HistoricalChartGrid from '@/components/HistoricalChartGrid.vue';
-import { API_BASE_URL } from '@/config/api';  // ✅ AGREGAR IMPORT
+import { API_BASE_URL } from '@/config/api';
+import { evaluateMetricStatus, BLUEBERRY_THRESHOLDS } from '@/utils/metrics';
 
 defineOptions({
   name: 'DashboardHomeView'
@@ -15,7 +19,7 @@ interface MetricData {
   unit: string;
   changeText: string;
   isPositive: boolean;
-  status: 'normal' | 'warning' | 'critical';
+  status: 'optimal' | 'warning' | 'critical';
 }
 
 interface Metrics {
@@ -34,51 +38,16 @@ const isLoadingMetrics = ref(true);
 const sensorsTableRef = ref<InstanceType<typeof SensorsTable> | null>(null);
 const chartsGridRef = ref<InstanceType<typeof HistoricalChartGrid> | null>(null);
 
-// Control de auto-refresh
-const isAutoRefreshEnabled = ref(true);
-let refreshInterval: number | null = null;
 
 onMounted(async () => {
+  themeStore.applyTheme();
   await fetchMetrics();
-  startAutoRefresh();
 });
 
-// Función de refresh inteligente
-async function smartRefresh() {
-  // Solo actualizar métricas y tabla de sensores, NO los gráficos
-  await Promise.all([
-    fetchMetrics(),
-    sensorsTableRef.value?.fetchSensorsStatus()
-  ]);
-}
-
-// Función de refresh completo (manual)
-async function fullRefresh() {
-  await Promise.all([
-    fetchMetrics(),
-    sensorsTableRef.value?.fetchSensorsStatus(),
-    chartsGridRef.value?.refreshAllCharts()
-  ]);
-}
-
-function startAutoRefresh() {
-  if (refreshInterval) clearInterval(refreshInterval);
-
-  if (isAutoRefreshEnabled.value) {
-    // Auto-refresh cada 30 segundos (solo métricas y sensores)
-    refreshInterval = setInterval(smartRefresh, 30000);
-  }
-}
-
-function toggleAutoRefresh() {
-  isAutoRefreshEnabled.value = !isAutoRefreshEnabled.value;
-  if (isAutoRefreshEnabled.value) {
-    startAutoRefresh();
-  } else if (refreshInterval) {
-    clearInterval(refreshInterval);
-    refreshInterval = null;
-  }
-}
+// Forzar actualización de clases de tema al cambiar
+watch(() => themeStore.isDark, () => {
+  themeStore.applyTheme();
+});
 
 async function fetchMetrics() {
   // No cambiar isLoadingMetrics si ya hay datos (para evitar parpadeo)
@@ -130,70 +99,71 @@ async function fetchMetrics() {
 </script>
 
 <template>
-  <div class="dashboard-content">
-    <!-- Header con controles mejorados -->
-    <header class="dashboard-header">
-      <div class="header-info">
-        <h1>Monitoreo del Embalse</h1>
-        <p>Sistema de control de calidad del agua</p>
-      </div>
-      <div class="header-actions">
-        <!-- Indicador de auto-refresh -->
-        <div class="auto-refresh-indicator">
-          <button
-            @click="toggleAutoRefresh"
-            class="auto-refresh-btn"
-            :class="{ active: isAutoRefreshEnabled }"
-          >
-            <i class="pi" :class="isAutoRefreshEnabled ? 'pi-pause' : 'pi-play'"></i>
-            <span>{{ isAutoRefreshEnabled ? 'Pausar' : 'Reanudar' }}</span>
-          </button>
+  <!-- Fondo dependiente del modo (igual que login) -->
+  <div
+    class="min-h-screen p-8 transition-colors duration-300 bg-gradient-to-br from-white via-blue-100 to-blue-200"
+  >
+    <!-- Header mejorado -->
+    <header class="mb-10">
+  <div class="bg-white rounded-2xl p-8 shadow-lg border border-gray-200">
+        <div class="flex items-center gap-4 mb-3">
+          <div class="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-md">
+            <i class="pi pi-chart-line text-2xl text-white"></i>
+          </div>
+          <div>
+            <h1 class="text-3xl font-bold text-gray-800 mb-1">Monitoreo del Embalse</h1>
+            <p class="text-gray-600 text-base">Sistema de control de calidad del agua</p>
+          </div>
         </div>
-
-        <!-- Botón de refresh completo -->
-        <button @click="fullRefresh" class="refresh-btn">
-          <i class="pi pi-refresh"></i>
-          Actualizar Todo
-        </button>
       </div>
     </header>
 
     <!-- 1. Métricas principales (Cards) -->
-    <section class="metrics-section">
-      <h2 class="section-title">
-        <i class="pi pi-gauge"></i>
-        Últimas Mediciones
-        <!-- Indicador de actualización en tiempo real -->
-        <span v-if="isAutoRefreshEnabled" class="live-indicator">
-          <i class="pi pi-circle-fill"></i>
-          EN VIVO
-        </span>
-      </h2>
-
-      <div v-if="errorMetrics" class="error-message">
-        <i class="pi pi-exclamation-triangle"></i>
-        {{ errorMetrics }}
-        <button @click="fetchMetrics" class="retry-btn">Reintentar</button>
+    <section class="mb-10">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+          <i class="pi pi-gauge text-white text-lg"></i>
+        </div>
+  <h2 class="text-2xl font-bold text-gray-800">Últimas Mediciones</h2>
       </div>
 
-      <div v-else-if="isLoadingMetrics" class="loading-state">
-        <div class="loading-cards">
-          <div v-for="i in 4" :key="i" class="loading-card">
-            <div class="loading-shimmer"></div>
+      <!-- Error Message -->
+  <div v-if="errorMetrics" class="flex items-start gap-4 p-6 bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-300 rounded-xl text-orange-800 shadow-md">
+        <div class="w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center flex-shrink-0">
+          <i class="pi pi-exclamation-triangle text-xl text-white"></i>
+        </div>
+        <div class="flex-1">
+          <p class="font-semibold mb-2">Error al cargar datos</p>
+          <p class="text-sm">{{ errorMetrics }}</p>
+        </div>
+        <button @click="fetchMetrics" class="px-5 py-2.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors duration-200 font-semibold shadow-md hover:shadow-lg flex items-center gap-2 flex-shrink-0">
+          <i class="pi pi-refresh"></i>
+          Reintentar
+        </button>
+      </div>
+
+      <!-- Loading State -->
+      <div v-else-if="isLoadingMetrics" class="py-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div v-for="i in 4" :key="i" class="h-36 rounded-xl overflow-hidden relative bg-gray-100">
+            <div class="absolute inset-0 bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 animate-pulse"></div>
           </div>
         </div>
       </div>
 
-      <div v-else-if="metrics" class="metrics-grid">
+      <!-- Metrics Grid -->
+      <div v-else-if="metrics" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+
         <MetricCard
           title="Temperatura del Agua"
           :value="String(metrics.temperatura_agua.value)"
           :unit="metrics.temperatura_agua.unit"
           :changeText="metrics.temperatura_agua.changeText"
           :isPositive="metrics.temperatura_agua.isPositive"
-          :status="metrics.temperatura_agua.status"
+          :status="metrics.temperatura_agua.status || evaluateMetricStatus(metrics.temperatura_agua.value, BLUEBERRY_THRESHOLDS.temperature)"
           icon="pi pi-sun"
         />
+
 
         <MetricCard
           title="Nivel de pH"
@@ -201,9 +171,10 @@ async function fetchMetrics() {
           :unit="metrics.ph.unit"
           :changeText="metrics.ph.changeText"
           :isPositive="metrics.ph.isPositive"
-          :status="metrics.ph.status"
+          :status="metrics.ph.status || evaluateMetricStatus(metrics.ph.value, BLUEBERRY_THRESHOLDS.ph)"
           icon="pi pi-flask"
         />
+
 
         <MetricCard
           title="Conductividad Eléctrica"
@@ -211,9 +182,10 @@ async function fetchMetrics() {
           :unit="metrics.conductividad.unit"
           :changeText="metrics.conductividad.changeText"
           :isPositive="metrics.conductividad.isPositive"
-          :status="metrics.conductividad.status"
+          :status="metrics.conductividad.status || evaluateMetricStatus(metrics.conductividad.value, BLUEBERRY_THRESHOLDS.conductivity)"
           icon="pi pi-bolt"
         />
+
 
         <MetricCard
           title="Nivel del Agua"
@@ -221,241 +193,60 @@ async function fetchMetrics() {
           :unit="metrics.nivel_agua.unit"
           :changeText="metrics.nivel_agua.changeText"
           :isPositive="metrics.nivel_agua.isPositive"
-          :status="metrics.nivel_agua.status"
+          :status="metrics.nivel_agua.status || evaluateMetricStatus(metrics.nivel_agua.value, BLUEBERRY_THRESHOLDS.water_level)"
           icon="pi pi-chart-bar"
         />
+      </div>
+
+      <!-- Leyenda de colores -->
+  <div v-if="metrics" class="mt-8 p-6 bg-white border-2 border-blue-200 rounded-xl shadow-md">
+        <div class="flex items-center gap-3 mb-5">
+          <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-md">
+            <i class="pi pi-info-circle text-white text-base"></i>
+          </div>
+          <h3 class="text-lg font-normal text-gray-800 m-0">
+            Valores Ideales Para el Cultivo de Arándanos
+          </h3>
+        </div>
+        <div class="flex flex-wrap gap-8">
+          <div class="flex items-center gap-3">
+            <div class="w-6 h-6 rounded-lg border-2 border-green-500 bg-green-100 flex-shrink-0 shadow-sm"></div>
+            <span class="font-semibold text-gray-700">Óptimo</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="w-6 h-6 rounded-lg border-2 border-orange-500 bg-orange-100 flex-shrink-0 shadow-sm"></div>
+            <span class="font-semibold text-gray-700">Advertencia</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="w-6 h-6 rounded-lg border-2 border-red-500 bg-red-100 flex-shrink-0 shadow-sm"></div>
+            <span class="font-semibold text-gray-700">Crítico</span>
+          </div>
+        </div>
       </div>
     </section>
 
     <!-- 2. Grid de gráficos históricos (4 gráficos) -->
-    <section class="charts-section">
-      <h2 class="section-title">
-        <i class="pi pi-chart-line"></i>
-        Tendencia Histórica por Parámetro
-      </h2>
+    <section class="mb-10">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+          <i class="pi pi-chart-line text-white text-lg"></i>
+        </div>
+        <h2 class="text-2xl font-bold text-gray-800">Tendencia Histórica por Parámetro</h2>
+      </div>
       <HistoricalChartGrid ref="chartsGridRef" />
     </section>
 
     <!-- 3. Tabla de sensores detallada -->
-    <section class="sensors-section">
-      <h2 class="section-title">
-        <i class="pi pi-microchip"></i>
-        Estado de Sensores IoT
-      </h2>
+    <section class="mb-10">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="w-10 h-10 bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-xl flex items-center justify-center shadow-lg">
+          <i class="pi pi-microchip text-white text-lg"></i>
+        </div>
+        <h2 class="text-2xl font-bold text-gray-800">Estado de Sensores IoT</h2>
+      </div>
       <SensorsTable ref="sensorsTableRef" />
     </section>
   </div>
 </template>
 
-<style scoped>
-.dashboard-content {
-  padding: 1.5rem;
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
-.dashboard-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-  padding-bottom: 1rem;
-  border-bottom: 2px solid #f8f9fa;
-}
-
-.header-info h1 {
-  margin: 0 0 0.5rem 0;
-  font-size: 2rem;
-  font-weight: 700;
-  color: #2c3e50;
-}
-
-.header-info p {
-  margin: 0;
-  color: #6c757d;
-  font-size: 1.1rem;
-}
-
-.header-actions {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-}
-
-/* Estilos para auto-refresh */
-.auto-refresh-indicator {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.auto-refresh-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  background-color: #f8f9fa;
-  color: #6c757d;
-  border: 1px solid #dee2e6;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: all 0.3s ease;
-}
-
-.auto-refresh-btn.active {
-  background-color: #28a745;
-  color: white;
-  border-color: #28a745;
-}
-
-.auto-refresh-btn:hover {
-  transform: translateY(-1px);
-}
-
-.refresh-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
-  color: white;
-  border: none;
-  border-radius: 12px;
-  cursor: pointer;
-  font-weight: 600;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 12px rgba(49, 130, 206, 0.25);
-}
-
-.refresh-btn:hover {
-  transform: translateY(-2px);
-  background: linear-gradient(135deg, #3182ce 0%, #2c5aa0 100%);
-  box-shadow: 0 6px 16px rgba(49, 130, 206, 0.35);
-}
-
-/* Indicador en vivo */
-.live-indicator {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-left: 1rem;
-  padding: 0.25rem 0.75rem;
-  background-color: rgba(40, 167, 69, 0.1);
-  color: #28a745;
-  border-radius: 20px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.live-indicator i {
-  font-size: 0.5rem;
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
-}
-
-.metrics-section, .sensors-section, .charts-section {
-  margin-bottom: 2rem;
-}
-
-.section-title {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  font-size: 1.4rem;
-  font-weight: 600;
-  color: #2c3e50;
-  margin-bottom: 1.5rem;
-}
-
-.section-title i {
-  color: #3498db;
-}
-
-.metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 1.5rem;
-}
-
-.loading-state {
-  padding: 2rem 0;
-}
-
-.loading-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 1.5rem;
-}
-
-.loading-card {
-  height: 140px;
-  border-radius: 12px;
-  overflow: hidden;
-  position: relative;
-}
-
-.loading-shimmer {
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-}
-
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
-.error-message {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 1.5rem;
-  background-color: #fff3cd;
-  border: 1px solid #ffeaa7;
-  border-radius: 8px;
-  color: #856404;
-}
-
-.retry-btn {
-  padding: 0.5rem 1rem;
-  background-color: #ffc107;
-  color: #212529;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: 500;
-  margin-left: auto;
-}
-
-.retry-btn:hover {
-  background-color: #e0a800;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .dashboard-content {
-    padding: 0.75rem;
-  }
-
-  .header-info h1 {
-    font-size: 1.5rem;
-  }
-
-  .header-actions {
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  .metrics-grid {
-    grid-template-columns: 1fr;
-  }
-}
-</style>
+<!-- Todos los estilos ahora son manejados por Tailwind CSS -->

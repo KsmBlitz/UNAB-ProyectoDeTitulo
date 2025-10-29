@@ -65,74 +65,125 @@ const handleSubmit = async () => {
 <template>
   <!-- ✅ USAR EL NUEVO LAYOUT BASE -->
   <AuthLayout title="Recuperar Contraseña">
-    <!-- Contenido existente sin el wrapper duplicado -->
-    <div v-if="isSuccess" class="success-message">
-      <i class="pi pi-check-circle"></i>
-      <h3>📧 Solicitud Enviada</h3>
-      <p>{{ message }}</p>
+    <div v-if="isSuccess" class="text-center">
+      <!-- Ticket verde con check animado -->
+      <div class="mx-auto mb-6 w-32 h-32 flex items-center justify-center">
+        <img src="@/assets/Status/verificado.gif" alt="Verificado" class="w-full h-full object-contain">
+      </div>
+      <h3 class="mb-3 text-gray-800 text-2xl font-bold">Solicitud Enviada</h3>
+      <p class="mb-8 text-gray-600 leading-relaxed text-lg">{{ message }}</p>
 
-      <div class="instructions">
-        <h4>📋 Próximos pasos:</h4>
-        <ol>
-          <li>Revisa tu bandeja de entrada en <strong>{{ email }}</strong></li>
-          <li>Si no encuentras el email, revisa tu carpeta de spam</li>
-          <li>Haz clic en el enlace del email para cambiar tu contraseña</li>
-          <li>El enlace expirará en 1 hora por seguridad</li>
-        </ol>
+      <!-- Lista de próximos pasos -->
+      <div class="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl mb-8 text-left border border-blue-200">
+        <h4 class="m-0 mb-4 text-gray-800 font-semibold flex items-center gap-2 text-lg">
+          <i class="pi pi-list-check text-blue-600"></i>
+          Próximos pasos
+        </h4>
+        <ul class="m-0 space-y-3 list-none pl-0">
+          <li class="flex items-start gap-3 text-gray-700">
+            <i class="pi pi-circle-fill text-[8px] text-blue-600 mt-2"></i>
+            <span>Revisa tu bandeja de entrada en <strong class="text-blue-700">{{ email }}</strong></span>
+          </li>
+          <li class="flex items-start gap-3 text-gray-700">
+            <i class="pi pi-circle-fill text-[8px] text-blue-600 mt-2"></i>
+            <span>Si no encuentras el email, revisa tu carpeta de spam</span>
+          </li>
+          <li class="flex items-start gap-3 text-gray-700">
+            <i class="pi pi-circle-fill text-[8px] text-blue-600 mt-2"></i>
+            <span>Haz clic en el enlace del email para cambiar tu contraseña</span>
+          </li>
+          <li class="flex items-start gap-3 text-gray-700">
+            <i class="pi pi-circle-fill text-[8px] text-blue-600 mt-2"></i>
+            <span>El enlace expirará en <strong>1 hora</strong> por seguridad</span>
+          </li>
+        </ul>
       </div>
 
-      <div class="action-buttons">
-        <RouterLink to="/login" class="back-to-login">
+      <div class="flex gap-3 justify-center flex-wrap">
+        <RouterLink
+          to="/login"
+          class="inline-flex items-center gap-2 px-6 py-3.5 no-underline rounded-lg font-semibold transition-all duration-200 bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+        >
           <i class="pi pi-arrow-left"></i>
           Volver al inicio de sesión
         </RouterLink>
-        <button @click="isSuccess = false; email = ''; message = ''" class="try-again-btn">
+        <button
+          @click="isSuccess = false; email = ''; message = ''"
+          class="inline-flex items-center gap-2 px-6 py-3.5 rounded-lg font-semibold transition-all duration-200 bg-gray-100 text-gray-700 border border-gray-300 cursor-pointer hover:bg-gray-200 shadow-md hover:shadow-lg"
+        >
           <i class="pi pi-refresh"></i>
           Intentar con otro email
         </button>
       </div>
     </div>
 
-    <form v-else @submit.prevent="handleSubmit" class="forgot-password-form">
-      <div class="instruction-box">
-        <h3>🔐 ¿Olvidaste tu contraseña?</h3>
-        <p>No te preocupes. Ingresa tu correo electrónico y te enviaremos un enlace seguro para crear una nueva contraseña.</p>
+    <form v-else @submit.prevent="handleSubmit" class="flex flex-col">
+      <div class="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl mb-8 text-left border border-blue-200">
+        <div class="flex items-start gap-3">
+          <div class="flex-shrink-0 w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+            <i class="pi pi-lock text-white text-lg"></i>
+          </div>
+          <div>
+            <h3 class="m-0 mb-2 text-gray-800 font-semibold text-lg">¿Olvidaste tu contraseña?</h3>
+            <p class="m-0 text-gray-600 leading-relaxed text-sm">No te preocupes. Ingresa tu correo electrónico y te enviaremos un enlace seguro para crear una nueva contraseña.</p>
+          </div>
+        </div>
       </div>
 
-      <div v-if="error" class="error-message">
-        <i class="pi pi-exclamation-triangle"></i>
-        {{ error }}
+      <!-- Error con cruz roja -->
+      <div v-if="error" class="mb-6 text-center">
+        <div class="mx-auto w-28 h-28 bg-gradient-to-br from-danger-500 to-danger-600 rounded-3xl shadow-2xl flex items-center justify-center mb-4">
+          <svg class="w-20 h-20 text-white" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+          </svg>
+        </div>
+        <div class="bg-danger-50 text-danger-700 border border-danger-200 px-4 py-3.5 rounded-lg flex items-start gap-3 animate-shake">
+          <i class="pi pi-exclamation-triangle text-lg mt-0.5"></i>
+          <span>{{ error }}</span>
+        </div>
       </div>
 
-      <div class="form-group">
-        <label for="email">
-          <i class="pi pi-envelope"></i>
+      <div class="mb-6 text-left">
+        <label for="email" class="block mb-2.5 font-semibold text-gray-700 text-sm tracking-wide">
           Correo Electrónico
         </label>
-        <input
-          type="email"
-          id="email"
-          v-model="email"
-          required
-          placeholder="tu@ejemplo.com"
-          :disabled="isLoading"
-          autocomplete="email"
-        >
+        <div class="relative">
+          <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+            <i class="pi pi-envelope text-gray-400"></i>
+          </div>
+          <input
+            type="email"
+            id="email"
+            v-model="email"
+            required
+            placeholder="tu@ejemplo.com"
+            :disabled="isLoading"
+            autocomplete="email"
+            class="w-full pl-11 pr-4 py-3.5 border border-gray-300 rounded-lg text-base transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:opacity-70 hover:border-gray-400"
+          >
+        </div>
       </div>
 
-      <button type="submit" class="submit-button" :disabled="isLoading || !email.trim()">
+      <button
+        type="submit"
+        class="w-full px-6 py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white border-none rounded-lg text-base font-semibold cursor-pointer transition-all duration-200 mt-2 flex items-center justify-center gap-2 hover:from-blue-700 hover:to-blue-800 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none"
+        :disabled="isLoading || !email.trim()"
+      >
         <i v-if="isLoading" class="pi pi-spin pi-spinner"></i>
         <i v-else class="pi pi-send"></i>
         {{ isLoading ? 'Enviando...' : 'Enviar Enlace de Recuperación' }}
       </button>
 
-      <div class="security-note">
-        <i class="pi pi-info-circle"></i>
-        <small>Por seguridad, el enlace expirará en 1 hora y solo funcionará una vez.</small>
+      <div class="flex items-start gap-3 mt-6 px-4 py-3.5 bg-blue-50 rounded-lg text-blue-700 border border-blue-200">
+        <i class="pi pi-info-circle mt-0.5"></i>
+        <small class="leading-relaxed">Por seguridad, el enlace expirará en <strong>1 hora</strong> y solo funcionará una vez.</small>
       </div>
 
-      <div class="form-footer">
-        <RouterLink to="/login" class="back-link">
+      <div class="mt-8 text-center">
+        <RouterLink
+          to="/login"
+          class="text-gray-600 no-underline inline-flex items-center justify-center gap-2 text-sm hover:text-blue-600 transition-colors"
+        >
           <i class="pi pi-arrow-left"></i>
           Volver al inicio de sesión
         </RouterLink>
@@ -140,244 +191,3 @@ const handleSubmit = async () => {
     </form>
   </AuthLayout>
 </template>
-
-<style scoped>
-.forgot-password-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-  background-color: #f4f6f9;
-  padding: 1rem;
-}
-
-.forgot-password-card {
-  background-color: #fff;
-  padding: 2.5rem 3rem;
-  border-radius: 12px;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-  width: 100%;
-  max-width: 480px;
-  text-align: center;
-}
-
-.logo {
-  margin-bottom: 2rem;
-}
-
-.logo h2 {
-  margin: 0.5rem 0 0;
-  color: #2c3e50;
-}
-
-.instruction-box {
-  background-color: #f8f9fa;
-  padding: 1.5rem;
-  border-radius: 8px;
-  margin-bottom: 2rem;
-  text-align: left;
-}
-
-.instruction-box h3 {
-  margin: 0 0 1rem 0;
-  color: #2c3e50;
-}
-
-.instruction-box p {
-  margin: 0;
-  color: #6c757d;
-  line-height: 1.5;
-}
-
-.forgot-password-form {
-  display: flex;
-  flex-direction: column;
-}
-
-.form-group {
-  margin-bottom: 1.5rem;
-  text-align: left;
-}
-
-.form-group label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-  font-weight: 600;
-  color: #34495e;
-}
-
-.form-group input {
-  width: 100%;
-  padding: 0.875rem 1rem;
-  border: 2px solid #ced4da;
-  border-radius: 8px;
-  font-size: 1rem;
-  box-sizing: border-box;
-  transition: border-color 0.2s;
-}
-
-.form-group input:focus {
-  outline: none;
-  border-color: #3498db;
-}
-
-.form-group input:disabled {
-  background-color: #f8f9fa;
-  opacity: 0.7;
-}
-
-.submit-button {
-  width: 100%;
-  padding: 1rem 1.5rem;
-  background-color: #3498db;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  font-size: 1.1rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s ease-in-out;
-  margin-top: 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.submit-button:hover:not(:disabled) {
-  background-color: #2980b9;
-  transform: translateY(-2px);
-}
-
-.submit-button:disabled {
-  background-color: #95a5a6;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.security-note {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 1rem;
-  padding: 0.75rem;
-  background-color: #e3f2fd;
-  border-radius: 6px;
-  color: #1565c0;
-}
-
-.form-footer {
-  margin-top: 2rem;
-}
-
-.back-link {
-  color: #6c757d;
-  text-decoration: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  font-size: 0.9rem;
-}
-
-.back-link:hover {
-  color: #3498db;
-}
-
-.success-message {
-  text-align: center;
-  color: #28a745;
-}
-
-.success-message i {
-  font-size: 4rem;
-  margin-bottom: 1rem;
-  display: block;
-}
-
-.success-message h3 {
-  margin-bottom: 1rem;
-  color: #2c3e50;
-}
-
-.success-message p {
-  margin-bottom: 2rem;
-  color: #6c757d;
-  line-height: 1.5;
-}
-
-.instructions {
-  background-color: #f8f9fa;
-  padding: 1.5rem;
-  border-radius: 8px;
-  margin-bottom: 1.5rem;
-  text-align: left;
-}
-
-.instructions h4 {
-  margin: 0 0 1rem 0;
-  color: #2c3e50;
-}
-
-.instructions ol {
-  margin: 0;
-  padding-left: 1.5rem;
-}
-
-.instructions li {
-  margin-bottom: 0.5rem;
-  color: #495057;
-}
-
-.action-buttons {
-  display: flex;
-  gap: 1rem;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-
-.back-to-login, .try-again-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  text-decoration: none;
-  border-radius: 6px;
-  font-weight: 600;
-  transition: all 0.2s;
-}
-
-.back-to-login {
-  background-color: #28a745;
-  color: white;
-}
-
-.back-to-login:hover {
-  background-color: #218838;
-}
-
-.try-again-btn {
-  background-color: #6c757d;
-  color: white;
-  border: none;
-  cursor: pointer;
-}
-
-.try-again-btn:hover {
-  background-color: #5a6268;
-}
-
-.error-message {
-  background-color: #f8d7da;
-  color: #721c24;
-  border: 1px solid #f5c6cb;
-  padding: 1rem;
-  margin-bottom: 1rem;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-</style>
