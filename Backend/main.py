@@ -1799,6 +1799,58 @@ async def alert_monitoring_loop():
             # En caso de error inesperado con el valor, caer a 30 minutos como fallback
             await asyncio.sleep(30 * 60)
 
+
+async def alert_change_stream_watcher():
+    """Watch for new alerts inserted into Mongo and notify admins immediately.
+
+    Uses a MongoDB change stream on the `alerts` collection and applies the same
+    notification logic used in the alert monitoring loop. Includes simple
+    retry/backoff on errors so the watcher is resilient.
+    """
+    backoff = 1
+    while True:
+        try:
+            # Watch only inserts to the alerts collection
+            async with alerts_collection.watch([{"$match": {"operationType": "insert"}}]) as stream:
+                logger.info("🔁 Alert change-stream watcher started")
+                async for change in stream:
+                    try:
+                        full = change.get("fullDocument")
+                        if not full:
+                            continue
+                        level = (full.get("level") or "").lower()
+                        if level in ("critical", "crítica", "crítico"):
+                            # Notify all admins (respect notifications_enabled + throttle)
+                            admins = await users_collection.find({"role": "admin", "disabled": {"$ne": True}}).to_list(1000)
+                            for admin in admins:
+                                email = admin.get("email")
+                                if not email:
+                                    continue
+                                if admin.get("notifications_enabled", True) is False:
+                                    continue
+                                user_id = str(admin.get("_id"))
+                                alert_key = f"{full.get('type')}:{full.get('sensor_id')}:{user_id}"
+                                try:
+                                    if await should_send_notification(alert_key):
+                                        sent = await send_critical_alert_email(
+                                            email,
+                                            full.get("location") or full.get("sensor_id") or "Embalse",
+                                            full.get("title") or full.get("type"),
+                                            str(full.get("value", "N/A"))
+                                        )
+                                        if sent:
+                                            await mark_notification_sent(alert_key)
+                                except Exception as e:
+                                    logger.error(f"Error enviando notificación desde change-stream a {email}: {e}")
+                    except Exception as e:
+                        logger.error(f"Error procesando cambio de alerta: {e}")
+            # If the stream exits normally, reset backoff
+            backoff = 1
+        except Exception as e:
+            logger.error(f"Error en alert_change_stream_watcher: {e}")
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, 60)
+
 async def auto_resolve_alerts():
     """Auto-resuelve alertas cuando las condiciones mejoran"""
     try:
@@ -1942,4 +1994,11 @@ async def startup_event():
     
     # Iniciar sistema de alertas cada 6 minutos
     asyncio.create_task(alert_monitoring_loop())
-    logger.info("🚨 Sistema de alertas iniciado (polling cada 6 minutos)")
+    logger.info("🚨 Sistema de alertas iniciado (polling configurado)")
+
+    # Iniciar change-stream watcher para notificaciones en tiempo real
+    try:
+        asyncio.create_task(alert_change_stream_watcher())
+        logger.info("🔔 Alert change-stream watcher iniciado (notificaciones en tiempo real)")
+    except Exception as e:
+        logger.error(f"No se pudo iniciar el change-stream watcher: {e}")
