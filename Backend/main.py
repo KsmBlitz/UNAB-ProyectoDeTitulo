@@ -460,20 +460,12 @@ async def send_critical_alert_email(to_email: str, reservoir_name: str, alert_ty
 # --------------------------------------------------------------------------
 app = FastAPI(title="API para Dashboard de Embalses IoT", version="1.0.0")
 app.add_middleware(
-    CORSMiddleware, 
-    allow_origins=[
-        "http://localhost:5173", 
-        "http://127.0.0.1:5173",
-        "http://localhost:4173",  # ✅ PARA BUILD DE PRODUCCIÓN
-        "http://127.0.0.1:4173",  # ✅ PARA BUILD DE PRODUCCIÓN
-        "http://localhost:3000",  # ✅ PARA DOCKER (NGINX)
-        "http://127.0.0.1:3000",  # ✅ PARA DOCKER (NGINX)
-        "http://localhost:3002",  # ✅ PARA DOCKER (NGINX) - PUERTO TESTING
-        "http://127.0.0.1:3002",  # ✅ PARA DOCKER (NGINX) - PUERTO TESTING
-    ], 
-    allow_credentials=True, 
-    allow_methods=["*"], 
-    allow_headers=["*"]
+    CORSMiddleware,
+    allow_origins=[],            # usar regex en lugar de lista
+    allow_origin_regex=".*",     # acepta cualquier origen (devolverá Origin específico)
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # --------------------------------------------------------------------------
@@ -1837,7 +1829,7 @@ async def auto_resolve_alerts():
                     message=alert_doc["message"],
                     value=alert_doc.get("value"),
                     threshold_info=alert_doc["threshold_info"],
-                    location=alert_doc["location"],
+                                       location=alert_doc["location"],
                     sensor_id=alert_doc.get("sensor_id"),
                     created_at=alert_doc["created_at"],
                     resolved_at=current_time,
