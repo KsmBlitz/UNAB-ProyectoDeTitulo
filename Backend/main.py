@@ -57,6 +57,8 @@ class Settings(BaseSettings):
     SMTP_USERNAME: Optional[str] = None
     SMTP_PASSWORD: Optional[str] = None
     FROM_EMAIL: Optional[str] = None
+    # Intervalo de polling para el loop de alertas (en minutos). Usar entero; por defecto 30.
+    ALERT_CHECK_INTERVAL_MINUTES: int = 30
     aws_iot_endpoint: Optional[str] = None
     aws_region: Optional[str] = None
     aws_iot_root_ca_path: Optional[str] = None
@@ -1712,6 +1714,9 @@ async def clear_alert_history(current_user: dict = Depends(get_current_user)):
 
 async def alert_monitoring_loop():
     """Loop de monitoreo de alertas cada 6 minutos"""
+    # Determinar el intervalo (en minutos) desde la configuración
+    interval_minutes = getattr(settings, "ALERT_CHECK_INTERVAL_MINUTES", 30) or 30
+    logger.info(f"🚨 Sistema de alertas iniciado (polling cada {interval_minutes} minutos)")
     while True:
         try:
             logger.info("🚨 Verificando alertas del sistema...")
@@ -1787,8 +1792,12 @@ async def alert_monitoring_loop():
         except Exception as e:
             logger.error(f"Error en monitoreo de alertas: {e}")
         
-        # Esperar 6 minutos (360 segundos) antes de la siguiente verificación
-        await asyncio.sleep(360)
+        # Esperar el intervalo configurado antes de la siguiente verificación
+        try:
+            await asyncio.sleep(int(interval_minutes) * 60)
+        except Exception:
+            # En caso de error inesperado con el valor, caer a 30 minutos como fallback
+            await asyncio.sleep(30 * 60)
 
 async def auto_resolve_alerts():
     """Auto-resuelve alertas cuando las condiciones mejoran"""
