@@ -23,6 +23,7 @@ import string
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import re
 
 # Importar core_schema y PydanticCustomError para PyObjectId
 from pydantic_core import CoreSchema, PydanticCustomError, core_schema
@@ -358,6 +359,100 @@ async def send_reset_email(email: str, reset_token: str):
         
     except Exception as e:
         logger.error(f"Error enviando email de recuperación: {e}")
+        return False
+
+
+async def should_send_notification(key: str) -> bool:
+    """Comprueba si la notificación puede enviarse según el throttle almacenado en la colección `notifications_sent`."""
+    try:
+        col = db.notifications_sent
+        rec = await col.find_one({"_id": key})
+        if not rec:
+            return True
+        last_sent = rec.get("last_sent")
+        if not last_sent:
+            return True
+        if isinstance(last_sent, str):
+            try:
+                last_dt = datetime.fromisoformat(last_sent)
+            except Exception:
+                return True
+        elif isinstance(last_sent, datetime):
+            last_dt = last_sent
+        else:
+            return True
+
+        minutes = getattr(settings, "ALERT_EMAIL_THROTTLE_MINUTES", 60) or 60
+        return (datetime.now(timezone.utc) - last_dt) > timedelta(minutes=minutes)
+    except Exception as e:
+        logger.error(f"Error comprobando throttle de notificación: {e}")
+        return True
+
+
+async def mark_notification_sent(key: str):
+    """Marca la notificación enviada (upsert en notifications_sent)."""
+    try:
+        col = db.notifications_sent
+        await col.update_one({"_id": key}, {"$set": {"last_sent": datetime.now(timezone.utc)}}, upsert=True)
+    except Exception as e:
+        logger.error(f"Error marcando notificación enviada: {e}")
+
+
+async def clear_notifications_sent_for_alert(alert_type: str, sensor_id: Optional[str] = None):
+    """Elimina registros de throttling para una alerta cuando se resuelve (para todos los usuarios).
+
+    Borra todas las entradas cuyo _id empiece con 'alert_type:sensor_id:'
+    """
+    try:
+        col = db.notifications_sent
+        if sensor_id:
+            pattern = f"^{re.escape(str(alert_type))}:{re.escape(str(sensor_id))}:"
+        else:
+            pattern = f"^{re.escape(str(alert_type))}:"
+        await col.delete_many({"_id": {"$regex": pattern}})
+        logger.info(f"Throttle cleared for alert {alert_type} sensor {sensor_id}")
+    except Exception as e:
+        logger.error(f"Error limpiando notifications_sent para alerta {alert_type}/{sensor_id}: {e}")
+
+
+async def send_critical_alert_email(to_email: str, reservoir_name: str, alert_type: str, value: str) -> bool:
+    """Envía un email HTML informando de una alerta crítica."""
+    try:
+        if not all([settings.SMTP_SERVER, settings.SMTP_PORT, settings.SMTP_USERNAME, settings.SMTP_PASSWORD, settings.FROM_EMAIL]):
+            logger.warning("Configuración SMTP incompleta - no se puede enviar email de alerta crítica")
+            return False
+
+        msg = MIMEMultipart()
+        msg['From'] = settings.FROM_EMAIL or ""
+        msg['To'] = to_email
+        msg['Subject'] = f"[ALERTA CRÍTICA] {reservoir_name} - {alert_type}"
+
+        body = f"""
+        <html>
+        <body>
+            <h2>🚨 Alerta Crítica</h2>
+            <p><strong>Embalse:</strong> {reservoir_name}</p>
+            <p><strong>Tipo de alerta:</strong> {alert_type}</p>
+            <p><strong>Valor detectado:</strong> {value}</p>
+            <hr>
+            <p>Revisa el dashboard para más detalles.</p>
+            <p style="font-size:0.9em;color:#666;">Este es un correo automático.</p>
+        </body>
+        </html>
+        """
+
+        msg.attach(MIMEText(body, 'html'))
+
+        server = smtplib.SMTP(settings.SMTP_SERVER or "", settings.SMTP_PORT or 587)
+        server.starttls()
+        server.login(settings.SMTP_USERNAME or "", settings.SMTP_PASSWORD or "")
+        server.send_message(msg)
+        server.quit()
+
+        logger.info(f"Email de alerta crítica enviado a {to_email} para {reservoir_name}")
+        return True
+    except Exception as e:
+        logger.error(f"Error enviando email de alerta crítica a {to_email}: {e}")
         return False
 
 # --------------------------------------------------------------------------
@@ -1659,6 +1754,36 @@ async def alert_monitoring_loop():
                             alert_dict = alert.dict()
                             await alerts_collection.insert_one(alert_dict)
                             logger.info(f"Nueva alerta creada: {alert.title} - {alert.message}")
+
+                            # Notificar por email si es crítica (respetando throttling y preferencias del usuario)
+                            try:
+                                level = (alert.level or "").lower()
+                                if level in ("critical", "crítica", "crítico"):
+                                    admins = await users_collection.find({"role": "admin", "disabled": {"$ne": True}}).to_list(1000)
+                                    for admin in admins:
+                                        email = admin.get("email")
+                                        if not email:
+                                            continue
+                                        if admin.get("notifications_enabled", True) is False:
+                                            continue
+
+                                        user_id = str(admin.get("_id"))
+                                        alert_key = f"{alert.type}:{alert.sensor_id}:{user_id}"
+
+                                        try:
+                                            if await should_send_notification(alert_key):
+                                                sent = await send_critical_alert_email(
+                                                    email,
+                                                    alert.location or alert.sensor_id or "Embalse",
+                                                    alert.title or alert.type,
+                                                    str(alert.value or alert_dict.get("value", "N/A"))
+                                                )
+                                                if sent:
+                                                    await mark_notification_sent(alert_key)
+                                        except Exception as e:
+                                            logger.error(f"Error enviando notificación a {email}: {e}")
+                            except Exception as e:
+                                logger.error(f"Error procesando notificaciones por email para la alerta {alert.title}: {e}")
                         else:
                             logger.info(f"🚫 Alerta bloqueada por período de gracia: {alert.title} para sensor {alert.sensor_id}")
                     else:
@@ -1722,6 +1847,11 @@ async def auto_resolve_alerts():
                 
                 await alert_history_collection.insert_one(history_entry.dict())
                 logger.info(f"Alerta auto-resuelta: {alert_doc['title']}")
+                # Limpiar registros de notificaciones enviadas para esta alerta (permitir re-notificación si se vuelve a generar)
+                try:
+                    await clear_notifications_sent_for_alert(alert_doc.get("type"), alert_doc.get("sensor_id"))
+                except Exception as e:
+                    logger.error(f"Error limpiando throttle tras resolución de alerta: {e}")
                 
     except Exception as e:
         logger.error(f"Error en auto-resolución de alertas: {e}")
