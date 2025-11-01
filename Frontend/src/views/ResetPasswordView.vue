@@ -330,7 +330,7 @@ const handleSubmit = async () => {
 
       <button
         type="submit"
-        class="w-full px-6 py-4 bg-success-500 text-white border-none rounded-lg text-lg font-bold cursor-pointer transition-all mt-4 flex items-center justify-center gap-2 hover:bg-success-600 hover:-translate-y-0.5 disabled:bg-gray-400 disabled:cursor-not-allowed disabled:transform-none"
+        class="w-full px-6 py-4 bg-gradient-to-r from-green-600 to-green-700 text-white border-none rounded-lg text-lg font-bold cursor-pointer transition-all mt-4 flex items-center justify-center gap-2 hover:from-green-700 hover:to-green-800 hover:shadow-lg hover:-translate-y-0.5 disabled:bg-gray-400 disabled:cursor-not-allowed disabled:transform-none disabled:opacity-60"
         :disabled="isLoading"
       >
         <i v-if="isLoading" class="pi pi-spin pi-spinner"></i>
