@@ -59,6 +59,18 @@ class Settings(BaseSettings):
     FROM_EMAIL: Optional[str] = None
     # Intervalo de polling para el loop de alertas (en minutos). Usar entero; por defecto 30.
     ALERT_CHECK_INTERVAL_MINUTES: int = 30
+    
+    # Variables opcionales para SMS (AWS SNS)
+    SMS_ENABLED: bool = False
+    AWS_ACCESS_KEY_ID: Optional[str] = None
+    AWS_SECRET_ACCESS_KEY: Optional[str] = None
+    AWS_SNS_REGION: Optional[str] = None
+    
+    # Variables opcionales para WhatsApp (Meta Cloud API)
+    WHATSAPP_ENABLED: bool = False
+    WHATSAPP_ACCESS_TOKEN: Optional[str] = None
+    WHATSAPP_PHONE_NUMBER_ID: Optional[str] = None
+    
     aws_iot_endpoint: Optional[str] = None
     aws_region: Optional[str] = None
     aws_iot_root_ca_path: Optional[str] = None
@@ -121,11 +133,17 @@ class UserBase(BaseModel):
     full_name: Optional[str] = None
     role: str
     disabled: Optional[bool] = False
+    phone: Optional[str] = None  # Teléfono en formato internacional (ej: +56912345678)
+    sms_notifications_enabled: Optional[bool] = False  # Preferencia de notificaciones SMS
+    whatsapp_notifications_enabled: Optional[bool] = False  # Preferencia de notificaciones WhatsApp
 
 class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     role: Optional[str] = None
     disabled: Optional[bool] = None
+    phone: Optional[str] = None
+    sms_notifications_enabled: Optional[bool] = None
+    whatsapp_notifications_enabled: Optional[bool] = None
 
 class UserPublic(UserBase):
     id: PyObjectId = Field(alias='_id')
@@ -455,6 +473,192 @@ async def send_critical_alert_email(to_email: str, reservoir_name: str, alert_ty
         return True
     except Exception as e:
         logger.error(f"Error enviando email de alerta crítica a {to_email}: {e}")
+        return False
+
+
+async def send_critical_alert_sms(to_phone: str, reservoir_name: str, alert_type: str, value: str) -> bool:
+    """Envía un SMS de alerta crítica usando AWS SNS.
+    
+    Args:
+        to_phone: Número de teléfono en formato internacional (ej: +56912345678)
+        reservoir_name: Nombre del embalse/ubicación
+        alert_type: Tipo de alerta
+        value: Valor que disparó la alerta
+        
+    Returns:
+        bool: True si el SMS se envió exitosamente, False en caso contrario
+    """
+    try:
+        if not settings.SMS_ENABLED:
+            logger.debug("SMS deshabilitado en configuración")
+            return False
+            
+        if not all([settings.AWS_ACCESS_KEY_ID, settings.AWS_SECRET_ACCESS_KEY, settings.AWS_SNS_REGION]):
+            logger.warning("Configuración AWS SNS incompleta - no se puede enviar SMS")
+            return False
+        
+        if not to_phone:
+            logger.warning("Número de teléfono no proporcionado")
+            return False
+            
+        # Validar formato de teléfono (debe empezar con +)
+        if not to_phone.startswith('+'):
+            logger.warning(f"Número de teléfono inválido (debe incluir código país con +): {to_phone}")
+            return False
+        
+        import boto3
+        from botocore.exceptions import ClientError
+        
+        # Crear cliente SNS
+        sns_client = boto3.client(
+            'sns',
+            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+            region_name=settings.AWS_SNS_REGION or 'sa-east-1'
+        )
+        
+        # Construir mensaje SMS (máximo 160 caracteres recomendado)
+        message = f"🚨 ALERTA CRÍTICA\n{reservoir_name}\n{alert_type}: {value}\nRevisa el dashboard."
+        
+        # Enviar SMS
+        response = sns_client.publish(
+            PhoneNumber=to_phone,
+            Message=message,
+            MessageAttributes={
+                'AWS.SNS.SMS.SMSType': {
+                    'DataType': 'String',
+                    'StringValue': 'Transactional'  # Transaccional = mayor prioridad y entrega
+                }
+            }
+        )
+        
+        message_id = response.get('MessageId')
+        logger.info(f"SMS de alerta crítica enviado a {to_phone} para {reservoir_name} (MessageId: {message_id})")
+        return True
+        
+    except ClientError as e:
+        error_code = e.response['Error']['Code']
+        error_message = e.response['Error']['Message']
+        logger.error(f"Error AWS SNS enviando SMS a {to_phone}: {error_code} - {error_message}")
+        return False
+    except Exception as e:
+        logger.error(f"Error enviando SMS de alerta crítica a {to_phone}: {e}")
+        return False
+
+# --------------------------------------------------------------------------
+# Función para enviar alertas por WhatsApp
+# --------------------------------------------------------------------------
+async def send_critical_alert_whatsapp(to_phone: str, reservoir_name: str, alert_type: str, value: str) -> bool:
+    """Envía un mensaje de alerta crítica usando WhatsApp Business API (Meta Cloud API).
+    
+    Args:
+        to_phone: Número de teléfono en formato internacional (ej: +56912345678)
+        reservoir_name: Nombre del embalse/ubicación
+        alert_type: Tipo de alerta
+        value: Valor que disparó la alerta
+        
+    Returns:
+        bool: True si el mensaje se envió exitosamente, False en caso contrario
+    """
+    try:
+        if not settings.WHATSAPP_ENABLED:
+            logger.debug("WhatsApp deshabilitado en configuración")
+            return False
+            
+        if not all([settings.WHATSAPP_ACCESS_TOKEN, settings.WHATSAPP_PHONE_NUMBER_ID]):
+            logger.warning("Configuración WhatsApp incompleta - no se puede enviar mensaje")
+            return False
+        
+        if not to_phone:
+            logger.warning("Número de teléfono no proporcionado")
+            return False
+            
+        # Validar formato de teléfono (debe empezar con +)
+        if not to_phone.startswith('+'):
+            logger.warning(f"Número de teléfono inválido (debe incluir código país con +): {to_phone}")
+            return False
+        
+        import httpx
+        
+        # Remover el + para la API de WhatsApp
+        phone_wa = to_phone.lstrip('+')
+        
+        # Mapeo de nombres de alertas legibles
+        alert_names = {
+            'ph_range': 'pH fuera de rango',
+            'conductivity': 'Conductividad anormal',
+            'temperature': 'Temperatura crítica',
+            'sensor_disconnection': 'Sensor desconectado'
+        }
+        
+        alert_name = alert_names.get(alert_type, alert_type)
+        
+        # URL de la API de WhatsApp Cloud
+        url = f"https://graph.facebook.com/v18.0/{settings.WHATSAPP_PHONE_NUMBER_ID}/messages"
+        
+        headers = {
+            "Authorization": f"Bearer {settings.WHATSAPP_ACCESS_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        
+        # IMPORTANTE: WhatsApp Business API en producción requiere templates aprobados
+        # TODO: Una vez que Meta apruebe el template 'alerta_critica_embalse', 
+        # cambiar a usar templates en lugar de texto libre
+        
+        # Opción 1: Template (cuando esté aprobado) - RECOMENDADO PARA PRODUCCIÓN
+        # payload = {
+        #     "messaging_product": "whatsapp",
+        #     "to": phone_wa,
+        #     "type": "template",
+        #     "template": {
+        #         "name": "alerta_critica_embalse",
+        #         "language": {"code": "es"},
+        #         "components": [{
+        #             "type": "body",
+        #             "parameters": [
+        #                 {"type": "text", "text": reservoir_name},
+        #                 {"type": "text", "text": alert_name},
+        #                 {"type": "text", "text": str(value)}
+        #             ]
+        #         }]
+        #     }
+        # }
+        
+        # Opción 2: Texto libre (solo funciona en sandbox o con conversación activa)
+        message = f"""ALERTA CRITICA
+
+Embalse: {reservoir_name}
+Tipo: {alert_name}
+Valor: {value}
+
+Por favor revise el sistema lo antes posible."""
+        
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": phone_wa,
+            "type": "text",
+            "text": {
+                "preview_url": False,
+                "body": message
+            }
+        }
+        
+        # Enviar petición HTTP
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, headers=headers, json=payload, timeout=10.0)
+            
+            if response.status_code == 200:
+                result = response.json()
+                message_id = result.get('messages', [{}])[0].get('id', 'unknown')
+                logger.info(f"✅ WhatsApp enviado a {to_phone} para {reservoir_name} (MessageId: {message_id})")
+                return True
+            else:
+                error_data = response.text
+                logger.error(f"Error API WhatsApp ({response.status_code}): {error_data}")
+                return False
+                
+    except Exception as e:
+        logger.error(f"Error enviando WhatsApp de alerta crítica a {to_phone}: {e}")
         return False
 
 # --------------------------------------------------------------------------
@@ -1326,17 +1530,36 @@ async def dismiss_alert(
     user_role = current_user.get("role", "operario")
     
     try:
-        # Buscar alerta activa
-        alert_doc = await alerts_collection.find_one({"id": request.alert_id, "is_resolved": False})
+        # Log del ID recibido para debug
+        logger.info(f"🔍 Intentando cerrar alerta con ID: {request.alert_id} (tipo: {type(request.alert_id).__name__})")
         
+        # Las alertas pueden tener el ID en diferentes lugares según cómo fueron creadas:
+        # - Alertas del sistema: campo "id"
+        # - Alertas manuales: solo "_id"
+        # Buscar por ambos campos
+        alert_doc = await alerts_collection.find_one({
+            "$or": [
+                {"_id": request.alert_id},
+                {"id": request.alert_id}
+            ]
+        })
+        
+        # Si no se encontró, buscar todas las alertas para debug
         if not alert_doc:
-            raise HTTPException(status_code=404, detail="Alerta no encontrada o ya resuelta")
+            all_alerts = await alerts_collection.find({"is_resolved": False}).limit(5).to_list(length=5)
+            logger.warning(f"❌ Alerta no encontrada. Ejemplos de IDs en BD: {[str(a.get('_id', a.get('id', 'sin-id'))) for a in all_alerts]}")
+            raise HTTPException(status_code=404, detail=f"Alerta no encontrada con ID: {request.alert_id}")
+        
+        # Verificar si ya está resuelta
+        if alert_doc.get("is_resolved", False):
+            raise HTTPException(status_code=400, detail="La alerta ya está resuelta")
         
         current_time = datetime.now(timezone.utc)
         
-        # Marcar como resuelta
+        # Marcar como resuelta usando el _id real del documento
+        alert_identifier = alert_doc.get("_id")
         update_result = await alerts_collection.update_one(
-            {"id": request.alert_id},
+            {"_id": alert_identifier},
             {
                 "$set": {
                     "is_resolved": True,
@@ -1353,7 +1576,18 @@ async def dismiss_alert(
         
         # Asegurar que created_at sea timezone-aware para el cálculo
         created_at = alert_doc["created_at"]
-        if created_at.tzinfo is None:
+        
+        # Si created_at es un string (alertas manuales), convertirlo a datetime
+        if isinstance(created_at, str):
+            # Intentar parsear el string como ISO format
+            try:
+                created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+            except ValueError:
+                # Si falla, asumir formato sin timezone y agregar UTC
+                created_at = datetime.strptime(created_at, "%Y-%m-%dT%H:%M:%S.%f")
+                created_at = created_at.replace(tzinfo=timezone.utc)
+        elif hasattr(created_at, 'tzinfo') and created_at.tzinfo is None:
+            # Si es datetime pero sin timezone, agregar UTC
             created_at = created_at.replace(tzinfo=timezone.utc)
         
         # Agregar al historial
@@ -1831,6 +2065,7 @@ async def alert_change_stream_watcher():
                                 user_id = str(admin.get("_id"))
                                 alert_key = f"{full.get('type')}:{full.get('sensor_id')}:{user_id}"
                                 try:
+                                    # Enviar EMAIL
                                     if await should_send_notification(alert_key):
                                         sent = await send_critical_alert_email(
                                             email,
@@ -1840,6 +2075,36 @@ async def alert_change_stream_watcher():
                                         )
                                         if sent:
                                             await mark_notification_sent(alert_key)
+                                    
+                                    # Enviar SMS (si está configurado)
+                                    phone = admin.get("phone")
+                                    sms_enabled = admin.get("sms_notifications_enabled", False)
+                                    if phone and sms_enabled:
+                                        sms_key = f"sms:{alert_key}"
+                                        if await should_send_notification(sms_key):
+                                            sent_sms = await send_critical_alert_sms(
+                                                phone,
+                                                full.get("location") or full.get("sensor_id") or "Embalse",
+                                                full.get("title") or full.get("type"),
+                                                str(full.get("value", "N/A"))
+                                            )
+                                            if sent_sms:
+                                                await mark_notification_sent(sms_key)
+                                    
+                                    # Enviar WhatsApp (si está configurado)
+                                    whatsapp_enabled = admin.get("whatsapp_notifications_enabled", False)
+                                    if phone and whatsapp_enabled:
+                                        whatsapp_key = f"whatsapp:{alert_key}"
+                                        if await should_send_notification(whatsapp_key):
+                                            sent_whatsapp = await send_critical_alert_whatsapp(
+                                                phone,
+                                                full.get("location") or full.get("sensor_id") or "Embalse",
+                                                full.get("title") or full.get("type"),
+                                                str(full.get("value", "N/A"))
+                                            )
+                                            if sent_whatsapp:
+                                                await mark_notification_sent(whatsapp_key)
+                                                
                                 except Exception as e:
                                     logger.error(f"Error enviando notificación desde change-stream a {email}: {e}")
                     except Exception as e:
