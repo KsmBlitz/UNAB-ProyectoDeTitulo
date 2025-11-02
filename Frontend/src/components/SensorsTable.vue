@@ -1,7 +1,7 @@
 <!-- eslint-disable @typescript-eslint/no-explicit-any -->
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { API_BASE_URL } from '@/config/api';  // ✅ AGREGAR IMPORT
+import { API_BASE_URL } from '@/config/api';
 
 defineOptions({
   name: 'SensorsTable'
@@ -37,7 +37,7 @@ const fetchSensorsStatus = async () => {
   }
 
   try {
-    // ✅ CAMBIAR URL
+  
     const response = await fetch(`${API_BASE_URL}/api/sensors/individual`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });

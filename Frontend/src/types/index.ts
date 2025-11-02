@@ -35,7 +35,9 @@ export interface ChartDataPoint {
   [key: string]: number[] | string[];
 }
 
-// ✅ TIPOS PARA SISTEMA DE ALERTAS
+/**
+ * Alert System Types
+ */
 export type AlertLevel = 'info' | 'warning' | 'critical';
 export type AlertType = 'ph_range' | 'conductivity' | 'temperature' | 'sensor_disconnection';
 export type AlertStatus = 'active' | 'dismissed' | 'auto_resolved';

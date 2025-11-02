@@ -71,7 +71,6 @@ router.beforeEach((to, from, next) => {
       next('/');
     }
   } else {
-    // Para todas las demás rutas, permitimos el paso
     next();
   }
 });

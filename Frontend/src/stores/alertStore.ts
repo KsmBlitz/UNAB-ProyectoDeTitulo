@@ -62,12 +62,16 @@ const state = reactive<AlertStore>({
   pollingInterval: null
 })
 
-// Función para obtener token de autenticación
+/**
+ * Retrieves authentication token from local storage
+ */
 function getAuthToken(): string | null {
   return localStorage.getItem('userToken')
 }
 
-// Función para hacer peticiones autenticadas con mejor manejo de errores
+/**
+ * Makes authenticated API requests with error handling
+ */
 async function authenticatedFetch(url: string, options: RequestInit = {}): Promise<Response> {
   const token = getAuthToken()
   if (!token) {
@@ -232,7 +236,9 @@ const actions = {
     }
   },
 
-  // Forzar actualización inmediata
+  /**
+   * Forces immediate refresh of alert data
+   */
   async refresh(): Promise<void> {
     await actions.fetchActiveAlerts()
   }

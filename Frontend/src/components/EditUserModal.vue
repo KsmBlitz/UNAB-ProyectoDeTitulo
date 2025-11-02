@@ -2,7 +2,7 @@
 import { ref, watch, onMounted } from 'vue';
 import type { PropType } from 'vue';
 import type { User } from '@/types';
-import { API_BASE_URL } from '@/config/api';  // ✅ AGREGAR IMPORT
+import { API_BASE_URL } from '@/config/api';
 
 defineOptions({
   name: 'EditUserModal'
@@ -63,7 +63,7 @@ async function handleUpdate() {
   }
 
   try {
-    // ✅ CAMBIAR URL
+  
     const response = await fetch(`${API_BASE_URL}/api/users/${props.user.id}`, {
       method: 'PUT',
       headers: {

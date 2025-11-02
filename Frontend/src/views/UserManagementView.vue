@@ -4,7 +4,7 @@ import type { Ref } from 'vue';
 import UsersTable from '@/components/UsersTable.vue';
 import CreateUserModal from '@/components/CreateUserModal.vue';
 import EditUserModal from '@/components/EditUserModal.vue';
-import { API_BASE_URL } from '@/config/api';  // ✅ AGREGAR IMPORT
+import { API_BASE_URL } from '@/config/api';
 import type { User } from '@/types';
 
 defineOptions({
@@ -52,7 +52,7 @@ async function handleDeleteUser(user: User) {
   const userIdToDelete = String(user.id);
 
   try {
-    // ✅ CAMBIAR URL
+  
     const response = await fetch(`${API_BASE_URL}/api/users/${userIdToDelete}`, {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${token}` }

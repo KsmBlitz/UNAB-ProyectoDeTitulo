@@ -54,7 +54,7 @@ async def should_send_notification(key: str) -> bool:
         return time_since_last > timedelta(minutes=throttle_minutes)
         
     except Exception as e:
-        logger.error(f"❌ Error comprobando throttle de notificación: {e}")
+        logger.error(f"Error comprobando throttle de notificación: {e}")
         return True  # On error, allow sending
 
 
@@ -72,7 +72,7 @@ async def mark_notification_sent(key: str) -> None:
             upsert=True
         )
     except Exception as e:
-        logger.error(f"❌ Error marcando notificación enviada: {e}")
+        logger.error(f"Error marcando notificación enviada: {e}")
 
 
 async def clear_notifications_sent_for_alert(
@@ -107,7 +107,7 @@ async def clear_notifications_sent_for_alert(
         
     except Exception as e:
         logger.error(
-            f"❌ Error limpiando notifications_sent para alerta "
+            f"Error limpiando notifications_sent para alerta "
             f"{alert_type}/{sensor_id}: {e}"
         )
 

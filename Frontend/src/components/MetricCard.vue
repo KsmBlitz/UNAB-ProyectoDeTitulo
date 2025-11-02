@@ -97,4 +97,3 @@ const iconClass = computed(() => {
   </div>
 </template>
 
-<!-- Todos los estilos ahora son manejados por Tailwind CSS -->

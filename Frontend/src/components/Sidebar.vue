@@ -127,4 +127,3 @@ const emit = defineEmits(['toggle-sidebar']);
   </aside>
 </template>
 
-<!-- Todos los estilos ahora son manejados por Tailwind CSS -->

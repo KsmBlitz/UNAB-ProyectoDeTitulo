@@ -33,7 +33,7 @@ async def alert_change_stream_watcher():
         try:
             # Watch only insert operations on alerts collection
             async with alerts_collection.watch([{"$match": {"operationType": "insert"}}]) as stream:
-                logger.info("🔁 Alert change-stream watcher started")
+                logger.info("Alert change-stream watcher started")
                 
                 async for change in stream:
                     try:
@@ -50,13 +50,13 @@ async def alert_change_stream_watcher():
                         await notify_admins_of_alert(full_document)
                         
                     except Exception as process_error:
-                        logger.error(f"❌ Error procesando cambio de alerta: {process_error}")
+                        logger.error(f"Error procesando cambio de alerta: {process_error}")
             
             # If stream exits normally, reset backoff
             backoff = 1
             
         except Exception as watcher_error:
-            logger.error(f"❌ Error en alert_change_stream_watcher: {watcher_error}")
+            logger.error(f"Error en alert_change_stream_watcher: {watcher_error}")
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, 60)  # Exponential backoff, max 60 seconds
 
@@ -122,7 +122,7 @@ async def notify_admins_of_alert(alert_doc: Dict[str, Any]) -> None:
                 )
                 
     except Exception as notify_error:
-        logger.error(f"❌ Error notificando admins: {notify_error}")
+        logger.error(f"Error notificando admins: {notify_error}")
 
 
 async def send_email_notification(
@@ -142,10 +142,10 @@ async def send_email_notification(
             sent = await send_critical_alert_email(email, location, title, value)
             if sent:
                 await mark_notification_sent(notification_key)
-                logger.info(f"📧 Email enviado a {email} para alerta {alert_type}")
+                logger.info(f"Email enviado a {email} para alerta {alert_type}")
                 
     except Exception as e:
-        logger.error(f"❌ Error enviando email a {email}: {e}")
+        logger.error(f"Error enviando email a {email}: {e}")
 
 
 async def send_whatsapp_notification(
@@ -165,7 +165,7 @@ async def send_whatsapp_notification(
             sent = await send_critical_alert_whatsapp(phone, location, alert_type, value)
             if sent:
                 await mark_notification_sent(notification_key)
-                logger.info(f"📱 WhatsApp enviado a {phone} para alerta {alert_type}")
+                logger.info(f"WhatsApp enviado a {phone} para alerta {alert_type}")
                 
     except Exception as e:
-        logger.error(f"❌ Error enviando WhatsApp a {phone}: {e}")
+        logger.error(f"Error enviando WhatsApp a {phone}: {e}")

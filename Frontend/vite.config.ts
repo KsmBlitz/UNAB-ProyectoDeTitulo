@@ -13,9 +13,8 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     },
   },
-  // ✅ CONFIGURACIÓN SIMPLE PARA LOCALHOST
   server: {
-    host: '127.0.0.1',  // Solo localhost
+    host: '127.0.0.1',
     port: 5173,
   },
   preview: {

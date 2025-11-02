@@ -148,4 +148,3 @@ onUnmounted(() => {
   </header>
 </template>
 
-<!-- Todos los estilos ahora son manejados por Tailwind CSS -->

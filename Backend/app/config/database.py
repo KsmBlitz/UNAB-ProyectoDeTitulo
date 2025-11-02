@@ -19,7 +19,7 @@ class Database:
     db: Any = None
     
     @classmethod
-    def initialize(cls) -> None:
+    async def initialize(cls) -> None:
         """Initialize database connection"""
         try:
             cls.client = motor.motor_asyncio.AsyncIOMotorClient(
@@ -27,9 +27,12 @@ class Database:
                 serverSelectionTimeoutMS=5000
             )
             cls.db = cls.client[settings.DATABASE_NAME]
-            logger.info(f"✅ Connected to MongoDB: {settings.DATABASE_NAME}")
+            
+            await cls.client.admin.command('ping')
+            logger.info(f"Connected to MongoDB: {settings.DATABASE_NAME}")
+            return cls.client
         except Exception as e:
-            logger.error(f"❌ Failed to connect to MongoDB: {e}")
+            logger.error(f"Failed to connect to MongoDB: {e}")
             raise
     
     @classmethod
@@ -37,7 +40,7 @@ class Database:
         """Close database connection"""
         if cls.client:
             cls.client.close()
-            logger.info("📕 MongoDB connection closed")
+            logger.info("MongoDB connection closed")
     
     @classmethod
     def get_collection(cls, name: str) -> Any:
@@ -47,14 +50,18 @@ class Database:
         return cls.db[name]
 
 
-# Initialize database connection
-Database.initialize()
+# MongoDB client instance
+db_client = motor.motor_asyncio.AsyncIOMotorClient(
+    settings.MONGO_CONNECTION_STRING,
+    serverSelectionTimeoutMS=5000
+)
+db = db_client[settings.DATABASE_NAME]
 
 # Collections
-users_collection = Database.get_collection("users")
-sensor_collection = Database.get_collection("Sensor_Data")
-alerts_collection = Database.get_collection("alerts")
-alert_history_collection = Database.get_collection("alert_history")
-alert_thresholds_collection = Database.get_collection("alert_thresholds")
-reset_tokens_collection = Database.get_collection("reset_tokens")
-notifications_sent_collection = Database.get_collection("notifications_sent")
+users_collection = db["users"]
+sensor_collection = db["Sensor_Data"]
+alerts_collection = db["alerts"]
+alert_history_collection = db["alert_history"]
+alert_thresholds_collection = db["alert_thresholds"]
+reset_tokens_collection = db["reset_tokens"]
+notifications_sent_collection = db["notifications_sent"]

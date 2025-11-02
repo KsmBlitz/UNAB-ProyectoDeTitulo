@@ -75,11 +75,11 @@ async def send_critical_alert_email(
         server.send_message(msg)
         server.quit()
 
-        logger.info(f"📧 Email de alerta crítica enviado a {to_email} para {reservoir_name}")
+        logger.info(f"Email de alerta crítica enviado a {to_email} para {reservoir_name}")
         return True
         
     except Exception as e:
-        logger.error(f"❌ Error enviando email a {to_email}: {e}")
+        logger.error(f"Error enviando email a {to_email}: {e}")
         return False
 
 
@@ -140,11 +140,11 @@ async def send_reset_email(email: str, reset_token: str) -> bool:
         server.send_message(msg)
         server.quit()
 
-        logger.info(f"📧 Email de recuperación enviado a {email}")
+        logger.info(f"Email de recuperación enviado a {email}")
         return True
         
     except Exception as e:
-        logger.error(f"❌ Error enviando email de recuperación a {email}: {e}")
+        logger.error(f"Error enviando email de recuperación a {email}: {e}")
         return False
 
 

@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue';
 import type { Ref } from 'vue';
 import type { User } from '@/types';
-import { API_BASE_URL } from '@/config/api';  // ✅ AGREGAR IMPORT
+import { API_BASE_URL } from '@/config/api';
 
 defineOptions({
   name: 'UsersTable'
@@ -28,7 +28,7 @@ async function fetchUsers() {
     return;
   }
   try {
-    // ✅ CAMBIAR URL
+  
     const response = await fetch(`${API_BASE_URL}/api/users`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });

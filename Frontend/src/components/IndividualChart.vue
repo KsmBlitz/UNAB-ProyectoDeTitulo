@@ -15,13 +15,12 @@ import {
   Filler,
   type ChartData
 } from 'chart.js';
-import { API_BASE_URL } from '@/config/api';  // ✅ AGREGAR IMPORT
+import { API_BASE_URL } from '@/config/api';
 
 defineOptions({
   name: 'IndividualChart'
 });
 
-// ✅ REGISTRAR EL PLUGIN FILLER
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
 const props = defineProps<{
@@ -98,7 +97,7 @@ const fetchData = async () => {
   const token = localStorage.getItem('userToken');
 
   try {
-    // ✅ CAMBIAR URL
+  
     const response = await fetch(
       `${API_BASE_URL}/api/charts/historical-data?sensor_type=${props.sensorType}&hours=${currentTimeRange.value}`,
       {

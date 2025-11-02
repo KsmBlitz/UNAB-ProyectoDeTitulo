@@ -128,17 +128,17 @@ Por favor revise el sistema lo antes posible."""
                 result = response.json()
                 message_id = result.get('messages', [{}])[0].get('id', 'unknown')
                 logger.info(
-                    f"✅ WhatsApp enviado a {to_phone} para {reservoir_name} "
+                    f"WhatsApp enviado a {to_phone} para {reservoir_name} "
                     f"(MessageId: {message_id})"
                 )
                 return True
             else:
                 error_data = response.text
                 logger.error(
-                    f"❌ Error API WhatsApp ({response.status_code}): {error_data}"
+                    f"Error API WhatsApp ({response.status_code}): {error_data}"
                 )
                 return False
                 
     except Exception as e:
-        logger.error(f"❌ Error enviando WhatsApp a {to_phone}: {e}")
+        logger.error(f"Error enviando WhatsApp a {to_phone}: {e}")
         return False

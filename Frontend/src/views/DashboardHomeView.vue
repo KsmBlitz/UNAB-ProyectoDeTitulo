@@ -44,13 +44,12 @@ onMounted(async () => {
   await fetchMetrics();
 });
 
-// Forzar actualización de clases de tema al cambiar
 watch(() => themeStore.isDark, () => {
   themeStore.applyTheme();
 });
 
 async function fetchMetrics() {
-  // No cambiar isLoadingMetrics si ya hay datos (para evitar parpadeo)
+  // Prevent loading flicker if data already exists
   const shouldShowLoading = !metrics.value;
   if (shouldShowLoading) {
     isLoadingMetrics.value = true;
@@ -67,7 +66,7 @@ async function fetchMetrics() {
   }
 
   try {
-    // ✅ CAMBIAR URL
+  
     const response = await fetch(`${API_BASE_URL}/api/metrics/latest`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
@@ -249,4 +248,3 @@ async function fetchMetrics() {
   </div>
 </template>
 
-<!-- Todos los estilos ahora son manejados por Tailwind CSS -->

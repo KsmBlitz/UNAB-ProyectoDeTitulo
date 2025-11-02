@@ -16,18 +16,21 @@ const phChartRef = ref<InstanceType<typeof IndividualChart> | null>(null);
 const conductivityChartRef = ref<InstanceType<typeof IndividualChart> | null>(null);
 const waterLevelChartRef = ref<InstanceType<typeof IndividualChart> | null>(null);
 
-// Función para cambiar el filtro temporal de todos los gráficos
+/**
+ * Updates the time range filter for all charts
+ */
 const handleTimeRangeChange = (hours: number) => {
   globalTimeRange.value = hours;
 
-  // Actualizar todos los gráficos con el nuevo filtro
   temperatureChartRef.value?.updateTimeRange(hours);
   phChartRef.value?.updateTimeRange(hours);
   conductivityChartRef.value?.updateTimeRange(hours);
   waterLevelChartRef.value?.updateTimeRange(hours);
 };
 
-// Función para refrescar todos los gráficos (llamada desde el padre)
+/**
+ * Refreshes data for all charts
+ */
 const refreshAllCharts = async () => {
   await Promise.all([
     temperatureChartRef.value?.refreshData(),
@@ -49,7 +52,6 @@ onMounted(() => {
 
 <template>
   <div class="bg-white rounded-xl p-6 shadow-md">
-    <!-- Controles de filtro temporal (compartidos por todos los gráficos) -->
     <div class="flex justify-end mb-6 pb-4 border-b-2 border-gray-100">
       <div class="flex items-center gap-4 flex-col md:flex-row">
         <label class="text-sm font-semibold text-gray-600">Período:</label>

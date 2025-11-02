@@ -26,15 +26,15 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize services on application startup"""
-    logger.info("🚀 Iniciando aplicación...")
-    logger.info(f"📊 Conectado a base de datos: {settings.DATABASE_NAME}")
+    """Evento de inicio de la aplicación"""
+    logger.info("Iniciando aplicación...")
+    logger.info(f"Conectado a base de datos: {settings.DATABASE_NAME}")
     
-    # Start alert change stream watcher
+    # Iniciar el watcher de alertas en background
     asyncio.create_task(alert_change_stream_watcher())
-    logger.info("🔁 Alert change-stream watcher iniciado")
+    logger.info("Alert watcher iniciado")
     
-    logger.info("✅ Aplicación lista")
+    logger.info("Aplicación lista")
 
 @app.on_event("shutdown")
 async def shutdown_event():

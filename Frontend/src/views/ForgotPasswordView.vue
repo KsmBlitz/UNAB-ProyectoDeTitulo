@@ -63,7 +63,6 @@ const handleSubmit = async () => {
 </script>
 
 <template>
-  <!-- ✅ USAR EL NUEVO LAYOUT BASE -->
   <AuthLayout title="Recuperar Contraseña">
     <div v-if="isSuccess" class="text-center">
       <!-- Ticket verde con check animado -->

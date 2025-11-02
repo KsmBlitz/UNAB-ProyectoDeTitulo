@@ -91,17 +91,17 @@ async def forgot_password(request: ForgotPasswordRequest):
         email_sent = await send_reset_email(request.email, reset_token)
         
         if email_sent:
-            logger.info(f"📧 Email de recuperación enviado a: {request.email}")
+            logger.info(f"Email de recuperación enviado a: {request.email}")
         else:
             # Fallback: log token if email fails
             logger.warning(
-                f"⚠️ Email falló - Token de recuperación para {request.email}: {reset_token}"
+                f"Email falló - Token de recuperación para {request.email}: {reset_token}"
             )
         
         return {"message": "Si el email existe, recibirás un enlace de recuperación"}
     
     except Exception as e:
-        logger.error(f"❌ Error en forgot_password: {e}")
+        logger.error(f"Error en forgot_password: {e}")
         raise HTTPException(
             status_code=500,
             detail="Error interno del servidor"
@@ -149,14 +149,14 @@ async def reset_password(request: ResetPasswordRequest):
             {"$set": {"used": True, "used_at": datetime.now(timezone.utc)}}
         )
         
-        logger.info(f"🔒 Contraseña actualizada para usuario: {token_data['email']}")
+        logger.info(f"Contraseña actualizada para usuario: {token_data['email']}")
         
         return {"message": "Contraseña actualizada exitosamente"}
     
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error en reset_password: {e}")
+        logger.error(f"Error en reset_password: {e}")
         raise HTTPException(
             status_code=500,
             detail="Error interno del servidor"
@@ -183,5 +183,5 @@ async def validate_reset_token(token: str):
             return {"valid": False}
     
     except Exception as e:
-        logger.error(f"❌ Error validando token: {e}")
+        logger.error(f"Error validando token: {e}")
         return {"valid": False}

@@ -57,11 +57,11 @@ async def get_active_alerts(current_user: dict = Depends(get_current_user)):
                 logger.error(f"Error converting alert to model: {model_error}")
                 continue
         
-        logger.info(f"📋 Retornando {len(active_alerts)} alertas activas")
+        logger.info(f"Retornando {len(active_alerts)} alertas activas")
         return active_alerts
         
     except Exception as e:
-        logger.error(f"❌ Error obteniendo alertas activas: {e}")
+        logger.error(f"Error obteniendo alertas activas: {e}")
         return []
 
 
@@ -81,7 +81,7 @@ async def dismiss_alert(
     
     try:
         logger.info(
-            f"🔍 Intentando cerrar alerta con ID: {request.alert_id} "
+            f"Intentando cerrar alerta con ID: {request.alert_id} "
             f"(tipo: {type(request.alert_id).__name__})"
         )
         
@@ -102,7 +102,7 @@ async def dismiss_alert(
                 {"is_resolved": False}
             ).limit(5).to_list(length=5)
             logger.warning(
-                f"❌ Alerta no encontrada. Ejemplos de IDs en BD: "
+                f"Alerta no encontrada. Ejemplos de IDs en BD: "
                 f"{[str(a.get('_id', a.get('id', 'sin-id'))) for a in all_alerts]}"
             )
             raise HTTPException(
@@ -176,16 +176,13 @@ async def dismiss_alert(
             await alert_history_collection.insert_one(history_dict)
             
         except Exception as history_error:
-            logger.error(f"❌ Error insertando en historial: {history_error}")
+            logger.error(f"Error insertando en historial: {history_error}")
             # Don't fail dismiss due to history error
         
         # Clear notification throttling for this alert
-        await clear_notifications_sent_for_alert(
-            alert_doc["type"],
-            alert_doc.get("sensor_id")
-        )
+        await clear_notifications_for_alert(request.alert_id)
         
-        logger.info(f"✅ Alerta {request.alert_id} cerrada por {user_email} ({user_role})")
+        logger.info(f"Alerta {request.alert_id} cerrada por {user_email} ({user_role})")
         
         return {
             "message": "Alerta cerrada exitosamente",
@@ -196,7 +193,7 @@ async def dismiss_alert(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error cerrando alerta: {e}")
+        logger.error(f"Error cerrando alerta: {e}")
         raise HTTPException(
             status_code=500,
             detail="Error interno del servidor"
@@ -233,7 +230,7 @@ async def get_alert_history(
         return history_items
         
     except Exception as e:
-        logger.error(f"❌ Error obteniendo historial: {e}")
+        logger.error(f"Error obteniendo historial: {e}")
         return []
 
 
@@ -247,7 +244,10 @@ async def clear_alert_history(admin_user: dict = Depends(get_current_admin_user)
     try:
         result = await alert_history_collection.delete_many({})
         
-        logger.info(f"🗑️ Historial limpiado: {result.deleted_count} registros eliminados")
+        # Eliminar registros del historial
+        result = await alerts_collection.delete_many(query)
+        
+        logger.info(f"Historial limpiado: {result.deleted_count} registros eliminados")
         
         return {
             "message": "Historial de alertas limpiado",
@@ -255,7 +255,7 @@ async def clear_alert_history(admin_user: dict = Depends(get_current_admin_user)
         }
         
     except Exception as e:
-        logger.error(f"❌ Error limpiando historial: {e}")
+        logger.error(f"Error limpiando historial: {e}")
         raise HTTPException(
             status_code=500,
             detail="Error interno del servidor"
@@ -305,7 +305,7 @@ async def get_alert_summary(current_user: dict = Depends(get_current_user)):
         }
         
     except Exception as e:
-        logger.error(f"❌ Error obteniendo resumen de alertas: {e}")
+        logger.error(f"Error obteniendo resumen de alertas: {e}")
         return {
             "total_active": 0,
             "by_level": {},
@@ -332,7 +332,7 @@ async def get_alert_config(current_user: dict = Depends(get_current_user)):
         return config
         
     except Exception as e:
-        logger.error(f"❌ Error obteniendo configuración: {e}")
+        logger.error(f"Error obteniendo configuración: {e}")
         return {
             "ph_range": {"min": 6.5, "max": 8.5},
             "temperature_max": 25.0,
@@ -352,11 +352,11 @@ async def update_alert_config(
         # Upsert configuration
         await alert_thresholds_collection.update_one(
             {},
-            {"$set": config.model_dump()},
+            {"$set": {"config": config.model_dump()}},
             upsert=True
         )
         
-        logger.info(f"⚙️ Configuración de alertas actualizada por {admin_user.get('email')}")
+        logger.info(f"Configuración de alertas actualizada por {admin_user.get('email')}")
         
         return {
             "message": "Configuración actualizada exitosamente",
@@ -364,7 +364,7 @@ async def update_alert_config(
         }
         
     except Exception as e:
-        logger.error(f"❌ Error actualizando configuración: {e}")
+        logger.error(f"Error actualizando configuración: {e}")
         raise HTTPException(
             status_code=500,
             detail="Error interno del servidor"

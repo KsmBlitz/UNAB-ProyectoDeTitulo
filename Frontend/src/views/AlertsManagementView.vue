@@ -591,7 +591,6 @@ function formatAlertTime(dateString: string): string {
     if (diffHours === 1) return 'Hace 1 hora'
     if (diffHours < 24) return `Hace ${diffHours} horas`
 
-    // Forzar zona horaria de Chile
     return date.toLocaleDateString('es-CL', {
       day: '2-digit',
       month: '2-digit',
@@ -608,7 +607,6 @@ function formatAlertTime(dateString: string): string {
 function formatHistoryDate(dateString: string): string {
   try {
     const date = new Date(dateString)
-    // Forzar zona horaria de Chile
     return date.toLocaleDateString('es-CL', {
       day: '2-digit',
       month: '2-digit',
@@ -679,17 +677,15 @@ async function dismissAlert(alert: ActiveAlert): Promise<void> {
 }
 
 function showSuccessMessage(message: string): void {
-  // Por ahora usando alert, después se puede cambiar a toast
-  alert(`✅ ${message}`)
+  alert(message)
 }
 
 function showErrorMessage(message: string): void {
-  // Por ahora usando alert, después se puede cambiar a toast
-  alert(`❌ ${message}`)
+  alert(message)
 }
 
 function applyFilters(): void {
-  // Los filtros se aplican automáticamente via computed
+  // Filters are applied automatically via computed properties
 }
 
 async function loadHistory(): Promise<void> {

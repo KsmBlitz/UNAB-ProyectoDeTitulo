@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { API_BASE_URL } from '@/config/api';  // ✅ AGREGAR IMPORT
+import { API_BASE_URL } from '@/config/api';
 
 const emit = defineEmits(['close', 'user-created']);
 
@@ -24,7 +24,7 @@ async function handleSubmit() {
   const token = localStorage.getItem('userToken');
 
   try {
-    // ✅ CAMBIAR URL
+  
     const response = await fetch(`${API_BASE_URL}/api/users`, {
       method: 'POST',
       headers: {
@@ -47,7 +47,6 @@ async function handleSubmit() {
       throw new Error(errorData.detail || 'No se pudo crear el usuario.');
     }
 
-    // Si todo va bien, emitimos un evento para que el padre sepa
     emit('user-created');
 
   } catch (e) {

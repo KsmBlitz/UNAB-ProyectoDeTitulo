@@ -79,7 +79,7 @@ async def create_user(
         {"_id": new_user_doc.inserted_id}
     )
     
-    logger.info(f"👤 Usuario creado: {user.email}")
+    logger.info(f"Usuario creado: {user.email}")
     
     return UserPublic(**created_user_from_db)  # type: ignore
 
@@ -138,7 +138,7 @@ async def update_user(
         {"_id": ObjectId(user_id)}
     )
     
-    logger.info(f"👤 Usuario actualizado: {user_id}")
+    logger.info(f"Usuario actualizado: {user_id}")
     
     return UserPublic(**updated_user_from_db)  # type: ignore
 
@@ -180,6 +180,6 @@ async def delete_user(
             detail="No se encontró el usuario a eliminar"
         )
     
-    logger.info(f"👤 Usuario eliminado: {user_id}")
+    logger.info(f"Usuario eliminado: {user_id}")
     
     return

@@ -81,7 +81,7 @@ async def get_individual_sensors_status(current_user: dict = Depends(get_current
         return sensors
         
     except Exception as e:
-        logger.error(f"❌ Error obteniendo sensores individuales: {e}")
+        logger.error(f"Error obteniendo sensores individuales: {e}")
         return []
 
 
@@ -125,7 +125,7 @@ async def get_latest_metrics(
         }
         
     except Exception as e:
-        logger.error(f"❌ Error obteniendo métricas: {e}")
+        logger.error(f"Error obteniendo métricas: {e}")
         return {
             "temperature": 0,
             "ph": 0,
@@ -180,7 +180,7 @@ async def get_historical_data(
         }
         
     except Exception as e:
-        logger.error(f"❌ Error obteniendo datos históricos: {e}")
+        logger.error(f"Error obteniendo datos históricos: {e}")
         return {
             "data": [],
             "count": 0,
@@ -238,7 +238,7 @@ async def get_sensors_status(current_user: dict = Depends(get_current_user)):
         }
         
     except Exception as e:
-        logger.error(f"❌ Error obteniendo estado de sensores: {e}")
+        logger.error(f"Error obteniendo estado de sensores: {e}")
         return {
             "online": 0,
             "warning": 0,

@@ -4,7 +4,7 @@ import { useRouter, RouterLink } from 'vue-router';
 import { jwtDecode } from 'jwt-decode';
 import { authStore } from '@/auth/store';
 import AuthLayout from '@/components/AuthLayout.vue';
-import { API_BASE_URL } from '@/config/api';  // ✅ AGREGAR IMPORT
+import { API_BASE_URL } from '@/config/api';
 
 defineOptions({
   name: 'LoginView'
