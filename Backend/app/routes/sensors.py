@@ -12,8 +12,8 @@ import logging
 from app.config import sensor_collection
 from app.utils import get_current_user
 from app.services import predict_sensor_values
-from app.services.audit import log_action
-from app.models.audit_models import AuditAction
+from app.services.audit import log_audit_event
+from models.audit_models import AuditAction
 
 logger = logging.getLogger(__name__)
 
@@ -372,13 +372,13 @@ async def save_prediction_config(
             }
         
         # Log to audit
-        await log_action(
+        await log_audit_event(
+            action=AuditAction.PREDICTION_CONFIG_UPDATED,
+            description=f"Configuración del modelo de predicción actualizada para {config.sensor_type}",
             user_id=current_user.get("user_id"),
             user_email=current_user.get("email"),
-            action=AuditAction.PREDICTION_CONFIG_UPDATED,
             resource_type="prediction_model",
             resource_id=config.sensor_type,
-            description=f"Configuración del modelo de predicción actualizada para {config.sensor_type}",
             details={
                 "sensor_type": config.sensor_type,
                 "days_to_predict": config.days,
