@@ -65,10 +65,12 @@ class WaterQualityPredictor:
         Train the linear regression model
         
         Args:
-            X: Input features (timestamps)
+            X: Input features (timestamps as hours from reference)
             y: Target values
         """
         self.model.fit(X, y)
+        # Store the last X value for future predictions
+        self.last_X_value = float(X[-1][0])
         
     def predict_next_days(
         self,
@@ -85,23 +87,25 @@ class WaterQualityPredictor:
         Returns:
             List of predictions with timestamp and predicted value
         """
+        if not hasattr(self, 'last_X_value'):
+            raise ValueError("Model must be trained before making predictions")
+        
         predictions = []
         
         # Generate future timestamps (one prediction per day)
         for day in range(1, days + 1):
             future_time = last_timestamp + timedelta(days=day)
             
-            # Convert to hours from model's reference point
-            # We need to use the same reference as training
-            # For simplicity, we'll predict based on hours from last_timestamp
-            hours_ahead = day * 24
+            # Calculate hours from the reference point (used in training)
+            # Continue from the last training X value
+            hours_from_reference = self.last_X_value + (day * 24)
             
             # Predict
-            X_future = np.array([[hours_ahead]])
+            X_future = np.array([[hours_from_reference]])
             predicted_value = self.model.predict(X_future)[0]
             
             predictions.append({
-                'timestamp': future_time.isoformat(),
+                'timestamp': future_time,
                 'value': round(float(predicted_value), 2)
             })
         
@@ -169,34 +173,27 @@ async def predict_sensor_values(
         predictor = WaterQualityPredictor()
         X, y = predictor.prepare_data(historical_data)
         
-        # Need reference time for prediction
-        reference_time = historical_data[0]['ReadTime']
-        if isinstance(reference_time, str):
-            reference_time = datetime.fromisoformat(reference_time.replace('Z', '+00:00'))
-        
-        # Adjust X to be relative to reference time
+        # Get last reading time
         last_reading_time = historical_data[-1]['ReadTime']
         if isinstance(last_reading_time, str):
             last_reading_time = datetime.fromisoformat(last_reading_time.replace('Z', '+00:00'))
         
-        hours_from_reference = (last_reading_time - reference_time).total_seconds() / 3600
-        
         # Train model
         predictor.train(X, y)
         
-        # Make predictions
-        predictions = []
-        for day in range(1, days_to_predict + 1):
-            future_hours = hours_from_reference + (day * 24)
-            X_future = np.array([[future_hours]])
-            predicted_value = predictor.model.predict(X_future)[0]
-            
-            future_time = last_reading_time + timedelta(days=day)
-            
-            predictions.append({
-                'timestamp': future_time.isoformat(),
-                'value': round(float(predicted_value), 2),
-                'day_ahead': day
+        # Make predictions using the dedicated method
+        predictions = predictor.predict_next_days(
+            last_timestamp=last_reading_time,
+            days=days_to_predict
+        )
+        
+        # Convert timestamps to ISO format and add day_ahead
+        formatted_predictions = []
+        for i, pred in enumerate(predictions, 1):
+            formatted_predictions.append({
+                'timestamp': pred['timestamp'].isoformat() if isinstance(pred['timestamp'], datetime) else pred['timestamp'],
+                'value': pred['value'],
+                'day_ahead': i
             })
         
         # Get model statistics
@@ -207,7 +204,7 @@ async def predict_sensor_values(
         return {
             "success": True,
             "sensor_type": sensor_type,
-            "predictions": predictions,
+            "predictions": formatted_predictions,
             "model_stats": {
                 "r2_score": round(float(score), 3),
                 "training_samples": len(historical_readings),
