@@ -10,6 +10,7 @@ import logging
 
 from app.config import sensor_collection
 from app.utils import get_current_user
+from app.services import predict_sensor_values
 
 logger = logging.getLogger(__name__)
 
@@ -264,4 +265,72 @@ async def get_sensors_status(current_user: dict = Depends(get_current_user)):
             "warning": 0,
             "offline": 0,
             "total": 0
+        }
+
+
+@router.get("/sensors/predict/{sensor_type}")
+async def get_sensor_prediction(
+    sensor_type: str,
+    days: int = Query(5, ge=1, le=30, description="Number of days to predict"),
+    lookback_days: int = Query(7, ge=1, le=90, description="Days of historical data to use"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get prediction for pH or conductivity values for next N days
+    
+    Uses linear regression on historical data to predict future values.
+    
+    Args:
+        sensor_type: Type of sensor ('ph' or 'conductivity')
+        days: Number of days to predict (1-30, default: 5)
+        lookback_days: Days of historical data to use for training (1-90, default: 7)
+        
+    Returns:
+        Predictions with timestamps, values, and model statistics
+        
+    Example response:
+        {
+            "success": true,
+            "sensor_type": "ph",
+            "predictions": [
+                {"timestamp": "2025-11-04T...", "value": 6.8, "day_ahead": 1},
+                ...
+            ],
+            "model_stats": {
+                "r2_score": 0.95,
+                "training_samples": 144,
+                "lookback_days": 7
+            },
+            "last_reading": {
+                "timestamp": "2025-11-03T...",
+                "value": 6.7
+            }
+        }
+    """
+    try:
+        # Validate sensor type
+        valid_types = ['ph', 'conductivity']
+        if sensor_type not in valid_types:
+            return {
+                "success": False,
+                "message": f"Tipo de sensor inválido. Debe ser: {', '.join(valid_types)}",
+                "predictions": []
+            }
+        
+        # Get predictions
+        result = await predict_sensor_values(
+            sensor_collection=sensor_collection,
+            sensor_type=sensor_type,
+            days_to_predict=days,
+            lookback_days=lookback_days
+        )
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error en endpoint de predicción: {e}")
+        return {
+            "success": False,
+            "message": f"Error generando predicción: {str(e)}",
+            "predictions": []
         }
