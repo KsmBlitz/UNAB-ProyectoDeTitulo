@@ -42,6 +42,12 @@ const router = createRouter({
           name: 'AlertsManagement',
           component: () => import('../views/AlertsManagementView.vue'),
           meta: { requiresAuth: true }
+        },
+        {
+          path: 'audit',
+          name: 'AuditLog',
+          component: () => import('../views/AuditLogView.vue'),
+          meta: { requiresAuth: true, requiresRole: 'admin' }
         }
       ]
     },
@@ -60,8 +66,28 @@ router.beforeEach((to, from, next) => {
     // Si está logueado e intenta ir al login, recuperación o reset, va al dashboard
     next('/');
   } else if (to.meta.requiresRole) {
-    // Si la ruta requiere un rol...
-    const userRole = authStore.user?.role;
+    // Si la ruta requiere un rol, decodificar el token para obtener el rol
+    const token = localStorage.getItem('userToken');
+    let userRole = authStore.user?.role;
+    
+    // Si no hay usuario en el store, intentar decodificar el token
+    if (!userRole && token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        userRole = payload.role;
+        // Restaurar el usuario en el store
+        if (!authStore.user) {
+          authStore.user = {
+            email: payload.sub,
+            role: payload.role,
+            full_name: payload.full_name
+          };
+        }
+      } catch (e) {
+        console.error('Error decodificando token:', e);
+      }
+    }
+    
     if (userRole === to.meta.requiresRole) {
       // ...y el usuario tiene ese rol, le permitimos pasar
       next();

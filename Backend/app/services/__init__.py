@@ -29,6 +29,14 @@ from .notifications import (
 
 from .alert_watcher import alert_change_stream_watcher
 
+from .audit import (
+    log_audit_event,
+    log_audit_from_request,
+    get_audit_logs,
+    get_user_activity,
+    get_audit_statistics
+)
+
 __all__ = [
     # Auth
     "verify_password",
@@ -49,5 +57,11 @@ __all__ = [
     "clear_notifications_sent_for_alert",
     "build_notification_key",
     # Alert Watcher
-    "alert_change_stream_watcher"
+    "alert_change_stream_watcher",
+    # Audit
+    "log_audit_event",
+    "log_audit_from_request",
+    "get_audit_logs",
+    "get_user_activity",
+    "get_audit_statistics"
 ]

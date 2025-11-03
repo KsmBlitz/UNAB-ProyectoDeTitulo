@@ -197,7 +197,7 @@ async function fetchMetrics() {
 
         <MetricCard
           title="Temperatura del Agua"
-          :value="String(metrics.temperatura_agua?.value ?? 'N/A')"
+          :value="metrics.temperatura_agua?.value ? metrics.temperatura_agua.value.toFixed(1) : 'N/A'"
           :unit="metrics.temperatura_agua?.unit ?? '°C'"
           :changeText="metrics.temperatura_agua?.changeText ?? 'Sin datos'"
           :isPositive="metrics.temperatura_agua?.isPositive ?? false"
@@ -208,7 +208,7 @@ async function fetchMetrics() {
 
         <MetricCard
           title="Nivel de pH"
-          :value="String(metrics.ph?.value ?? 'N/A')"
+          :value="metrics.ph?.value ? metrics.ph.value.toFixed(1) : 'N/A'"
           :unit="metrics.ph?.unit ?? ''"
           :changeText="metrics.ph?.changeText ?? 'Sin datos'"
           :isPositive="metrics.ph?.isPositive ?? false"
@@ -219,7 +219,7 @@ async function fetchMetrics() {
 
         <MetricCard
           title="Conductividad Eléctrica"
-          :value="String(metrics.conductividad?.value ?? 'N/A')"
+          :value="metrics.conductividad?.value ? metrics.conductividad.value.toFixed(1) : 'N/A'"
           :unit="metrics.conductividad?.unit ?? 'mS/cm'"
           :changeText="metrics.conductividad?.changeText ?? 'Sin datos'"
           :isPositive="metrics.conductividad?.isPositive ?? false"
@@ -230,7 +230,7 @@ async function fetchMetrics() {
 
         <MetricCard
           title="Nivel del Agua"
-          :value="String(metrics.nivel_agua?.value ?? 'N/A')"
+          :value="metrics.nivel_agua?.value ? metrics.nivel_agua.value.toFixed(1) : 'N/A'"
           :unit="metrics.nivel_agua?.unit ?? 'cm'"
           :changeText="metrics.nivel_agua?.changeText ?? 'Sin datos'"
           :isPositive="metrics.nivel_agua?.isPositive ?? false"

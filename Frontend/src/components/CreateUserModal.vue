@@ -13,7 +13,6 @@ const email = ref('');
 const password = ref('');
 const role = ref('operario'); // Rol por defecto
 const phone = ref('');
-const smsNotificationsEnabled = ref(false);
 const whatsappNotificationsEnabled = ref(false);
 const error = ref('');
 const isLoading = ref(false);
@@ -37,7 +36,6 @@ async function handleSubmit() {
         password: password.value,
         role: role.value,
         phone: phone.value,
-        sms_notifications_enabled: smsNotificationsEnabled.value,
         whatsapp_notifications_enabled: whatsappNotificationsEnabled.value
       })
     });
@@ -132,17 +130,6 @@ async function handleSubmit() {
           <label class="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
-              v-model="smsNotificationsEnabled"
-              class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-            >
-            <span class="text-sm font-semibold text-gray-700">Habilitar notificaciones por SMS</span>
-          </label>
-        </div>
-
-        <div class="mb-6">
-          <label class="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
               v-model="whatsappNotificationsEnabled"
               class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
             >
@@ -151,7 +138,6 @@ async function handleSubmit() {
               Habilitar notificaciones por WhatsApp
             </span>
           </label>
-          <p class="mt-1 ml-6 text-xs text-gray-500">Recomendado: Mayor tasa de entrega que SMS</p>
         </div>
 
         <div class="mt-6 flex justify-end gap-3 pt-4 border-t border-gray-200">
