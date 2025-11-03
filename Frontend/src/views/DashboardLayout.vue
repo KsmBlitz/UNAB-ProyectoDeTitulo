@@ -12,54 +12,20 @@ const isSidebarCollapsed = ref(false);
 const toggleSidebar = () => {
   isSidebarCollapsed.value = !isSidebarCollapsed.value;
 };
+
+// El polling de alertas se manejará desde AlertsManagementView cuando sea necesario
 </script>
 
 <template>
-  <div class="dashboard-layout">
+  <div class="flex h-screen bg-gradient-to-br from-white via-blue-50 to-blue-100">
     <Sidebar :is-collapsed="isSidebarCollapsed" @toggle-sidebar="toggleSidebar" />
 
-    <div class="main-content-wrapper">
+  <div class="flex-grow flex flex-col h-screen overflow-hidden max-w-full">
       <TheHeader />
-      <main class="dashboard-main">
+
+  <main class="flex-grow overflow-y-auto bg-gradient-to-br from-white via-blue-50 to-blue-100 px-0">
         <RouterView />
       </main>
     </div>
   </div>
 </template>
-
-<style scoped>
-:root {
-  --sidebar-width: 260px;
-  --sidebar-collapsed-width: 88px;
-  --header-height: 80px; /* Aumentamos la altura para más espacio */
-}
-
-.dashboard-layout {
-  display: flex;
-}
-
-.main-content-wrapper {
-  flex-grow: 1;
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  overflow: hidden; /* Evita el doble scroll en la ventana */
-}
-
-.app-header {
-  height: var(--header-height);
-  padding: 0 2.5rem; /* Aumentamos el padding para más espacio */
-  background-color: #ffffff;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  flex-shrink: 0;
-  z-index: 1000;
-}
-
-.dashboard-main {
-  flex-grow: 1;
-  overflow-y: auto; /* El scroll solo aplicará a esta área */
-}
-</style>

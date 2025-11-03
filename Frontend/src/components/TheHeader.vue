@@ -1,89 +1,166 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
+import { onMounted, onUnmounted } from 'vue';
+import { authStore } from '@/auth/store';
+import { alertStore } from '@/stores/alertStore';
+import { useClickOutside } from '@/composables/useClickOutside';
+import { API_BASE_URL } from '@/config/api';
 
 defineOptions({
   name: 'TheHeader'
 });
 
-const userName = 'Usuario A';
-const userRole = 'Administrador';
 const router = useRouter();
 
-// 1. Estado para controlar la visibilidad del menú
+// Estado del menú de usuario
 const isMenuOpen = ref(false);
 const userProfileRef = ref<HTMLDivElement | null>(null);
 
-// 2. Función para abrir/cerrar el menú
+// Usar composable para cerrar menú al hacer clic fuera
+useClickOutside(userProfileRef, () => {
+  isMenuOpen.value = false;
+});
+
+// Toggle del menú
 function toggleUserMenu() {
   isMenuOpen.value = !isMenuOpen.value;
 }
 
-// 3. Función para cerrar sesión
-function handleLogout() {
+// Cerrar sesión
+async function handleLogout() {
   console.log('Cerrando sesión...');
-  localStorage.removeItem('userToken');
-  router.push('/login');
+  
+  try {
+    const token = localStorage.getItem('userToken');
+    
+    // Llamar al endpoint de logout para registrar en auditoría
+    if (token) {
+      await fetch(`${API_BASE_URL}/api/logout`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Error al registrar logout:', error);
+    // Continuar con el logout incluso si falla el registro
+  } finally {
+    // Limpiar localStorage y redirigir
+    localStorage.removeItem('userToken');
+    authStore.user = null;
+    router.push('/login');
+  }
 }
 
-// 4. Lógica para cerrar el menú al hacer clic fuera
-const handleClickOutside = (event: MouseEvent) => {
-  if (userProfileRef.value && !userProfileRef.value.contains(event.target as Node)) {
-    isMenuOpen.value = false;
+// Navegar a alertas
+function navigateToAlerts() {
+  router.push('/alerts');
+}
+
+// Datos de alertas
+const alertSummary = computed(() => alertStore.summary);
+const hasAlerts = computed(() => alertSummary.value.total > 0);
+const hasCriticalAlerts = computed(() => alertSummary.value.critical > 0);
+
+// Rol del usuario formateado
+const userRoleFormatted = computed(() => {
+  switch (authStore.user?.role) {
+    case 'admin': return 'Administrador';
+    case 'operario': return 'Operario';
+    default: return 'Usuario';
   }
-};
+});
 
 onMounted(() => {
-  document.addEventListener('click', handleClickOutside);
+  alertStore.startPolling();
 });
 
 onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside);
+  alertStore.stopPolling();
 });
 </script>
 
 <template>
-  <header class="header-container">
-    <div class="header-left">
-      <div class="location-selector">
-        <i class="pi pi-map-marker"></i>
-        <span>Ubicación</span>
-        <i class="pi pi-chevron-down"></i>
+  <header class="flex justify-between items-center px-8 py-4 bg-white border-b border-gray-200 flex-shrink-0 shadow-sm">
+    <!-- Left Section -->
+    <div class="flex items-center gap-6">
+      <div class="flex items-center gap-3 border border-gray-300 px-5 py-2.5 rounded-lg cursor-pointer hover:bg-gray-50 hover:border-gray-400 transition-all group">
+        <i class="pi pi-map-marker text-gray-600 group-hover:text-blue-600 transition-colors"></i>
+        <span class="text-sm font-medium text-gray-700 group-hover:text-gray-900">Ubicación</span>
+        <i class="pi pi-chevron-down text-gray-400 text-xs group-hover:text-gray-600 transition-colors"></i>
       </div>
     </div>
 
-    <div class="header-right">
-      <div class="notifications">
-        <i class="pi pi-bell notification-icon"></i>
-        <span class="notification-badge">2</span>
+    <!-- Right Section -->
+    <div class="flex items-center gap-4">
+      <!-- Alerts Counter -->
+      <div
+        @click="navigateToAlerts"
+        class="relative cursor-pointer p-3 rounded-lg transition-all hover:bg-gray-100 group"
+      >
+        <i
+          class="pi pi-bell text-xl transition-colors"
+          :class="hasCriticalAlerts ? 'text-red-600' : hasAlerts ? 'text-orange-600' : 'text-gray-500'"
+        ></i>
+        <span
+          v-if="hasAlerts"
+          class="absolute -top-0.5 -right-0.5 rounded-full w-5 h-5 text-[10px] flex justify-center items-center font-bold shadow-lg border-2 border-white"
+          :class="hasCriticalAlerts ? 'bg-red-600 text-white' : 'bg-orange-500 text-white'"
+        >
+          {{ alertSummary.total }}
+        </span>
       </div>
 
-      <div class="user-profile" @click="toggleUserMenu" ref="userProfileRef">
-        <div class="user-avatar">
-          <i class="pi pi-user"></i>
-        </div>
-        <div class="user-info">
-          <span class="user-name">{{ userName }}</span>
-          <span class="user-role">{{ userRole }}</span>
+      <!-- User Profile -->
+      <div
+        ref="userProfileRef"
+        @click="toggleUserMenu"
+        class="relative flex items-center gap-3 cursor-pointer px-4 py-2 rounded-lg transition-all hover:bg-gray-50 border border-transparent hover:border-gray-300"
+      >
+        <!-- Avatar -->
+        <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex justify-center items-center shadow-md">
+          <i class="pi pi-user text-base text-white"></i>
         </div>
 
-        <div v-if="isMenuOpen" class="user-menu">
-          <div class="menu-header">
-            <span class="user-name">{{ userName }}</span>
-            <span class="user-email">admin@embalses.cl</span>
+        <!-- User Info -->
+        <div class="flex flex-col items-start">
+          <span class="font-semibold text-sm text-gray-800">{{ authStore.user?.full_name || 'Usuario' }}</span>
+          <span class="text-xs text-gray-500">{{ userRoleFormatted }}</span>
+        </div>
+
+        <i class="pi pi-chevron-down text-xs text-gray-400"></i>
+
+        <!-- User Menu Dropdown -->
+        <div
+          v-if="isMenuOpen"
+          class="absolute top-full right-0 mt-3 w-64 bg-white rounded-xl shadow-2xl border border-gray-200 z-[1000] overflow-hidden"
+        >
+          <!-- Menu Header -->
+          <div class="p-5 bg-gradient-to-br from-slate-50 to-gray-100 border-b border-gray-200">
+            <span class="block font-semibold text-gray-900 text-sm">{{ authStore.user?.full_name || 'Usuario' }}</span>
+            <span class="block text-xs text-gray-600 mt-1">{{ authStore.user?.email || 'Sin email' }}</span>
           </div>
-          <ul>
-            <li class="menu-item">
-              <i class="pi pi-user-edit"></i>
-              <span>Editar Perfil</span>
+
+          <!-- Menu Items -->
+          <ul class="list-none p-2 m-0">
+            <li class="flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all hover:bg-gray-100 cursor-pointer text-gray-700 hover:text-gray-900">
+              <i class="pi pi-user-edit text-base w-5 text-center text-gray-600"></i>
+              <span class="text-sm font-medium">Editar Perfil</span>
             </li>
-            <li class="menu-item">
-              <i class="pi pi-cog"></i>
-              <span>Configuración</span>
+            <li class="flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all hover:bg-gray-100 cursor-pointer text-gray-700 hover:text-gray-900">
+              <i class="pi pi-cog text-base w-5 text-center text-gray-600"></i>
+              <span class="text-sm font-medium">Configuración</span>
             </li>
-            <li class="menu-item logout" @click="handleLogout">
-              <i class="pi pi-sign-out"></i>
-              <span>Cerrar Sesión</span>
+            <li class="border-t border-gray-200 mt-2 pt-2"></li>
+            <li
+              @click="handleLogout"
+              class="flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all hover:bg-red-50 cursor-pointer text-red-600 hover:text-red-700"
+            >
+              <i class="pi pi-sign-out text-base w-5 text-center"></i>
+              <span class="text-sm font-medium">Cerrar Sesión</span>
             </li>
           </ul>
         </div>
@@ -92,74 +169,3 @@ onUnmounted(() => {
   </header>
 </template>
 
-<style scoped>
-/* --- Estilos existentes (sin cambios) --- */
-.header-container{display:flex;justify-content:space-between;align-items:center;padding:.75rem 1.5rem;background-color:#fff;border-bottom:1px solid #e9ecef;flex-shrink:0}.header-left,.header-right{display:flex;align-items:center;gap:1.5rem}.location-selector{display:flex;align-items:center;gap:.5rem;border:1px solid #ced4da;padding:.5rem 1rem;border-radius:6px;cursor:pointer}.notifications{position:relative;cursor:pointer}.notification-icon{font-size:1.5rem}.notification-badge{position:absolute;top:-5px;right:-5px;background-color:#d9534f;color:#fff;border-radius:50%;width:20px;height:20px;font-size:.75rem;display:flex;justify-content:center;align-items:center;font-weight:700}.user-avatar{width:40px;height:40px;border-radius:50%;background-color:#f1f1f1;display:flex;justify-content:center;align-items:center}.user-avatar .pi-user{font-size:1.25rem;color:#555}.user-info{display:flex;flex-direction:column;align-items:flex-start}.user-name{font-weight:700;font-size:.875rem}.user-role{font-size:.75rem;color:#6c757d}
-
-/* --- NUEVOS ESTILOS PARA EL MENÚ --- */
-
-.user-profile {
-  position: relative; /* Clave para posicionar el menú */
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  cursor: pointer;
-  padding: 0.5rem;
-  border-radius: 8px;
-  transition: background-color 0.2s;
-}
-
-.user-profile:hover {
-  background-color: #f1f1f1;
-}
-
-.user-menu {
-  position: absolute;
-  top: 100%; /* Se posiciona justo debajo del perfil */
-  right: 0;
-  margin-top: 0.5rem;
-  width: 300px;
-  background-color: #343a40; /* Fondo oscuro */
-  color: #f8f9fa; /* Texto claro */
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  z-index: 1000;
-  overflow: hidden;
-}
-
-.menu-header {
-  padding: 1.5rem;
-  text-align: center;
-  border-bottom: 1px solid #495057;
-}
-
-.user-email {
-  font-size: 0.875rem;
-  color: #adb5bd;
-}
-
-.user-menu ul {
-  list-style: none;
-  padding: 0.5rem;
-  margin: 0;
-}
-
-.menu-item {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.75rem 1rem;
-  border-radius: 6px;
-  transition: background-color 0.2s;
-}
-
-.menu-item:hover {
-  background-color: #495057;
-}
-
-.menu-item i {
-  font-size: 1.2rem;
-  width: 24px;
-  text-align: center;
-}
-</style>

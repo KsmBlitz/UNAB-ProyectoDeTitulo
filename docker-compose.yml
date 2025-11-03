@@ -1,0 +1,53 @@
+# docker-compose.yml
+services:
+  # Backend (FastAPI)
+  backend:
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
+    container_name: embalses-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./Backend/.env
+    volumes:
+      # Montar certificados si los necesitas
+      - ./Backend/certificates:/app/certificates:ro
+    restart: unless-stopped
+    networks:
+      - embalses-network
+
+  # Frontend (Vue.js + Nginx)
+  frontend:
+    build:
+      context: ./Frontend
+      dockerfile: Dockerfile
+    container_name: embalses-frontend
+    ports:
+      - "3000:80"  # Puerto 3000 para acceder al frontend
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - embalses-network
+
+  # MongoDB (Opcional - si quieres usar local en lugar de Atlas)
+  # mongodb:
+  #   image: mongo:7
+  #   container_name: embalses-mongodb
+  #   ports:
+  #     - "27017:27017"
+  #   environment:
+  #     MONGO_INITDB_ROOT_USERNAME: admin
+  #     MONGO_INITDB_ROOT_PASSWORD: password
+  #   volumes:
+  #     - mongodb_data:/data/db
+  #   networks:
+  #     - embalses-network
+
+networks:
+  embalses-network:
+    driver: bridge
+
+# volumes:
+#   mongodb_data:

@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { useRouter } from 'vue-router';
-import { jwtDecode } from 'jwt-decode'; // <-- Importar jwt-decode
-import { authStore } from '@/auth/store'; // <-- Importar nuestro store
+import { useRouter, RouterLink } from 'vue-router';
+import { jwtDecode } from 'jwt-decode';
+import { authStore } from '@/auth/store';
+import AuthLayout from '@/components/AuthLayout.vue';
+import { API_BASE_URL } from '@/config/api';
 
 defineOptions({
   name: 'LoginView'
@@ -21,7 +23,7 @@ const handleLogin = async () => {
   formData.append('password', password.value);
 
   try {
-    const response = await fetch('http://127.0.0.1:8000/api/token', {
+    const response = await fetch(`${API_BASE_URL}/api/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: formData,
@@ -35,15 +37,26 @@ const handleLogin = async () => {
     const data = await response.json();
     localStorage.setItem('userToken', data.access_token);
 
-    // --- NUEVA LÓGICA AQUÍ ---
-    // Decodificamos el token para obtener el email y el rol
-    const decodedToken: { sub: string; role: string } = jwtDecode(data.access_token);
+    const userResponse = await fetch(`${API_BASE_URL}/api/users/me`, {
+      headers: {
+        'Authorization': `Bearer ${data.access_token}`
+      }
+    });
 
-    // Guardamos la información en nuestro store
-    authStore.user = {
-      email: decodedToken.sub,
-      role: decodedToken.role
-    };
+    if (userResponse.ok) {
+      const userData = await userResponse.json();
+      authStore.user = {
+        email: userData.email,
+        role: userData.role,
+        full_name: userData.full_name
+      };
+    } else {
+      const decodedToken: { sub: string; role: string } = jwtDecode(data.access_token);
+      authStore.user = {
+        email: decodedToken.sub,
+        role: decodedToken.role
+      };
+    }
 
     router.push('/');
 
@@ -59,38 +72,69 @@ const handleLogin = async () => {
 </script>
 
 <template>
-  <div class="login-container">
-    <div class="login-card">
-      <div class="logo">
-        <i class="pi pi-shield" style="font-size: 3rem; color: #3498db;"></i>
-        <h2>Embalses IoT</h2>
+  <AuthLayout title="Embalses IoT" subtitle="Sistema de monitoreo">
+    <form @submit.prevent="handleLogin" class="flex flex-col">
+      <!-- Error message with icon -->
+      <div v-if="errorMessage" class="px-4 py-3 rounded-lg mb-6 border flex items-start gap-3 animate-shake transition-colors bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800">
+        <i class="pi pi-exclamation-circle text-lg mt-0.5"></i>
+        <span class="flex-1 text-left">{{ errorMessage }}</span>
       </div>
-      <form @submit.prevent="handleLogin" class="login-form">
-        <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
-        <div class="form-group">
-          <label for="email">Correo Electrónico</label>
-          <input type="email" id="email" v-model="email" required placeholder="admin@embalses.cl">
-        </div>
-        <div class="form-group">
-          <label for="password">Contraseña</label>
-          <input type="password" id="password" v-model="password" required placeholder="********">
-        </div>
-        <button type="submit" class="login-button">Iniciar Sesión</button>
-      </form>
-    </div>
-  </div>
-</template>
 
-<style scoped>
-/* Los estilos se mantienen igual, solo añadimos uno para el error */
-.error-message {
-  background-color: #f8d7da;
-  color: #721c24;
-  border: 1px solid #f5c6cb;
-  padding: 0.75rem 1.25rem;
-  margin-bottom: 1rem;
-  border-radius: 0.25rem;
-  text-align: center;
-}
-.login-container{display:flex;justify-content:center;align-items:center;min-height:100vh;background-color:#f4f6f9;padding:1rem}.login-card{background-color:#fff;padding:2.5rem 3rem;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);width:100%;max-width:400px;text-align:center}.logo{margin-bottom:2rem}.logo h2{margin:.5rem 0 0;color:#2c3e50}.login-form{display:flex;flex-direction:column}.form-group{margin-bottom:1.5rem;text-align:left}.form-group label{display:block;margin-bottom:.5rem;font-weight:600;color:#34495e}.form-group input{width:100%;padding:.75rem 1rem;border:1px solid #ced4da;border-radius:6px;font-size:1rem;box-sizing:border-box}.login-button{width:100%;padding:.85rem 1.5rem;background-color:#3498db;color:#fff;border:none;border-radius:6px;font-size:1.1rem;font-weight:700;cursor:pointer;transition:background-color .2s ease-in-out;margin-top:1rem}.login-button:hover{background-color:#2980b9}
-</style>
+      <!-- Email field with icon -->
+      <div class="mb-6 text-left">
+  <label for="email" class="block mb-2.5 font-semibold text-sm tracking-wide text-gray-900">
+          Correo Electrónico
+        </label>
+        <div class="relative">
+          <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+            <i class="pi pi-envelope text-gray-400"></i>
+          </div>
+          <input
+            type="email"
+            id="email"
+            v-model="email"
+            required
+            placeholder="admin@embalses.cl"
+            class="w-full pl-11 pr-4 py-3.5 border rounded-lg text-base focus:outline-none focus:ring-2 bg-white border-gray-400 text-gray-900 placeholder-gray-400 focus:ring-blue-500 focus:border-transparent hover:border-gray-500"
+          >
+        </div>
+      </div>
+
+      <!-- Password field with icon -->
+      <div class="mb-2 text-left">
+  <label for="password" class="block mb-2.5 font-semibold text-sm tracking-wide text-gray-900">
+          Contraseña
+        </label>
+        <div class="relative">
+          <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+            <i class="pi pi-lock text-gray-400"></i>
+          </div>
+          <input
+            type="password"
+            id="password"
+            v-model="password"
+            required
+            placeholder="••••••••"
+            class="w-full pl-11 pr-4 py-3.5 border rounded-lg text-base focus:outline-none focus:ring-2 bg-white border-gray-400 text-gray-900 placeholder-gray-400 focus:ring-blue-500 focus:border-transparent hover:border-gray-500"
+          >
+        </div>
+      </div>
+
+      <!-- Forgot password link -->
+      <div class="mb-6 text-right">
+  <RouterLink to="/forgot-password" class="no-underline text-sm hover:underline text-blue-600 hover:text-blue-700">
+          ¿Olvidaste tu contraseña?
+        </RouterLink>
+      </div>
+
+      <!-- Submit button with hover effect -->
+      <button
+        type="submit"
+  class="w-full px-6 py-3.5 bg-gradient-to-r text-white border-none rounded-lg text-base font-semibold cursor-pointer transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center justify-center gap-2 from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
+      >
+        <i class="pi pi-sign-in"></i>
+        <span>Iniciar Sesión</span>
+      </button>
+    </form>
+  </AuthLayout>
+</template>

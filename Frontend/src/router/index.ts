@@ -11,6 +11,16 @@ const router = createRouter({
       component: () => import('../views/LoginView.vue')
     },
     {
+      path: '/forgot-password',
+      name: 'ForgotPassword',
+      component: () => import('../views/ForgotPasswordView.vue')
+    },
+    {
+      path: '/reset-password',
+      name: 'ResetPassword',
+      component: () => import('../views/ResetPasswordView.vue')
+    },
+    {
       path: '/',
       component: () => import('../views/DashboardLayout.vue'),
       meta: { requiresAuth: true },
@@ -26,6 +36,18 @@ const router = createRouter({
           component: () => import('../views/UserManagementView.vue'),
           // 2. Añadimos el rol requerido a la metadata de la ruta
           meta: { requiresAuth: true, requiresRole: 'admin' }
+        },
+        {
+          path: 'alerts',
+          name: 'AlertsManagement',
+          component: () => import('../views/AlertsManagementView.vue'),
+          meta: { requiresAuth: true }
+        },
+        {
+          path: 'audit',
+          name: 'AuditLog',
+          component: () => import('../views/AuditLogView.vue'),
+          meta: { requiresAuth: true, requiresRole: 'admin' }
         }
       ]
     },
@@ -40,12 +62,32 @@ router.beforeEach((to, from, next) => {
   if (to.meta.requiresAuth && !isAuthenticated) {
     // Si requiere auth y no está logueado, va al login
     next('/login');
-  } else if (to.name === 'Login' && isAuthenticated) {
-    // Si está logueado e intenta ir al login, va al dashboard
+  } else if ((to.name === 'Login' || to.name === 'ForgotPassword' || to.name === 'ResetPassword') && isAuthenticated) {
+    // Si está logueado e intenta ir al login, recuperación o reset, va al dashboard
     next('/');
   } else if (to.meta.requiresRole) {
-    // Si la ruta requiere un rol...
-    const userRole = authStore.user?.role;
+    // Si la ruta requiere un rol, decodificar el token para obtener el rol
+    const token = localStorage.getItem('userToken');
+    let userRole = authStore.user?.role;
+    
+    // Si no hay usuario en el store, intentar decodificar el token
+    if (!userRole && token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        userRole = payload.role;
+        // Restaurar el usuario en el store
+        if (!authStore.user) {
+          authStore.user = {
+            email: payload.sub,
+            role: payload.role,
+            full_name: payload.full_name
+          };
+        }
+      } catch (e) {
+        console.error('Error decodificando token:', e);
+      }
+    }
+    
     if (userRole === to.meta.requiresRole) {
       // ...y el usuario tiene ese rol, le permitimos pasar
       next();
@@ -55,7 +97,6 @@ router.beforeEach((to, from, next) => {
       next('/');
     }
   } else {
-    // Para todas las demás rutas, permitimos el paso
     next();
   }
 });
