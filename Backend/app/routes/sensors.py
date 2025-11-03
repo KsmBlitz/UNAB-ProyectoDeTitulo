@@ -112,14 +112,16 @@ async def get_latest_metrics(
                 "temperature": 0,
                 "ph": 0,
                 "conductivity": 0,
+                "water_level": 0,
                 "timestamp": None,
                 "reservoir_id": reservoir_id
             }
         
         return {
             "temperature": latest_reading.get("Temperature", 0),
-            "ph": latest_reading.get("pH", 0),
-            "conductivity": latest_reading.get("Conductivity", 0),
+            "ph": latest_reading.get("pH_Value", 0),
+            "conductivity": latest_reading.get("EC", 0),
+            "water_level": latest_reading.get("Water_Level", 0),
             "timestamp": latest_reading.get("ReadTime"),
             "reservoir_id": latest_reading.get("reservoirId")
         }
@@ -130,6 +132,7 @@ async def get_latest_metrics(
             "temperature": 0,
             "ph": 0,
             "conductivity": 0,
+            "water_level": 0,
             "timestamp": None,
             "reservoir_id": reservoir_id
         }
@@ -138,7 +141,7 @@ async def get_latest_metrics(
 @router.get("/charts/historical-data")
 async def get_historical_data(
     reservoir_id: Optional[str] = Query(None),
-    hours: int = Query(24, ge=1, le=168),
+    hours: int = Query(24, ge=0, le=8760),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -146,46 +149,63 @@ async def get_historical_data(
     
     Args:
         reservoir_id: Optional filter by reservoir ID
-        hours: Number of hours to retrieve (default 24, max 168)
+        hours: Number of hours to retrieve (0 = all data, max 8760 = 1 year)
     """
     try:
         query: Dict[str, Any] = {}
         if reservoir_id:
             query["reservoirId"] = reservoir_id
         
-        # Get data from last N hours
-        start_time = datetime.now(timezone.utc) - timedelta(hours=hours)
-        query["ReadTime"] = {"$gte": start_time}
+        # Get data from last N hours (0 = all data)
+        if hours > 0:
+            start_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+            query["ReadTime"] = {"$gte": start_time}
         
         # Fetch data
         cursor = sensor_collection.find(query).sort("ReadTime", 1).limit(1000)
         readings = await cursor.to_list(length=1000)
         
-        # Format data for charts
-        data_points = []
+        # Format data for charts - separate arrays for each sensor type
+        labels = []
+        temperatura_data = []
+        ph_data = []
+        conductividad_data = []
+        nivel_agua_data = []
+        
         for reading in readings:
-            data_points.append({
-                "timestamp": reading.get("ReadTime"),
-                "temperature": reading.get("Temperature", 0),
-                "ph": reading.get("pH", 0),
-                "conductivity": reading.get("Conductivity", 0),
-                "reservoir_id": reading.get("reservoirId")
-            })
+            # Format timestamp
+            timestamp = reading.get("ReadTime")
+            if timestamp:
+                labels.append(timestamp.strftime("%H:%M") if hasattr(timestamp, 'strftime') else str(timestamp))
+            else:
+                labels.append("")
+            
+            # Extract values using correct field names
+            temperatura_data.append(reading.get("Temperature", 0))
+            ph_data.append(reading.get("pH_Value", 0))
+            conductividad_data.append(reading.get("EC", 0))
+            nivel_agua_data.append(reading.get("Water_Level", 0))
         
         return {
-            "data": data_points,
-            "count": len(data_points),
-            "period_hours": hours,
-            "reservoir_id": reservoir_id
+            "labels": labels,
+            "temperatura": temperatura_data,
+            "ph": ph_data,
+            "conductividad": conductividad_data,
+            "nivel_agua": nivel_agua_data,
+            "count": len(readings),
+            "period_hours": hours
         }
         
     except Exception as e:
         logger.error(f"Error obteniendo datos históricos: {e}")
         return {
-            "data": [],
+            "labels": [],
+            "temperatura": [],
+            "ph": [],
+            "conductividad": [],
+            "nivel_agua": [],
             "count": 0,
-            "period_hours": hours,
-            "reservoir_id": reservoir_id
+            "period_hours": hours
         }
 
 

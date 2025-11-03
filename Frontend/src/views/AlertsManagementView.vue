@@ -695,11 +695,8 @@ async function loadHistory(): Promise<void> {
   try {
     const token = localStorage.getItem('userToken')
     if (!token) {
-      console.error('No hay token de autenticación')
       throw new Error('No hay token de autenticación')
     }
-
-    console.log('Cargando historial desde:', `${API_BASE_URL}/api/alerts/history?limit=50`)
 
     const response = await fetch(`${API_BASE_URL}/api/alerts/history?limit=50`, {
       headers: {
@@ -708,27 +705,24 @@ async function loadHistory(): Promise<void> {
       }
     })
 
-    console.log('Response status:', response.status)
-    console.log('Response headers:', Object.fromEntries(response.headers.entries()))
-
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('Error response:', errorText)
       throw new Error(`Error ${response.status}: ${response.statusText}`)
     }
 
     const contentType = response.headers.get('content-type')
     if (!contentType || !contentType.includes('application/json')) {
       const responseText = await response.text()
-      console.error('Respuesta no es JSON:', responseText.substring(0, 200))
       throw new Error('La respuesta del servidor no es JSON válido')
     }
 
     const data = await response.json()
-    console.log('Data recibida:', data)
 
+    // Backend devuelve un array directo, no un objeto con .history
+    const historyArray = Array.isArray(data) ? data : (data.history || [])
+    
     // Mapear los datos del API al formato esperado por el componente
-    alertHistory.value = data.history?.map((item: AlertHistoryApiItem) => ({
+    alertHistory.value = historyArray.map((item: AlertHistoryApiItem) => ({
       id: item._id || item.alert_id,
       type: item.type,
       level: item.level,
@@ -737,7 +731,7 @@ async function loadHistory(): Promise<void> {
       resolved_at: item.dismissed_at,
       duration_minutes: typeof item.duration_minutes === 'string' ? parseInt(item.duration_minutes) : item.duration_minutes,
       dismissed_by: item.dismissed_by
-    })) || []
+    }))
 
   } catch (error) {
     console.error('Error cargando historial:', error)
@@ -798,8 +792,6 @@ async function loadThresholdConfig(): Promise<void> {
       throw new Error('No hay token de autenticación')
     }
 
-    console.log('Cargando configuración desde:', `${API_BASE_URL}/api/alerts/config`)
-
     const response = await fetch(`${API_BASE_URL}/api/alerts/config`, {
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -807,25 +799,18 @@ async function loadThresholdConfig(): Promise<void> {
       }
     })
 
-    console.log('Config response status:', response.status)
-
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('Config error response:', errorText)
       throw new Error(`Error ${response.status}: ${response.statusText}`)
     }
 
     const contentType = response.headers.get('content-type')
     if (!contentType || !contentType.includes('application/json')) {
       const responseText = await response.text()
-      console.error('Config respuesta no es JSON:', responseText.substring(0, 200))
       throw new Error('La respuesta del servidor no es JSON válido')
     }
 
-    const data = await response.json()
-    console.log('Config data recibida:', data)
-
-    // Convertir del formato del backend al formato del frontend
+    const data = await response.json()    // Convertir del formato del backend al formato del frontend
     const thresholds = data.thresholds
 
     thresholdConfig.value = {

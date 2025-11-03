@@ -61,10 +61,10 @@ onMounted(() => {
               { hours: 1, label: '1h' },
               { hours: 6, label: '6h' },
               { hours: 24, label: '24h' },
+              { hours: 72, label: '3d' },
               { hours: 168, label: '7d' },
               { hours: 720, label: '30d' },
-              { hours: 8760, label: '1 año' },
-              { hours: 0, label: 'Todo' }
+              { hours: 0, label: 'Todos' }
             ]"
             :key="range.hours"
             @click="handleTimeRangeChange(range.hours)"

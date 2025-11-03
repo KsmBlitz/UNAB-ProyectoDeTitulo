@@ -78,45 +78,22 @@ async def send_critical_alert_whatsapp(
             "Content-Type": "application/json"
         }
         
-        # IMPORTANT: WhatsApp Business API in production requires approved templates
-        # TODO: Once Meta approves the 'alerta_critica_embalse' template,
-        # switch to using templates instead of free text (see commented code below)
-        
-        # Option 1: Template (when approved) - RECOMMENDED FOR PRODUCTION
-        # payload = {
-        #     "messaging_product": "whatsapp",
-        #     "to": phone_wa,
-        #     "type": "template",
-        #     "template": {
-        #         "name": "alerta_critica_embalse",
-        #         "language": {"code": "es"},
-        #         "components": [{
-        #             "type": "body",
-        #             "parameters": [
-        #                 {"type": "text", "text": reservoir_name},
-        #                 {"type": "text", "text": alert_name},
-        #                 {"type": "text", "text": str(value)}
-        #             ]
-        #         }]
-        #     }
-        # }
-        
-        # Option 2: Free text (only works in sandbox or with active conversation)
-        message = f"""🚨 ALERTA CRÍTICA
-
-Embalse: {reservoir_name}
-Tipo: {alert_name}
-Valor: {value}
-
-Por favor revise el sistema lo antes posible."""
-        
+        # Using approved WhatsApp template
         payload = {
             "messaging_product": "whatsapp",
             "to": phone_wa,
-            "type": "text",
-            "text": {
-                "preview_url": False,
-                "body": message
+            "type": "template",
+            "template": {
+                "name": "alerta_critica_embalse",
+                "language": {"code": "es_CL"},
+                "components": [{
+                    "type": "body",
+                    "parameters": [
+                        {"type": "text", "text": reservoir_name},
+                        {"type": "text", "text": alert_name},
+                        {"type": "text", "text": str(value)}
+                    ]
+                }]
             }
         }
         

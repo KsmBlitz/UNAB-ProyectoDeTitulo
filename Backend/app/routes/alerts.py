@@ -179,8 +179,8 @@ async def dismiss_alert(
             logger.error(f"Error insertando en historial: {history_error}")
             # Don't fail dismiss due to history error
         
-        # Clear notification throttling for this alert
-        await clear_notifications_for_alert(request.alert_id)
+        # TODO: Clear notification throttling for this alert if needed
+        # await clear_notifications_for_alert(request.alert_id)
         
         logger.info(f"Alerta {request.alert_id} cerrada por {user_email} ({user_role})")
         

@@ -81,7 +81,49 @@ async function fetchMetrics() {
       }
     }
 
-    metrics.value = await response.json();
+    const rawData = await response.json();
+    
+    // Transform backend format to frontend format
+    const temperatura = rawData.temperature ?? 0;
+    const ph = rawData.ph ?? 0;
+    const conductividad = rawData.conductivity ?? 0;
+    const nivel = rawData.water_level ?? 0;
+    
+    // Helper to map 'normal' to 'optimal'
+    const mapStatus = (status: 'normal' | 'warning' | 'critical'): 'optimal' | 'warning' | 'critical' => {
+      return status === 'normal' ? 'optimal' : status;
+    };
+    
+    metrics.value = {
+      temperatura_agua: {
+        value: temperatura,
+        unit: '°C',
+        changeText: temperatura > 0 ? 'Actualizado' : 'Sin datos',
+        isPositive: temperatura >= BLUEBERRY_THRESHOLDS.temperature.optimal_min && temperatura <= BLUEBERRY_THRESHOLDS.temperature.optimal_max,
+        status: mapStatus(evaluateMetricStatus(temperatura, BLUEBERRY_THRESHOLDS.temperature))
+      },
+      ph: {
+        value: ph,
+        unit: '',
+        changeText: ph > 0 ? 'Actualizado' : 'Sin datos',
+        isPositive: ph >= BLUEBERRY_THRESHOLDS.ph.optimal_min && ph <= BLUEBERRY_THRESHOLDS.ph.optimal_max,
+        status: mapStatus(evaluateMetricStatus(ph, BLUEBERRY_THRESHOLDS.ph))
+      },
+      conductividad: {
+        value: conductividad,
+        unit: 'mS/cm',
+        changeText: conductividad > 0 ? 'Actualizado' : 'Sin datos',
+        isPositive: conductividad <= BLUEBERRY_THRESHOLDS.conductivity.optimal_max,
+        status: mapStatus(evaluateMetricStatus(conductividad, BLUEBERRY_THRESHOLDS.conductivity))
+      },
+      nivel_agua: {
+        value: nivel,
+        unit: 'cm',
+        changeText: nivel > 0 ? 'Actualizado' : 'Sin datos',
+        isPositive: nivel >= BLUEBERRY_THRESHOLDS.water_level.optimal_min && nivel <= BLUEBERRY_THRESHOLDS.water_level.optimal_max,
+        status: mapStatus(evaluateMetricStatus(nivel, BLUEBERRY_THRESHOLDS.water_level))
+      }
+    };
   } catch (e) {
     console.error('Error al cargar métricas:', e);
     if (e instanceof Error) {
@@ -155,46 +197,56 @@ async function fetchMetrics() {
 
         <MetricCard
           title="Temperatura del Agua"
-          :value="String(metrics.temperatura_agua.value)"
-          :unit="metrics.temperatura_agua.unit"
-          :changeText="metrics.temperatura_agua.changeText"
-          :isPositive="metrics.temperatura_agua.isPositive"
-          :status="metrics.temperatura_agua.status || evaluateMetricStatus(metrics.temperatura_agua.value, BLUEBERRY_THRESHOLDS.temperature)"
+          :value="String(metrics.temperatura_agua?.value ?? 'N/A')"
+          :unit="metrics.temperatura_agua?.unit ?? '°C'"
+          :changeText="metrics.temperatura_agua?.changeText ?? 'Sin datos'"
+          :isPositive="metrics.temperatura_agua?.isPositive ?? false"
+          :status="metrics.temperatura_agua?.status ?? 'critical'"
           icon="pi pi-sun"
         />
 
 
         <MetricCard
           title="Nivel de pH"
-          :value="String(metrics.ph.value)"
-          :unit="metrics.ph.unit"
-          :changeText="metrics.ph.changeText"
-          :isPositive="metrics.ph.isPositive"
-          :status="metrics.ph.status || evaluateMetricStatus(metrics.ph.value, BLUEBERRY_THRESHOLDS.ph)"
+          :value="String(metrics.ph?.value ?? 'N/A')"
+          :unit="metrics.ph?.unit ?? ''"
+          :changeText="metrics.ph?.changeText ?? 'Sin datos'"
+          :isPositive="metrics.ph?.isPositive ?? false"
+          :status="metrics.ph?.status ?? 'critical'"
           icon="pi pi-flask"
         />
 
 
         <MetricCard
           title="Conductividad Eléctrica"
-          :value="String(metrics.conductividad.value)"
-          :unit="metrics.conductividad.unit"
-          :changeText="metrics.conductividad.changeText"
-          :isPositive="metrics.conductividad.isPositive"
-          :status="metrics.conductividad.status || evaluateMetricStatus(metrics.conductividad.value, BLUEBERRY_THRESHOLDS.conductivity)"
+          :value="String(metrics.conductividad?.value ?? 'N/A')"
+          :unit="metrics.conductividad?.unit ?? 'mS/cm'"
+          :changeText="metrics.conductividad?.changeText ?? 'Sin datos'"
+          :isPositive="metrics.conductividad?.isPositive ?? false"
+          :status="metrics.conductividad?.status ?? 'critical'"
           icon="pi pi-bolt"
         />
 
 
         <MetricCard
           title="Nivel del Agua"
-          :value="String(metrics.nivel_agua.value)"
-          :unit="metrics.nivel_agua.unit"
-          :changeText="metrics.nivel_agua.changeText"
-          :isPositive="metrics.nivel_agua.isPositive"
-          :status="metrics.nivel_agua.status || evaluateMetricStatus(metrics.nivel_agua.value, BLUEBERRY_THRESHOLDS.water_level)"
+          :value="String(metrics.nivel_agua?.value ?? 'N/A')"
+          :unit="metrics.nivel_agua?.unit ?? 'cm'"
+          :changeText="metrics.nivel_agua?.changeText ?? 'Sin datos'"
+          :isPositive="metrics.nivel_agua?.isPositive ?? false"
+          :status="metrics.nivel_agua?.status ?? 'critical'"
           icon="pi pi-chart-bar"
         />
+      </div>
+
+      <div v-else class="flex items-start gap-4 p-6 bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-300 rounded-xl text-blue-800 shadow-md">
+        <div class="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center flex-shrink-0">
+          <i class="pi pi-info-circle text-xl text-white"></i>
+        </div>
+        <div class="flex-1">
+          <p class="font-semibold mb-2">No hay datos disponibles</p>
+          <p class="text-sm">Esperando lecturas de los sensores...</p>
+        </div>
       </div>
 
       <!-- Leyenda de colores -->

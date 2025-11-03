@@ -131,9 +131,20 @@ const actions = {
   async fetchSummary(): Promise<void> {
     try {
       const response = await authenticatedFetch('/api/alerts/summary')
-      const data: AlertSummary = await response.json()
+      const data = await response.json()
 
-      state.summary = data
+      // Backend devuelve: {total_active: 3, by_level: {critical: 1, warning: 2}, by_type: {...}}
+      const byLevel = data.by_level || {}
+      
+      state.summary = {
+        total: data.total_active || 0,
+        critical: byLevel.critical || byLevel.crítica || byLevel.crítico || 0,
+        warning: byLevel.warning || byLevel.advertencia || 0,
+        info: byLevel.info || byLevel.información || 0,
+        has_critical: (byLevel.critical || byLevel.crítica || byLevel.crítico || 0) > 0,
+        last_updated: new Date().toISOString()
+      }
+      
       state.lastUpdated = new Date()
       state.error = null
     } catch (error) {
@@ -150,16 +161,31 @@ const actions = {
       state.isLoading = true
       const response = await authenticatedFetch('/api/alerts/active')
 
-      const data: AlertsResponse = await response.json()
+      const data = await response.json()
 
-      state.activeAlerts = data.alerts || []
+      // Backend devuelve un array directo, no un objeto con estructura
+      const alertsArray = Array.isArray(data) ? data : []
+      
+      state.activeAlerts = alertsArray
+      
+      // Calcular summary desde las alertas
+      const criticalCount = alertsArray.filter(a => 
+        a.level === 'critical' || a.level === 'crítica' || a.level === 'crítico'
+      ).length
+      const warningCount = alertsArray.filter(a => 
+        a.level === 'warning' || a.level === 'advertencia'
+      ).length
+      const infoCount = alertsArray.filter(a => 
+        a.level === 'info' || a.level === 'información'
+      ).length
+      
       state.summary = {
-        total: data.count || 0,
-        critical: data.summary?.critical || 0,
-        warning: data.summary?.warning || 0,
-        info: data.summary?.info || 0,
-        has_critical: (data.summary?.critical || 0) > 0,
-        last_updated: data.last_check || new Date().toISOString()
+        total: alertsArray.length,
+        critical: criticalCount,
+        warning: warningCount,
+        info: infoCount,
+        has_critical: criticalCount > 0,
+        last_updated: new Date().toISOString()
       }
 
       state.lastUpdated = new Date()
