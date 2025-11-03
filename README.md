@@ -1,45 +1,112 @@
-# Sistema IoT para Monitoreo de Riego de Arándanos
+# Sistema IoT de Monitoreo de Calidad del Agua para Cultivos de Arándanos
 
 ![Vue.js](https://img.shields.io/badge/Vue.js-3.5-4FC08D?logo=vue.js&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?logo=typescript&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.104-009688?logo=fastapi&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
 ![MongoDB](https://img.shields.io/badge/MongoDB-7.0-47A248?logo=mongodb&logoColor=white)
 ![AWS IoT](https://img.shields.io/badge/AWS_IoT-FF9900?logo=amazonaws&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-24.0-2496ED?logo=docker&logoColor=white)
-![Status](https://img.shields.io/badge/Status-Producción-green)
+![ML](https://img.shields.io/badge/ML-Scikit--learn-F7931E?logo=scikit-learn&logoColor=white)
+![Status](https://img.shields.io/badge/Status-Producci%C3%B3n-success)
 
 ## Descripción
 
-Sistema completo de monitoreo IoT para cultivos de arándanos en Chile, que integra sensores AWS IoT, dashboard web en tiempo real, y sistema de alertas inteligentes. Diseñado específicamente para optimizar el riego y mantener condiciones óptimas para el cultivo de arándanos (pH 5.0-5.5, conductividad <1.5 dS/m).
+Plataforma IoT empresarial completa para el monitoreo inteligente de calidad del agua en cultivos de arándanos en Chile. Integra sensores en tiempo real con AWS IoT Core, predicción mediante Machine Learning, sistema de alertas multinivel, y auditoría completa de eventos del sistema.
 
-### Objetivos del Sistema
-- **Monitoreo continuo** de parámetros críticos del agua de riego
-- **Alertas proactivas** cuando los valores salen de rangos óptimos
-- **Gestión centralizada** para administradores y operarios
-- **Trazabilidad completa** de eventos y acciones del sistema
+**Especializado para arándanos chilenos:** pH óptimo 5.0-5.5, conductividad eléctrica <1.5 dS/m.
+
+### Objetivos Principales
+- Monitoreo en tiempo real de pH, conductividad eléctrica, temperatura y nivel de agua
+- Predicción inteligente con Machine Learning (regresión lineal) de valores futuros
+- Sistema de alertas proactivo con notificaciones automáticas (Email/WhatsApp)
+- Gestión de usuarios con roles (Admin/Operario) y autenticación JWT
+- Auditoría completa de todas las acciones críticas del sistema
+- Visualización avanzada con gráficos históricos y tendencias predictivas
 
 ---
 
-## Vista Previa del Sistema
+## Características Implementadas
 
-### Dashboard Principal
-- Métricas en tiempo real (pH, Conductividad, Temperatura, Nivel de Agua)
-- Indicadores visuales por colores según rangos óptimos
-- Alertas críticas y de advertencia
-- Navegación responsiva para móviles
+### Autenticación y Seguridad
+- Login/Logout JWT con tokens seguros y renovación automática
+- Recuperación de contraseña vía SMTP (Gmail/personalizado)
+- Sistema de roles RBAC: Administrador y Operario con permisos granulares
+- Hash bcrypt para contraseñas con salt rounds configurables
+- Protección de rutas en frontend y backend con middleware
+- Validación de tokens y manejo de expiración automático
 
-### Sistema de Alertas
-- Notificaciones en tiempo real cuando se superan umbrales
-- Gestión de alertas con dismissal manual
-- Historial completo para auditoría
-- Período de gracia de 1 hora para evitar spam
+### Dashboard en Tiempo Real
+- Métricas actualizadas cada 30 segundos automáticamente
+- Cards responsivos con indicadores de estado por colores (verde/amarillo/rojo)
+- Gráficos históricos interactivos con Chart.js y zoom
+- Gráficos individuales para cada métrica (pH, EC, Temperatura)
+- Selector de rangos: Últimas 24h, 7 días, 30 días, rango personalizado
+- Modo claro/oscuro persistente con transiciones suaves
+- Diseño responsive optimizado para desktop, tablet y móvil
 
-### Gestión de Usuarios
-- Sistema de roles (Administrador/Operario)
-- Autenticación JWT segura
-- Recuperación de contraseña vía email
-- CRUD completo de usuarios para admins
+### Predicción con Machine Learning
+- Modelo de regresión lineal entrenado con datos históricos
+- Predicción de pH y Conductividad para los próximos N días (configurable)
+- Configuración dinámica: Días a predecir (1-30) y días históricos (1-90)
+- Visualización integrada de predicciones en gráficos con línea punteada
+- Detección de valores críticos en predicciones futuras
+- Alertas predictivas cuando se prevén valores fuera de rango
+- Modal de configuración con validación en tiempo real
+- Registro en auditoría de cambios en parámetros del modelo
+
+### Sistema de Alertas Multinivel
+- Detección automática cada 6 minutos mediante servicio de fondo
+- Tres niveles de severidad: Info (azul), Warning (amarillo), Critical (rojo)
+- Umbrales personalizables por métrica y nivel
+- Notificaciones automáticas:
+  - Email SMTP con plantillas HTML profesionales
+  - WhatsApp Business API (preparado para integración)
+- Período de gracia: 1 hora para evitar alertas duplicadas
+- Dismissal manual con registro de quién cerró cada alerta
+- Historial completo con filtros por severidad, métrica y fecha
+- Estados: Activa, Resuelta, Auto-resuelta
+- Duración calculada automáticamente al resolver
+
+### Auditoría y Trazabilidad
+- Registro automático de todas las acciones críticas del sistema
+- Eventos auditados:
+  - Login/Logout de usuarios
+  - Creación/Edición/Eliminación de usuarios
+  - Cambios en configuración de alertas
+  - Dismissal de alertas con usuario responsable
+  - Actualización de parámetros del modelo ML
+- Metadata completa: Usuario, timestamp, IP, detalles de la acción
+- Filtros avanzados: Por acción, usuario, rango de fechas
+- Interfaz visual con badges de colores por tipo de evento
+- Exportable para auditorías externas (preparado)
+
+### Gestión de Usuarios (Solo Administradores)
+- CRUD completo con interfaz moderna
+- Validación robusta: Emails únicos, campos requeridos, formato correcto
+- Asignación de roles con permisos diferenciados
+- Deshabilitación de usuarios sin eliminación permanente
+- Tabla interactiva con búsqueda y paginación
+- Modales de creación/edición con feedback visual
+- Confirmación de acciones críticas (eliminar usuario)
+
+### Conectividad IoT
+- AWS IoT Core configurado con certificados TLS
+- Comunicación MQTT segura para sensores ESP32
+- Ingesta de datos con validación de esquema
+- Almacenamiento optimizado en MongoDB con índices
+- APIs REST documentadas con Swagger/ReDoc
+- WebSockets preparados para streaming en tiempo real
+
+### Experiencia de Usuario
+- Interfaz limpia con Tailwind CSS y componentes reutilizables
+- Animaciones suaves en transiciones y modales
+- Iconos profesionales con PrimeIcons
+- Feedback visual inmediato en todas las acciones
+- Mensajes de error descriptivos y accionables
+- Loading states para operaciones asíncronas
+- Toast notifications para eventos importantes
+- Sidebar colapsable con navegación intuitiva
 
 ---
 
@@ -47,211 +114,541 @@ Sistema completo de monitoreo IoT para cultivos de arándanos en Chile, que inte
 
 ```mermaid
 graph TB
-    subgraph "Sensores IoT"
-        ESP32[ESP32 + Sensores]
-        AWS[AWS IoT Core]
+    subgraph "IoT Layer"
+        ESP32[ESP32 + Sensores pH/EC/Temp]
+        AWS[AWS IoT Core<br/>MQTT + TLS]
     end
     
     subgraph "Backend Services"
-        API[FastAPI Backend]
-        DB[(MongoDB)]
-        SMTP[Gmail SMTP]
+        API[FastAPI REST API<br/>Puerto 8000]
+        ML[Servicio ML<br/>Scikit-learn]
+        ALERT[Alert Watcher<br/>Background Task]
+        AUDIT[Audit Service<br/>Logging]
+        DB[(MongoDB<br/>Motor Async)]
     end
     
-    subgraph "Frontend"
-        WEB[Vue.js Dashboard]
-        AUTH[Autenticación JWT]
+    subgraph "External Services"
+        SMTP[Gmail SMTP<br/>Notificaciones Email]
+        WA[WhatsApp Business API<br/>Mensajes]
     end
     
-    ESP32 -->|MQTT/TLS| AWS
-    AWS -->|Lambda/HTTP| API
-    API <-->|CRUD Operations| DB
-    API -->|Email Reset| SMTP
+    subgraph "Frontend Application"
+        WEB[Vue 3 + TypeScript<br/>Puerto 3000]
+        CHARTS[Chart.js<br/>Visualización]
+        AUTH[JWT Auth<br/>Store]
+    end
+    
+    ESP32 -->|MQTT Pub| AWS
+    AWS -->|HTTP Webhook| API
+    API <-->|CRUD Async| DB
+    API --> ML
+    API --> ALERT
+    API --> AUDIT
+    ALERT -->|Email| SMTP
+    ALERT -->|WhatsApp| WA
     WEB <-->|REST API| API
-    WEB -->|JWT Auth| AUTH
+    WEB --> CHARTS
+    WEB --> AUTH
     
     style ESP32 fill:#2196F3,stroke:#1976D2,stroke-width:2px,color:#fff
     style AWS fill:#FF9800,stroke:#F57C00,stroke-width:2px,color:#fff
     style API fill:#4CAF50,stroke:#388E3C,stroke-width:2px,color:#fff
-    style DB fill:#9C27B0,stroke:#7B1FA2,stroke-width:2px,color:#fff
+    style ML fill:#9C27B0,stroke:#7B1FA2,stroke-width:2px,color:#fff
+    style DB fill:#E91E63,stroke:#C2185B,stroke-width:2px,color:#fff
     style SMTP fill:#F44336,stroke:#D32F2F,stroke-width:2px,color:#fff
     style WEB fill:#00BCD4,stroke:#0097A7,stroke-width:2px,color:#fff
-    style AUTH fill:#795548,stroke:#5D4037,stroke-width:2px,color:#fff
 ```
 
+### Flujo de Datos
 
-## Funcionalidades Implementadas
-
-### Autenticación y Seguridad
-- **Login/Logout** con JWT tokens seguros
-- **Recuperación de contraseña** vía email SMTP
-- **Sistema de roles** diferenciados (Admin/Operario)
-- **Sesiones persistentes** con renovación automática
-
-### Dashboard en Tiempo Real 
-- **Métricas actualizadas** cada 30 segundos automáticamente
-- **Cards responsivos** con indicadores de estado por colores
-- **Navegación intuitiva** entre módulos del sistema
-- **Diseño móvil** optimizado para tablets y smartphones
-
-### Sistema de Alertas Avanzado
-- **Detección automática** de condiciones críticas cada 6 minutos
-- **Alertas por niveles:** Info, Warning, Critical
-- **Dismissal manual** con trazabilidad de quién cerró cada alerta
-- **Período de gracia** de 1 hora para evitar alertas duplicadas
-- **Historial completo** con duración y resolución de cada evento
-
-### Configuración Dinámica de Umbrales
-- **Interface administrativa** para configurar rangos óptimos
-- **Validación en tiempo real** de valores ingresados
-- **Persistencia en MongoDB** de todas las configuraciones
-- **Umbrales específicos** para arándanos chilenos:
-  - pH: 4.5 - 6.5 (óptimo: 5.0-5.5)
-  - Conductividad: < 1.5 dS/m
-  - Temperatura: 10°C - 35°C
-  - Nivel de agua: 40% - 95%
-
-### Gestión de Usuarios (Solo Admin)
-- **CRUD completo** de usuarios del sistema
-- **Asignación de roles** y permisos granulares
-- **Validación de emails únicos** y datos requeridos
-- **Hash seguro** de contraseñas con bcrypt
-
-### Conectividad IoT
-- **AWS IoT Core** preparado para sensores ESP32
-- **Certificados TLS** para comunicación segura
-- **Estructura MongoDB** optimizada para datos de sensores
-- **APIs REST** listas para integración con hardware
+1. **Sensores → Cloud:** ESP32 publica datos cada 5 minutos vía MQTT a AWS IoT Core
+2. **Cloud → Backend:** AWS envía datos al endpoint FastAPI mediante HTTP
+3. **Procesamiento:** FastAPI valida, procesa y almacena en MongoDB
+4. **Monitoreo:** Alert Watcher analiza valores cada 6 minutos
+5. **Notificaciones:** Si hay valores críticos, envía emails/WhatsApp automáticamente
+6. **Predicción:** Modelo ML se entrena con datos históricos bajo demanda
+7. **Visualización:** Frontend consulta APIs REST y actualiza gráficos cada 30s
+8. **Auditoría:** Todas las acciones críticas se registran automáticamente
 
 ---
 
-## Tecnologías Utilizadas
+## Stack Tecnológico
 
-| Área                 | Tecnología                                               |
-| -------------------- | -------------------------------------------------------- |
-| **Frontend** | Vue 3 (Composition API), TypeScript, Vite, Chart.js      |
-| **Backend** | Python 3, FastAPI, Pydantic, Uvicorn                     |
-| **Base de Datos** | MongoDB                                                  |
-| **Comunicación IoT** | MQTT (Broker como Mosquitto/VerneMQ)                     |
-| **Machine Learning** | Scikit-learn (SVM) o XGBoost                             |
-| **DevOps** | Docker, Docker Compose                                   |
-| **Calidad de Código** | ESLint, Prettier                                         |
+| Categoría | Tecnologías |
+|-----------|------------|
+| **Frontend** | Vue 3 (Composition API), TypeScript, Vite, Tailwind CSS |
+| **Gráficos** | Chart.js, vue-chartjs |
+| **Backend** | Python 3.11, FastAPI, Pydantic v2, Uvicorn |
+| **Base de Datos** | MongoDB 7.0, Motor (async driver) |
+| **ML/Predicción** | Scikit-learn, NumPy, Regresión Lineal |
+| **Autenticación** | JWT (python-jose), bcrypt, OAuth2 |
+| **IoT** | AWS IoT Core, MQTT, TLS/SSL Certificates |
+| **Notificaciones** | Gmail SMTP, WhatsApp Business API |
+| **DevOps** | Docker, Docker Compose, Nginx |
+| **Testing** | Pytest, Pytest-asyncio, Vitest (frontend) |
+| **Code Quality** | ESLint, Prettier, Black (Python) |
+| **Iconografía** | PrimeIcons, Lucide Icons |
+
+---
+
+## Estructura del Proyecto
+
+```
+UNAB-ProyectoDeTitulo/
+├── Backend/                          # API FastAPI + Servicios
+│   ├── main.py                      # Punto de entrada (deprecated, ver app/)
+│   ├── requirements.txt             # Dependencias Python
+│   ├── pytest.ini                   # Configuración de tests
+│   ├── Dockerfile                   # Imagen Docker del backend
+│   │
+│   ├── app/                         # Aplicación modular FastAPI
+│   │   ├── __init__.py
+│   │   ├── config/                  # Configuración centralizada
+│   │   │   ├── database.py          # Conexión MongoDB
+│   │   │   └── settings.py          # Variables de entorno
+│   │   │
+│   │   ├── models/                  # Modelos de datos Pydantic
+│   │   │   └── user.py              # Usuario con roles
+│   │   │
+│   │   ├── routes/                  # Endpoints REST API
+│   │   │   ├── auth.py              # Login, logout, reset password
+│   │   │   ├── users.py             # CRUD de usuarios
+│   │   │   ├── sensors.py           # Datos de sensores + predicción
+│   │   │   ├── alerts.py            # Gestión de alertas
+│   │   │   └── audit.py             # Historial de auditoría
+│   │   │
+│   │   ├── services/                # Lógica de negocio
+│   │   │   ├── auth.py              # Autenticación JWT
+│   │   │   ├── email.py             # Envío de emails SMTP
+│   │   │   ├── whatsapp.py          # Integración WhatsApp
+│   │   │   ├── prediction.py        # Modelo ML (regresión)
+│   │   │   ├── alert_watcher.py     # Servicio de alertas background
+│   │   │   ├── audit.py             # Sistema de auditoría
+│   │   │   └── notifications.py     # Notificaciones unificadas
+│   │   │
+│   │   └── utils/                   # Utilidades compartidas
+│   │       └── dependencies.py      # Dependencias de FastAPI
+│   │
+│   ├── models/                      # Modelos de dominio
+│   │   ├── alert_models.py          # Alertas y umbrales
+│   │   └── audit_models.py          # Acciones de auditoría
+│   │
+│   ├── certificates/                # Certificados AWS IoT
+│   │   ├── root-CA.pem
+│   │   ├── device.pem.key.crt
+│   │   └── private.pem.key
+│   │
+│   └── tests/                       # Tests unitarios y E2E
+│       ├── conftest.py              # Fixtures compartidos
+│       ├── test_auth.py
+│       ├── test_notifications.py
+│       └── test_routes.py
+│
+├── Frontend/                        # Aplicación Vue 3
+│   ├── index.html
+│   ├── package.json
+│   ├── vite.config.ts               # Configuración Vite
+│   ├── tsconfig.json                # TypeScript config
+│   ├── tailwind.config.js           # Tailwind CSS
+│   ├── nginx.conf                   # Nginx para producción
+│   ├── Dockerfile                   # Imagen Docker del frontend
+│   │
+│   └── src/
+│       ├── main.ts                  # Punto de entrada
+│       ├── App.vue                  # Componente raíz
+│       │
+│       ├── views/                   # Páginas principales
+│       │   ├── LoginView.vue
+│       │   ├── ForgotPasswordView.vue
+│       │   ├── ResetPasswordView.vue
+│       │   ├── DashboardLayout.vue
+│       │   ├── DashboardHomeView.vue
+│       │   ├── UserManagementView.vue
+│       │   ├── AlertsManagementView.vue
+│       │   └── AuditLogView.vue
+│       │
+│       ├── components/              # Componentes reutilizables
+│       │   ├── Sidebar.vue
+│       │   ├── TheHeader.vue
+│       │   ├── ThemeToggle.vue
+│       │   ├── MetricCard.vue
+│       │   ├── IndividualChart.vue  # Gráfico con predicción ML
+│       │   ├── HistoricalChartGrid.vue
+│       │   ├── SensorsTable.vue
+│       │   ├── UsersTable.vue
+│       │   ├── CreateUserModal.vue
+│       │   └── EditUserModal.vue
+│       │
+│       ├── router/                  # Vue Router
+│       │   └── index.ts             # Rutas y guards
+│       │
+│       ├── stores/                  # Pinia stores
+│       │   ├── themeStore.ts
+│       │   └── alertStore.ts
+│       │
+│       ├── auth/                    # Autenticación
+│       │   └── store.ts             # Store de usuario
+│       │
+│       ├── composables/             # Lógica reutilizable
+│       │   ├── useApi.ts
+│       │   └── useClickOutside.ts
+│       │
+│       ├── config/                  # Configuración
+│       │   └── api.ts               # Base URL API
+│       │
+│       ├── types/                   # Tipos TypeScript
+│       │   └── index.ts
+│       │
+│       ├── utils/                   # Utilidades
+│       │   ├── constants.ts
+│       │   ├── helpers.ts
+│       │   └── metrics.ts
+│       │
+│       └── assets/                  # Recursos estáticos
+│           └── styles.css           # Estilos globales
+│
+├── docker-compose.yml               # Orquestación de servicios
+└── README.md                        # Este archivo
+```
 
 ---
 
 ## Instalación y Despliegue
 
 ### Prerrequisitos
-- **Docker** y **Docker Compose** instalados
-- **Git** para clonar el repositorio
-- **Gmail** o servidor SMTP para recuperación de contraseñas
+- Docker 24.0+ y Docker Compose 2.0+
+- Git para clonar el repositorio
+- Cuenta Gmail o servidor SMTP para emails
+- (Opcional) AWS IoT Core configurado con certificados
 
-### Configuración del Entorno
+---
 
-1. **Clonar el repositorio:**
-   ```bash
-   git clone <URL_DEL_REPOSITORIO>
-   cd UNAB-ProyectoDeTitulo
-   ```
+### 1. Clonar el Repositorio
 
-2. **Configurar variables de entorno del Backend:**
-   Crear archivo `.env` en la carpeta `Backend/` con:
-   ```env
-   # Base de datos MongoDB
-   MONGODB_URL=mongodb://mongodb:27017/iot_monitoring
+```bash
+git clone https://github.com/KsmBlitz/UNAB-ProyectoDeTitulo.git
+cd UNAB-ProyectoDeTitulo
+```
 
-   # JWT Seguridad
-   JWT_SECRET_KEY=<tu_clave_secreta_muy_segura>
-   JWT_ALGORITHM=HS256
-   JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
+---
 
-   # Configuración SMTP para recuperación de contraseñas
-   SMTP_SERVER=smtp.gmail.com
-   SMTP_PORT=587
-   SMTP_USERNAME=<tu_email@gmail.com>
-   SMTP_PASSWORD=<tu_app_password_de_gmail>
-   SMTP_FROM_EMAIL=<tu_email@gmail.com>
+### 2. Configurar Variables de Entorno
 
-   # AWS IoT Core (opcional, para sensores reales)
-   AWS_IOT_ENDPOINT=<tu_endpoint.iot.region.amazonaws.com>
-   AWS_ACCESS_KEY_ID=<tu_access_key>
-   AWS_SECRET_ACCESS_KEY=<tu_secret_key>
-   ```
+Crear archivo `.env` en la carpeta `Backend/`:
 
-### Despliegue con Docker
+```env
+# MongoDB
+MONGODB_URL=mongodb://mongodb:27017
+DATABASE_NAME=embalses_iot
 
-3. **Levantar todos los servicios:**
-   ```bash
-   # Construcción limpia (recomendado en primer despliegue)
-   docker-compose up --build --force-recreate
+# JWT Security
+JWT_SECRET_KEY=tu_clave_super_secreta_aqui_cambiala_en_produccion_min_32_chars
+JWT_ALGORITHM=HS256
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
 
-   # Para desarrollo posterior
-   docker-compose up -d
-   ```
+# SMTP Configuration (Gmail)
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=tu_email@gmail.com
+SMTP_PASSWORD=tu_app_password_de_gmail
+SMTP_FROM_EMAIL=tu_email@gmail.com
+SMTP_FROM_NAME=Sistema IoT Arándanos
 
-4. **Crear usuario administrador inicial:**
-   ```bash
-   # Acceder al contenedor del backend
-   docker exec -it <nombre_contenedor_backend> python -c "
-   from main import create_admin_user
-   import asyncio
-   asyncio.run(create_admin_user())
-   "
-   ```
+# WhatsApp Business API (opcional)
+WHATSAPP_API_URL=https://graph.facebook.com/v17.0
+WHATSAPP_ACCESS_TOKEN=tu_token_aqui
+WHATSAPP_PHONE_NUMBER_ID=tu_phone_id
 
-### Acceso al Sistema
+# AWS IoT Core (opcional, para sensores reales)
+AWS_IOT_ENDPOINT=xxxxx.iot.us-east-1.amazonaws.com
+AWS_REGION=us-east-1
 
-5. **URLs de la aplicación:**
-   - **Frontend (Dashboard):** http://localhost:3000
-   - **Backend API:** http://localhost:8000  
-   - **Documentación Swagger:** http://localhost:8000/docs
-   - **MongoDB:** localhost:27017
+# Application Settings
+ALERT_CHECK_INTERVAL=360  # Segundos entre chequeos (6 min)
+ALERT_GRACE_PERIOD=3600   # Período de gracia (1 hora)
+```
 
-6. **Credenciales por defecto:**
-   - **Email:** admin@iot.com
-   - **Contraseña:** admin123
-   - **Rol:** Administrador
+Nota sobre Gmail: Debes activar "Verificación en 2 pasos" en tu cuenta Gmail, generar una "Contraseña de aplicación" específica. Instrucciones: https://support.google.com/accounts/answer/185833
+
+---
+
+### 3. Despliegue con Docker
+
+Opción A: Despliegue Completo (Recomendado)
+
+```bash
+# Construir y levantar todos los servicios
+docker-compose up -d --build
+
+# Ver logs en tiempo real
+docker-compose logs -f
+
+# Verificar que los contenedores estén corriendo
+docker ps
+```
+
+Opción B: Desarrollo Local (Sin Docker)
+
+Backend:
+```bash
+cd Backend
+python3 -m venv venv
+source venv/bin/activate  # En Windows: venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+```
+
+Frontend:
+```bash
+cd Frontend
+npm install
+npm run dev  # Modo desarrollo (puerto 5173)
+# O para producción:
+npm run build
+npm run preview
+```
+
+---
+
+### 4. Acceso al Sistema
+
+Una vez desplegado, accede a:
+
+| Servicio | URL | Descripción |
+|----------|-----|-------------|
+| Frontend | http://localhost:3000 | Dashboard principal |
+| Backend API | http://localhost:8000 | API REST |
+| Documentación Swagger | http://localhost:8000/docs | API interactiva |
+| ReDoc | http://localhost:8000/redoc | Documentación alternativa |
+| MongoDB | localhost:27017 | Base de datos |
+
+---
+
+### 5. Crear Usuario Administrador
+
+El sistema crea automáticamente un usuario admin al iniciar. Si necesitas crear uno manualmente:
+
+Opción A: Usando la API (recomendado)
+
+```bash
+curl -X POST "http://localhost:8000/api/users" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@embalses.cl",
+    "password": "Admin123!",
+    "full_name": "Administrador Principal",
+    "role": "admin"
+  }'
+```
+
+Opción B: Desde el contenedor
+
+```bash
+docker exec -it embalses-backend python -c "
+from app.config.database import get_database
+from passlib.context import CryptContext
+import asyncio
+
+pwd_context = CryptContext(schemes=['bcrypt'], deprecated='auto')
+
+async def create_admin():
+    db = await get_database()
+    users = db.users
+    
+    # Verificar si ya existe
+    existing = await users.find_one({'email': 'admin@embalses.cl'})
+    if existing:
+        print('Admin ya existe')
+        return
+    
+    # Crear admin
+    await users.insert_one({
+        'email': 'admin@embalses.cl',
+        'hashed_password': pwd_context.hash('Admin123!'),
+        'full_name': 'Administrador',
+        'role': 'admin',
+        'disabled': False
+    })
+    print('Admin creado exitosamente')
+
+asyncio.run(create_admin())
+"
+```
+
+Credenciales por defecto:
+- Email: `admin@embalses.cl`
+- Contraseña: `Admin123!`
+- Advertencia: Cámbialas inmediatamente en producción
+
+---
+
+### 6. Verificar Instalación
+
+```bash
+# 1. Backend health check
+curl http://localhost:8000/health
+# Esperado: {"status": "healthy"}
+
+# 2. Verificar conexión MongoDB
+docker exec embalses-backend python -c "
+from app.config.database import get_database
+import asyncio
+asyncio.run(get_database())
+print('MongoDB conectado')
+"
+
+# 3. Verificar frontend
+curl -I http://localhost:3000
+# Esperado: HTTP/1.1 200 OK
+```
 
 ---
 
 ## Documentación de APIs
 
-### Endpoints de Autenticación
+### Autenticación
 
-| Método | Endpoint | Descripción |
-|--------|----------|-------------|
-| `POST` | `/api/auth/login` | Iniciar sesión con email/contraseña |
-| `POST` | `/api/auth/logout` | Cerrar sesión y invalidar JWT |
-| `POST` | `/api/auth/forgot-password` | Solicitar recuperación de contraseña |
-| `GET` | `/api/auth/validate-reset-token/{token}` | Validar token de recuperación |
-| `POST` | `/api/auth/reset-password` | Actualizar contraseña con token |
+| Método | Endpoint | Descripción | Requiere Auth |
+|--------|----------|-------------|---------------|
+| `POST` | `/api/auth/login` | Login con email/password, retorna JWT | No |
+| `POST` | `/api/auth/logout` | Cerrar sesión (invalida token) | Sí |
+| `POST` | `/api/auth/forgot-password` | Solicitar reset de contraseña vía email | No |
+| `GET` | `/api/auth/validate-reset-token/{token}` | Validar token de recuperación | No |
+| `POST` | `/api/auth/reset-password` | Actualizar contraseña con token | No |
 
-### Endpoints de Usuarios (Solo Admin)
+Ejemplo Login:
+```bash
+curl -X POST "http://localhost:8000/api/auth/login" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=admin@embalses.cl&password=Admin123!"
+```
 
-| Método | Endpoint | Descripción |
-|--------|----------|-------------|
-| `GET` | `/api/users/` | Listar todos los usuarios |
-| `POST` | `/api/users/` | Crear nuevo usuario |
-| `PUT` | `/api/users/{user_id}` | Actualizar datos de usuario |
-| `DELETE` | `/api/users/{user_id}` | Eliminar usuario del sistema |
+---
 
-### Endpoints de Alertas
+### Gestión de Usuarios (Solo Admin)
 
-| Método | Endpoint | Descripción |
-|--------|----------|-------------|
-| `GET` | `/api/alerts/` | Obtener alertas activas |
-| `GET` | `/api/alerts/history/` | Historial completo de alertas |
-| `POST` | `/api/alerts/{alert_id}/dismiss` | Marcar alerta como resuelta |
-| `GET` | `/api/alerts/thresholds/` | Obtener configuración de umbrales |
-| `PUT` | `/api/alerts/thresholds/` | Actualizar umbrales (Solo Admin) |
+| Método | Endpoint | Descripción | Rol Requerido |
+|--------|----------|-------------|---------------|
+| `GET` | `/api/users/` | Listar todos los usuarios | Admin |
+| `GET` | `/api/users/{user_id}` | Obtener usuario específico | Admin |
+| `POST` | `/api/users/` | Crear nuevo usuario | Admin |
+| `PUT` | `/api/users/{user_id}` | Actualizar datos de usuario | Admin |
+| `DELETE` | `/api/users/{user_id}` | Eliminar usuario permanentemente | Admin |
 
-### Endpoints de Dashboard
+Ejemplo Crear Usuario:
+```bash
+curl -X POST "http://localhost:8000/api/users" \
+  -H "Authorization: Bearer {JWT_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "operario@embalses.cl",
+    "password": "Operario123!",
+    "full_name": "Juan Pérez",
+    "role": "operario"
+  }'
+```
 
-| Método | Endpoint | Descripción |
-|--------|----------|-------------|
-| `GET` | `/api/dashboard/metrics/` | Métricas actuales del sistema |
-| `GET` | `/api/sensors/latest/` | Últimas lecturas de sensores |
-| `GET` | `/api/sensors/history/` | Datos históricos para gráficos |
+---
+
+### Sistema de Alertas
+
+| Método | Endpoint | Descripción | Rol Requerido |
+|--------|----------|-------------|---------------|
+| `GET` | `/api/alerts/` | Obtener alertas activas | Todos |
+| `GET` | `/api/alerts/history/` | Historial completo de alertas | Todos |
+| `POST` | `/api/alerts/{alert_id}/dismiss` | Marcar alerta como resuelta | Todos |
+| `GET` | `/api/alerts/thresholds/` | Obtener configuración de umbrales | Todos |
+| `PUT` | `/api/alerts/thresholds/` | Actualizar umbrales | Admin |
+
+Ejemplo Obtener Alertas Activas:
+```bash
+curl -X GET "http://localhost:8000/api/alerts/" \
+  -H "Authorization: Bearer {JWT_TOKEN}"
+```
+
+Ejemplo Actualizar Umbrales:
+```bash
+curl -X PUT "http://localhost:8000/api/alerts/thresholds/" \
+  -H "Authorization: Bearer {JWT_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ph": {
+      "critical_low": 4.5,
+      "warning_low": 5.0,
+      "warning_high": 5.5,
+      "critical_high": 6.5
+    },
+    "ec": {
+      "critical_low": 0.3,
+      "warning_low": 0.5,
+      "warning_high": 1.2,
+      "critical_high": 1.5
+    }
+  }'
+```
+
+---
+
+### Datos de Sensores
+
+| Método | Endpoint | Descripción | Parámetros |
+|--------|----------|-------------|------------|
+| `GET` | `/api/sensors/latest/` | Última lectura de cada sensor | - |
+| `GET` | `/api/sensors/history/` | Datos históricos con filtros | `sensor_type`, `start_date`, `end_date`, `limit` |
+| `GET` | `/api/sensors/{sensor_type}/chart/` | Datos formateados para Chart.js | `days` |
+| `POST` | `/api/sensors/prediction/` | Obtener predicciones ML | `sensor_type`, `days`, `lookback_days` |
+| `POST` | `/api/sensors/prediction-config/` | Actualizar config del modelo | `days`, `lookback_days` |
+
+Ejemplo Obtener Historial:
+```bash
+curl -X GET "http://localhost:8000/api/sensors/history/?sensor_type=ph&limit=100" \
+  -H "Authorization: Bearer {JWT_TOKEN}"
+```
+
+Ejemplo Predicción ML:
+```bash
+curl -X POST "http://localhost:8000/api/sensors/prediction/" \
+  -H "Authorization: Bearer {JWT_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sensor_type": "ph",
+    "days": 5,
+    "lookback_days": 7
+  }'
+```
+
+---
+
+### Auditoría
+
+| Método | Endpoint | Descripción | Parámetros |
+|--------|----------|-------------|------------|
+| `GET` | `/api/audit/logs/` | Obtener historial de auditoría | `action`, `user_email`, `start_date`, `end_date`, `skip`, `limit` |
+| `GET` | `/api/audit/actions/` | Listar tipos de acciones disponibles | - |
+
+Ejemplo Filtrar Auditoría:
+```bash
+curl -X GET "http://localhost:8000/api/audit/logs/?action=login&limit=50" \
+  -H "Authorization: Bearer {JWT_TOKEN}"
+```
+
+---
+
+### 🏥 Health Check
+
+| Método | Endpoint | Descripción | Requiere Auth |
+|--------|----------|-------------|---------------|
+| `GET` | `/health` | Estado del servidor | ❌ |
+| `GET` | `/api/health/database` | Estado de MongoDB | ✅ |
+
+---
+
+### 📄 Documentación Interactiva
+
+- **Swagger UI:** http://localhost:8000/docs
+- **ReDoc:** http://localhost:8000/redoc
+
+Ambas interfaces permiten probar endpoints directamente desde el navegador.
 
 ---
 
@@ -279,57 +676,299 @@ UNAB-ProyectoDeTitulo/
 
 ---
 
-## Mantenimiento y Monitoreo
+## 🔧 Mantenimiento y Operaciones
 
-### Comandos Útiles de Docker
+### Comandos Docker Útiles
 
 ```bash
-# Ver logs en tiempo real
+# Ver logs en tiempo real de todos los servicios
 docker-compose logs -f
 
-# Reiniciar solo un servicio
+# Ver logs de un servicio específico
+docker-compose logs -f backend
+docker-compose logs -f frontend
+
+# Reiniciar un servicio sin afectar los demás
 docker-compose restart backend
 
-# Limpiar cache y reconstruir
-docker system prune -a --volumes
-docker-compose up --build --force-recreate
+# Detener todos los servicios
+docker-compose down
 
-# Acceder a MongoDB directamente
-docker exec -it <mongo_container> mongosh iot_monitoring
+# Detener y eliminar volúmenes (⚠️ borra datos de MongoDB)
+docker-compose down -v
+
+# Reconstruir un servicio específico
+docker-compose up -d --build backend
+
+# Limpiar cache de Docker (libera espacio)
+docker system prune -a --volumes
+
+# Ver uso de recursos
+docker stats
 ```
 
-### Verificación del Sistema
+---
 
+### Acceso Directo a Servicios
+
+**Backend (Python):**
 ```bash
-# Verificar salud del backend
+# Acceder al contenedor
+docker exec -it embalses-backend bash
+
+# Ejecutar comandos Python directamente
+docker exec embalses-backend python -c "print('Hello')"
+
+# Ver logs del servidor Uvicorn
+docker logs -f embalses-backend
+```
+
+**MongoDB:**
+```bash
+# Acceder a la shell de MongoDB
+docker exec -it embalses-mongodb mongosh embalses_iot
+
+# Listar colecciones
+show collections
+
+# Ver usuarios
+db.users.find().pretty()
+
+# Ver alertas activas
+db.alerts.find({status: "active"}).pretty()
+
+# Backup de la base de datos
+docker exec embalses-mongodb mongodump --out=/backup
+
+# Restore de la base de datos
+docker exec embalses-mongodb mongorestore /backup
+```
+
+**Frontend (Nginx):**
+```bash
+# Acceder al contenedor
+docker exec -it embalses-frontend sh
+
+# Ver configuración de Nginx
+cat /etc/nginx/nginx.conf
+
+# Reiniciar Nginx
+docker exec embalses-frontend nginx -s reload
+```
+
+---
+
+### Monitoreo del Sistema
+
+Health Checks:
+```bash
+# Backend API
 curl http://localhost:8000/health
 
-# Comprobar usuarios registrados
-curl http://localhost:8000/api/users/ \
-  -H "Authorization: Bearer <JWT_TOKEN>"
+# Frontend
+curl -I http://localhost:3000
 
-# Ver métricas del dashboard
-curl http://localhost:8000/api/dashboard/metrics/
+# MongoDB
+docker exec embalses-mongodb mongosh --eval "db.adminCommand('ping')"
+```
+
+Verificar Alertas Activas:
+```bash
+curl -X GET "http://localhost:8000/api/alerts/" \
+  -H "Authorization: Bearer {JWT_TOKEN}" | jq
+```
+
+Ver Predicciones Recientes:
+```bash
+curl -X POST "http://localhost:8000/api/sensors/prediction/" \
+  -H "Authorization: Bearer {JWT_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{"sensor_type": "ph", "days": 5, "lookback_days": 7}' | jq
 ```
 
 ---
 
-## Próximos Desarrollos
+### Backup y Restauración
 
-### Funcionalidades Planificadas
-- [ ] **Integración ML:** Modelo predictivo para cultivo de arándanos
-- [ ] **Sensores ESP32:** Conexión física con hardware IoT
-- [ ] **Notificaciones Push:** Alertas instantáneas via WebSockets
-- [ ] **Export/Import:** Datos históricos en CSV/Excel
-- [ ] **Multi-tenancy:** Soporte para múltiples campos/fincas
+Backup Completo de MongoDB:
+```bash
+# Crear backup
+docker exec embalses-mongodb mongodump \
+  --db embalses_iot \
+  --out /backup/$(date +%Y%m%d_%H%M%S)
 
-### Mejoras Técnicas
-- [ ] **Tests Automatizados:** Cobertura completa con pytest/vitest
-- [ ] **CI/CD Pipeline:** Despliegue automatizado con GitHub Actions  
-- [ ] **Monitoreo APM:** Métricas de rendimiento con Prometheus
-- [ ] **Backup Automático:** Respaldo programado de MongoDB
-- [ ] **HTTPS/SSL:** Certificados Let's Encrypt para producción
+# Copiar backup al host
+docker cp embalses-mongodb:/backup ./backups/
+
+# Comprimir backup
+tar -czf backup_$(date +%Y%m%d).tar.gz ./backups/
+```
+
+Restaurar desde Backup:
+```bash
+# Copiar backup al contenedor
+docker cp ./backups/20241103_120000 embalses-mongodb:/backup/
+
+# Restaurar
+docker exec embalses-mongodb mongorestore \
+  --db embalses_iot \
+  /backup/20241103_120000/embalses_iot/
+```
 
 ---
 
+### Solución de Problemas Comunes
+
+Problema: Backend no inicia
+```bash
+# Ver logs completos
+docker logs embalses-backend --tail 100
+
+# Verificar variables de entorno
+docker exec embalses-backend printenv | grep MONGODB
+
+# Verificar conectividad con MongoDB
+docker exec embalses-backend python -c "
+from app.config.database import get_database
+import asyncio
+asyncio.run(get_database())
+"
+```
+
+Problema: No se envían emails
+```bash
+# Verificar configuración SMTP
+docker exec embalses-backend python -c "
+from app.config.settings import settings
+print(f'SMTP Server: {settings.SMTP_SERVER}')
+print(f'SMTP Port: {settings.SMTP_PORT}')
+print(f'SMTP User: {settings.SMTP_USERNAME}')
+"
+
+# Probar envío manual de email
+docker exec embalses-backend python -c "
+from app.services.email import send_email
+import asyncio
+asyncio.run(send_email(
+    to_email='test@example.com',
+    subject='Test',
+    body='Testing email service'
+))
+"
+```
+
+Problema: Frontend muestra "Failed to fetch"
+```bash
+# Verificar CORS en backend
+docker exec embalses-backend python -c "
+from main import app
+print(app.middleware)
+"
+
+# Verificar conectividad
+curl http://localhost:8000/health
+
+# Verificar proxy de Nginx
+docker exec embalses-frontend cat /etc/nginx/nginx.conf
+```
+
+Problema: MongoDB sin espacio
+```bash
+# Ver uso de disco
+docker exec embalses-mongodb df -h
+
+# Limpiar logs antiguos
+docker exec embalses-mongodb mongo --eval "
+db.adminCommand({ setParameter: 1, logLevel: 1 })
+"
+
+# Compactar base de datos
+docker exec embalses-mongodb mongo embalses_iot --eval "
+db.runCommand({ compact: 'alerts' })
+db.runCommand({ compact: 'audit_logs' })
+"
+```
+
+---
+
+## Testing
+
+### Backend (Pytest)
+
+```bash
+# Ejecutar todos los tests
+docker exec embalses-backend pytest
+
+# Con cobertura
+docker exec embalses-backend pytest --cov=app --cov-report=html
+
+# Tests específicos
+docker exec embalses-backend pytest tests/test_auth.py
+docker exec embalses-backend pytest tests/test_notifications.py -v
+
+# Modo watch (re-ejecuta al guardar)
+docker exec embalses-backend pytest-watch
+```
+
+### Frontend (Vitest)
+
+```bash
+# Ejecutar tests unitarios
+docker exec embalses-frontend npm run test
+
+# Modo watch
+docker exec embalses-frontend npm run test:watch
+
+# Con cobertura
+docker exec embalses-frontend npm run test:coverage
+```
+
+---
+
+## Contribuciones
+
+### Guía de Contribución
+
+1. Fork del repositorio
+2. Crear rama feature: `git checkout -b feature/nueva-funcionalidad`
+3. Commits descriptivos: `git commit -m "feat: agregar predicción LSTM"`
+4. Push a la rama: `git push origin feature/nueva-funcionalidad`
+5. Abrir Pull Request con descripción detallada
+
+### Estilo de Código
+
+Backend (Python):
+- Seguir PEP 8
+- Docstrings en formato Google
+- Type hints obligatorios
+- Usar Black para formateo: `black .`
+- Linting con Flake8: `flake8 app/`
+
+Frontend (TypeScript/Vue):
+- Seguir guía de estilo de Vue 3
+- ESLint + Prettier configurados
+- Composables reutilizables
+- Props con tipos explícitos
+- Formateo automático: `npm run format`
+
+---
+
+## Autor
+
+Vicente Jara Estay Valdivia
+- Ingeniería en Informática - Universidad Andrés Bello
+- Email: vjestayvaldivia@gmail.com
+- GitHub: @KsmBlitz
+
+---
+
+## Estado del Proyecto
+
+![GitHub last commit](https://img.shields.io/github/last-commit/KsmBlitz/UNAB-ProyectoDeTitulo)
+![GitHub issues](https://img.shields.io/github/issues/KsmBlitz/UNAB-ProyectoDeTitulo)
+![GitHub stars](https://img.shields.io/github/stars/KsmBlitz/UNAB-ProyectoDeTitulo)
+
+Última actualización: Noviembre 2024  
+Versión: 2.0.0 
+---
 
