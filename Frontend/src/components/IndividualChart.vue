@@ -1,7 +1,7 @@
 <!-- eslint-disable @typescript-eslint/no-explicit-any -->
 <!-- Frontend/src/components/IndividualChart.vue -->
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, computed } from 'vue';
 import { Line } from 'vue-chartjs';
 import {
   Chart as ChartJS,
@@ -16,6 +16,7 @@ import {
   type ChartData
 } from 'chart.js';
 import { API_BASE_URL } from '@/config/api';
+import { evaluateMetricStatus, BLUEBERRY_THRESHOLDS, type MetricStatus } from '@/utils/metrics';
 
 defineOptions({
   name: 'IndividualChart'
@@ -39,6 +40,36 @@ const currentTimeRange = ref(props.timeRange);
 const showPrediction = ref(false);
 const isPredictionLoading = ref(false);
 const predictionData = ref<any>(null);
+
+// Computed property to check for critical predictions
+const criticalPredictions = computed(() => {
+  if (!predictionData.value || !showPrediction.value) return { hasCritical: false, hasWarning: false, count: 0 };
+  
+  // Get thresholds for current sensor type
+  let thresholds;
+  if (props.sensorType === 'ph') {
+    thresholds = BLUEBERRY_THRESHOLDS.ph;
+  } else if (props.sensorType === 'conductividad') {
+    thresholds = BLUEBERRY_THRESHOLDS.conductivity;
+  } else {
+    return { hasCritical: false, hasWarning: false, count: 0 };
+  }
+  
+  let criticalCount = 0;
+  let warningCount = 0;
+  
+  predictionData.value.predictions.forEach((pred: any) => {
+    const status = evaluateMetricStatus(pred.value, thresholds);
+    if (status === 'critical') criticalCount++;
+    if (status === 'warning') warningCount++;
+  });
+  
+  return {
+    hasCritical: criticalCount > 0,
+    hasWarning: warningCount > 0,
+    count: criticalCount + warningCount
+  };
+});
 
 // Opciones de gráfico optimizadas para gráfico individual
 const chartOptions = {
@@ -300,12 +331,42 @@ const updateChartWithPrediction = (prediction: any) => {
     predictionValues.push(pred.value);
   });
   
+  // Determine prediction line color based on critical status
+  let predictionColor = props.color;
+  let predictionBgColor = 'transparent';
+  
+  // Get thresholds for current sensor type
+  if (props.sensorType === 'ph' || props.sensorType === 'conductividad') {
+    const thresholds = props.sensorType === 'ph' 
+      ? BLUEBERRY_THRESHOLDS.ph 
+      : BLUEBERRY_THRESHOLDS.conductivity;
+    
+    // Check if any prediction is critical or warning
+    let hasCritical = false;
+    let hasWarning = false;
+    
+    prediction.predictions.forEach((pred: any) => {
+      const status = evaluateMetricStatus(pred.value, thresholds);
+      if (status === 'critical') hasCritical = true;
+      if (status === 'warning') hasWarning = true;
+    });
+    
+    // Change color based on worst status
+    if (hasCritical) {
+      predictionColor = '#dc3545'; // Red for critical
+      predictionBgColor = 'rgba(220, 53, 69, 0.1)';
+    } else if (hasWarning) {
+      predictionColor = '#ffc107'; // Yellow for warning
+      predictionBgColor = 'rgba(255, 193, 7, 0.1)';
+    }
+  }
+  
   // Create prediction dataset
   const predictionDataset = {
     label: 'Predicción',
     data: Array(currentData.length - 1).fill(null).concat(predictionValues),
-    borderColor: props.color,
-    backgroundColor: 'transparent',
+    borderColor: predictionColor,
+    backgroundColor: predictionBgColor,
     borderDash: [5, 5], // Dashed line
     tension: 0.4,
     fill: false,
@@ -313,7 +374,7 @@ const updateChartWithPrediction = (prediction: any) => {
     pointHoverRadius: 5,
     borderWidth: 2,
     pointStyle: 'circle',
-    pointBackgroundColor: props.color
+    pointBackgroundColor: predictionColor
   };
   
   // Update chart with both datasets
@@ -347,6 +408,24 @@ onMounted(fetchData);
         <h4 class="m-0 text-sm font-semibold text-gray-800">{{ title }}</h4>
       </div>
       <div class="flex items-center gap-2">
+        <!-- Warning badge for critical predictions -->
+        <div
+          v-if="showPrediction && criticalPredictions.hasCritical"
+          class="px-2 py-1 rounded-md bg-red-100 text-red-700 text-xs font-semibold flex items-center gap-1"
+          title="Predicción con valores críticos detectados"
+        >
+          <i class="pi pi-exclamation-triangle"></i>
+          <span>Crítico</span>
+        </div>
+        <div
+          v-else-if="showPrediction && criticalPredictions.hasWarning"
+          class="px-2 py-1 rounded-md bg-yellow-100 text-yellow-700 text-xs font-semibold flex items-center gap-1"
+          title="Predicción con valores de advertencia detectados"
+        >
+          <i class="pi pi-exclamation-circle"></i>
+          <span>Advertencia</span>
+        </div>
+        
         <!-- Prediction toggle button (only for pH and conductivity) -->
         <button
           v-if="sensorType === 'ph' || sensorType === 'conductividad'"
