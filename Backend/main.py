@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import Database, settings
-from app.routes import auth_router, users_router, sensors_router, alerts_router
+from app.routes import auth_router, users_router, sensors_router, alerts_router, audit_router
 from app.services import alert_change_stream_watcher
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -55,6 +55,7 @@ app.include_router(auth_router)
 app.include_router(users_router)
 app.include_router(sensors_router)
 app.include_router(alerts_router)
+app.include_router(audit_router)
 
 if __name__ == "__main__":
     import uvicorn

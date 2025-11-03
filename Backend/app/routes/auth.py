@@ -4,7 +4,7 @@ Login, password reset, and token management
 """
 
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 import logging
 
@@ -19,8 +19,10 @@ from app.services import (
     get_password_hash,
     create_access_token,
     send_reset_email,
-    generate_reset_token
+    generate_reset_token,
+    log_audit_from_request
 )
+from models.audit_models import AuditAction
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +30,15 @@ router = APIRouter(prefix="/api", tags=["Autenticación"])
 
 
 @router.post("/token", response_model=Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+async def login_for_access_token(
+    request: Request,
+    form_data: OAuth2PasswordRequestForm = Depends()
+):
     """
     Login endpoint - authenticate user and return JWT token
     
     Args:
+        request: FastAPI request for audit logging
         form_data: OAuth2 form with username (email) and password
         
     Returns:
@@ -41,6 +47,15 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     user = await users_collection.find_one({"email": form_data.username})
     
     if not user or not verify_password(form_data.password, user["hashed_password"]):
+        # Log failed login attempt
+        await log_audit_from_request(
+            request=request,
+            action=AuditAction.LOGIN_FAILED,
+            description=f"Failed login attempt for email: {form_data.username}",
+            user_email=form_data.username,
+            success=False
+        )
+        
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Correo o contraseña incorrectos"
@@ -54,11 +69,27 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         }
     )
     
+    # Log successful login
+    await log_audit_from_request(
+        request=request,
+        action=AuditAction.LOGIN,
+        description=f"User logged in: {user['email']}",
+        user_id=str(user["_id"]),
+        user_email=user["email"],
+        details={
+            "role": user.get("role"),
+            "full_name": user.get("full_name")
+        }
+    )
+    
     return {"access_token": access_token, "token_type": "bearer"}
 
 
 @router.post("/auth/forgot-password")
-async def forgot_password(request: ForgotPasswordRequest):
+async def forgot_password(
+    fastapi_request: Request,
+    request: ForgotPasswordRequest
+):
     """
     Initiate password reset process
     
@@ -98,6 +129,15 @@ async def forgot_password(request: ForgotPasswordRequest):
                 f"Email falló - Token de recuperación para {request.email}: {reset_token}"
             )
         
+        # Log password reset request
+        await log_audit_from_request(
+            request=fastapi_request,
+            action=AuditAction.PASSWORD_RESET_REQUESTED,
+            description=f"Password reset requested for: {request.email}",
+            user_id=str(user["_id"]),
+            user_email=request.email
+        )
+        
         return {"message": "Si el email existe, recibirás un enlace de recuperación"}
     
     except Exception as e:
@@ -109,7 +149,10 @@ async def forgot_password(request: ForgotPasswordRequest):
 
 
 @router.post("/auth/reset-password")
-async def reset_password(request: ResetPasswordRequest):
+async def reset_password(
+    fastapi_request: Request,
+    request: ResetPasswordRequest
+):
     """
     Complete password reset process
     
@@ -150,6 +193,18 @@ async def reset_password(request: ResetPasswordRequest):
         )
         
         logger.info(f"Contraseña actualizada para usuario: {token_data['email']}")
+        
+        # Get user for audit log
+        user = await users_collection.find_one({"email": token_data["email"]})
+        
+        # Log password reset completion
+        await log_audit_from_request(
+            request=fastapi_request,
+            action=AuditAction.PASSWORD_RESET_COMPLETED,
+            description=f"Password reset completed for: {token_data['email']}",
+            user_id=str(user["_id"]) if user else None,
+            user_email=token_data["email"]
+        )
         
         return {"message": "Contraseña actualizada exitosamente"}
     
