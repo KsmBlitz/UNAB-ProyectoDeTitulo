@@ -537,88 +537,167 @@ onMounted(fetchData);
   </div>
   
   <!-- Modal de configuración del modelo -->
-  <div
-    v-if="showConfigModal"
-    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-    @click.self="showConfigModal = false"
-  >
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
-      <div class="flex justify-between items-center mb-4">
-        <h3 class="text-xl font-bold text-gray-800 dark:text-white">
-          Configuración del Modelo de Predicción
-        </h3>
-        <button
-          @click="showConfigModal = false"
-          class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-        >
-          <i class="pi pi-times"></i>
-        </button>
-      </div>
-      
-      <div class="space-y-4">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Días a predecir
-          </label>
-          <input
-            v-model.number="modelConfig.days"
-            type="number"
-            min="1"
-            max="30"
-            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-          />
-          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Cantidad de días hacia adelante que predecirá el modelo (1-30)
-          </p>
+  <Teleport to="body">
+    <div
+      v-if="showConfigModal"
+      class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4"
+      @click.self="showConfigModal = false"
+    >
+      <div 
+        class="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden animate-fadeIn"
+        style="animation: slideUp 0.3s ease-out"
+      >
+        <!-- Header -->
+        <div class="bg-gradient-to-r from-blue-500 to-indigo-600 px-6 py-4">
+          <div class="flex justify-between items-center">
+            <div class="flex items-center gap-3">
+              <div class="bg-white/20 rounded-lg p-2">
+                <i class="pi pi-sliders-h text-white text-xl"></i>
+              </div>
+              <div>
+                <h3 class="text-xl font-bold text-white">
+                  Configuración del Modelo
+                </h3>
+                <p class="text-blue-100 text-sm">
+                  Ajusta los parámetros de predicción
+                </p>
+              </div>
+            </div>
+            <button
+              @click="showConfigModal = false"
+              class="text-white/80 hover:text-white hover:bg-white/20 rounded-lg p-2 transition-all"
+            >
+              <i class="pi pi-times text-xl"></i>
+            </button>
+          </div>
         </div>
         
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Días históricos para entrenar
-          </label>
-          <input
-            v-model.number="modelConfig.lookback_days"
-            type="number"
-            min="1"
-            max="90"
-            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-          />
-          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Cantidad de días históricos para entrenar el modelo (1-90)
-          </p>
-        </div>
-        
-        <div class="bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
-          <div class="flex items-start gap-2">
-            <i class="pi pi-info-circle text-blue-500 mt-0.5"></i>
-            <div class="text-xs text-blue-700 dark:text-blue-200">
-              <p class="font-semibold mb-1">Recomendaciones:</p>
-              <ul class="list-disc list-inside space-y-1">
-                <li>Más días históricos = Mayor precisión (si hay datos suficientes)</li>
-                <li>Predicciones a largo plazo (>7 días) son menos precisas</li>
-                <li>Los cambios se registrarán en el historial de auditoría</li>
-              </ul>
+        <!-- Body -->
+        <div class="p-6 space-y-6">
+          <!-- Días a predecir -->
+          <div class="space-y-2">
+            <label class="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200">
+              <i class="pi pi-calendar text-blue-500"></i>
+              Días a predecir
+            </label>
+            <div class="relative">
+              <input
+                v-model.number="modelConfig.days"
+                type="number"
+                min="1"
+                max="30"
+                class="w-full px-4 py-3 pr-12 border-2 border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-white transition-all text-lg font-semibold"
+                placeholder="5"
+              />
+              <span class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 text-sm font-medium">
+                días
+              </span>
+            </div>
+            <div class="flex items-start gap-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
+              <i class="pi pi-info-circle text-blue-500 text-sm mt-0.5"></i>
+              <p class="text-xs text-blue-700 dark:text-blue-300">
+                Cantidad de días hacia adelante que predecirá el modelo (1-30)
+              </p>
+            </div>
+          </div>
+          
+          <!-- Días históricos -->
+          <div class="space-y-2">
+            <label class="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200">
+              <i class="pi pi-history text-indigo-500"></i>
+              Días históricos para entrenar
+            </label>
+            <div class="relative">
+              <input
+                v-model.number="modelConfig.lookback_days"
+                type="number"
+                min="1"
+                max="90"
+                class="w-full px-4 py-3 pr-12 border-2 border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-800 dark:text-white transition-all text-lg font-semibold"
+                placeholder="7"
+              />
+              <span class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 text-sm font-medium">
+                días
+              </span>
+            </div>
+            <div class="flex items-start gap-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-3">
+              <i class="pi pi-info-circle text-indigo-500 text-sm mt-0.5"></i>
+              <p class="text-xs text-indigo-700 dark:text-indigo-300">
+                Cantidad de días históricos para entrenar el modelo (1-90)
+              </p>
+            </div>
+          </div>
+          
+          <!-- Recomendaciones -->
+          <div class="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border-2 border-amber-200 dark:border-amber-800 rounded-xl p-4">
+            <div class="flex items-start gap-3">
+              <div class="bg-amber-100 dark:bg-amber-800/50 rounded-lg p-2 mt-0.5">
+                <i class="pi pi-lightbulb text-amber-600 dark:text-amber-400"></i>
+              </div>
+              <div class="flex-1">
+                <p class="font-semibold text-amber-900 dark:text-amber-100 text-sm mb-2">
+                  💡 Recomendaciones
+                </p>
+                <ul class="space-y-1.5 text-xs text-amber-800 dark:text-amber-200">
+                  <li class="flex items-start gap-2">
+                    <i class="pi pi-check-circle text-amber-600 dark:text-amber-400 mt-0.5 text-xs"></i>
+                    <span>Más días históricos = Mayor precisión (si hay datos suficientes)</span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <i class="pi pi-check-circle text-amber-600 dark:text-amber-400 mt-0.5 text-xs"></i>
+                    <span>Predicciones a largo plazo (>7 días) son menos precisas</span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <i class="pi pi-check-circle text-amber-600 dark:text-amber-400 mt-0.5 text-xs"></i>
+                    <span>Los cambios se registrarán en el historial de auditoría</span>
+                  </li>
+                </ul>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-      
-      <div class="flex gap-3 mt-6">
-        <button
-          @click="showConfigModal = false"
-          class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-        >
-          Cancelar
-        </button>
-        <button
-          @click="saveModelConfig"
-          :disabled="isSavingConfig"
-          class="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-        >
-          <i v-if="isSavingConfig" class="pi pi-spin pi-spinner"></i>
-          <span>{{ isSavingConfig ? 'Guardando...' : 'Guardar' }}</span>
-        </button>
+        
+        <!-- Footer -->
+        <div class="bg-gray-50 dark:bg-gray-800/50 px-6 py-4 flex gap-3">
+          <button
+            @click="showConfigModal = false"
+            class="flex-1 px-4 py-3 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-all font-semibold"
+          >
+            Cancelar
+          </button>
+          <button
+            @click="saveModelConfig"
+            :disabled="isSavingConfig"
+            class="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-semibold shadow-lg"
+          >
+            <i v-if="isSavingConfig" class="pi pi-spin pi-spinner"></i>
+            <i v-else class="pi pi-check"></i>
+            <span>{{ isSavingConfig ? 'Guardando...' : 'Guardar Cambios' }}</span>
+          </button>
+        </div>
       </div>
     </div>
-  </div>
+  </Teleport>
 </template>
+
+<style scoped>
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+</style>
