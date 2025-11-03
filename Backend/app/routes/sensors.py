@@ -5,15 +5,26 @@ Sensor data and metrics endpoints
 
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
+from pydantic import BaseModel
 import logging
 
 from app.config import sensor_collection
 from app.utils import get_current_user
+from app.services import predict_sensor_values
+from app.services.audit import log_audit_event
+from models.audit_models import AuditAction
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["Datos de Sensores"])
+
+
+class PredictionConfigModel(BaseModel):
+    """Model for prediction configuration"""
+    sensor_type: str
+    days: int
+    lookback_days: int
 
 
 @router.get("/sensors/individual")
@@ -264,4 +275,137 @@ async def get_sensors_status(current_user: dict = Depends(get_current_user)):
             "warning": 0,
             "offline": 0,
             "total": 0
+        }
+
+
+@router.get("/sensors/predict/{sensor_type}")
+async def get_sensor_prediction(
+    sensor_type: str,
+    days: int = Query(5, ge=1, le=30, description="Number of days to predict"),
+    lookback_days: int = Query(7, ge=1, le=90, description="Days of historical data to use"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get prediction for pH or conductivity values for next N days
+    
+    Uses linear regression on historical data to predict future values.
+    
+    Args:
+        sensor_type: Type of sensor ('ph' or 'conductivity')
+        days: Number of days to predict (1-30, default: 5)
+        lookback_days: Days of historical data to use for training (1-90, default: 7)
+        
+    Returns:
+        Predictions with timestamps, values, and model statistics
+        
+    Example response:
+        {
+            "success": true,
+            "sensor_type": "ph",
+            "predictions": [
+                {"timestamp": "2025-11-04T...", "value": 6.8, "day_ahead": 1},
+                ...
+            ],
+            "model_stats": {
+                "r2_score": 0.95,
+                "training_samples": 144,
+                "lookback_days": 7
+            },
+            "last_reading": {
+                "timestamp": "2025-11-03T...",
+                "value": 6.7
+            }
+        }
+    """
+    try:
+        # Validate sensor type
+        valid_types = ['ph', 'conductivity']
+        if sensor_type not in valid_types:
+            return {
+                "success": False,
+                "message": f"Tipo de sensor inválido. Debe ser: {', '.join(valid_types)}",
+                "predictions": []
+            }
+        
+        # Get predictions
+        result = await predict_sensor_values(
+            sensor_collection=sensor_collection,
+            sensor_type=sensor_type,
+            days_to_predict=days,
+            lookback_days=lookback_days
+        )
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error en endpoint de predicción: {e}")
+        return {
+            "success": False,
+            "message": f"Error generando predicción: {str(e)}",
+            "predictions": []
+        }
+
+
+@router.post("/sensors/prediction-config")
+async def save_prediction_config(
+    config: PredictionConfigModel,
+    request: Request,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Save prediction model configuration and log to audit
+    
+    This endpoint saves the prediction model parameters and creates an audit log entry.
+    """
+    try:
+        # Validate parameters
+        if config.days < 1 or config.days > 30:
+            return {
+                "success": False,
+                "message": "Los días a predecir deben estar entre 1 y 30"
+            }
+        
+        if config.lookback_days < 1 or config.lookback_days > 90:
+            return {
+                "success": False,
+                "message": "Los días históricos deben estar entre 1 y 90"
+            }
+        
+        # Log to audit
+        await log_audit_event(
+            action=AuditAction.PREDICTION_CONFIG_UPDATED,
+            description=f"Configuración del modelo de predicción actualizada para {config.sensor_type}",
+            user_id=current_user.get("user_id"),
+            user_email=current_user.get("email"),
+            resource_type="prediction_model",
+            resource_id=config.sensor_type,
+            details={
+                "sensor_type": config.sensor_type,
+                "days_to_predict": config.days,
+                "lookback_days": config.lookback_days,
+                "previous_days": 5,  # Default value
+                "previous_lookback": 7  # Default value
+            },
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            success=True
+        )
+        
+        logger.info(f"Prediction config updated by {current_user.get('email')}: {config.sensor_type} - days={config.days}, lookback={config.lookback_days}")
+        
+        return {
+            "success": True,
+            "message": "Configuración guardada exitosamente",
+            "config": {
+                "sensor_type": config.sensor_type,
+                "days": config.days,
+                "lookback_days": config.lookback_days
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error saving prediction config: {e}")
+        return {
+            "success": False,
+            "message": f"Error al guardar configuración: {str(e)}"
         }

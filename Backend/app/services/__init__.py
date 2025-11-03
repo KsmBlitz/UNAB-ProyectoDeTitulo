@@ -37,6 +37,8 @@ from .audit import (
     get_audit_statistics
 )
 
+from .prediction import predict_sensor_values
+
 __all__ = [
     # Auth
     "verify_password",
@@ -63,5 +65,7 @@ __all__ = [
     "log_audit_from_request",
     "get_audit_logs",
     "get_user_activity",
-    "get_audit_statistics"
+    "get_audit_statistics",
+    # Prediction
+    "predict_sensor_values"
 ]

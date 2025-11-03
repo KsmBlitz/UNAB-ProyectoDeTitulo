@@ -31,6 +31,9 @@ class AuditAction(str, Enum):
     ALERT_DISMISSED = "alert_dismissed"
     ALERT_CONFIG_UPDATE = "alert_config_update"
     
+    # Prediction Model
+    PREDICTION_CONFIG_UPDATED = "prediction_config_updated"
+    
     # System
     SYSTEM_CONFIG_CHANGED = "system_config_changed"
 

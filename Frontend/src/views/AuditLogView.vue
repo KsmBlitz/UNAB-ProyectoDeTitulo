@@ -535,6 +535,8 @@ function formatActionLabel(action: string): string {
     'password_reset_completed': 'Reset Contraseña Completado',
     'alert_threshold_updated': 'Umbral Alerta Actualizado',
     'alert_dismissed': 'Alerta Descartada',
+    'alert_config_update': 'Config. Alertas Actualizada',
+    'prediction_config_updated': 'Config. Modelo Predicción',
     'notification_sent': 'Notificación Enviada',
     'sensor_data_received': 'Datos Sensor Recibidos',
     'system_config_updated': 'Config. Sistema Actualizada'
@@ -555,6 +557,8 @@ function getActionBadgeClass(action: string): string {
     'password_reset_completed': 'bg-green-100 text-green-800',
     'alert_threshold_updated': 'bg-indigo-100 text-indigo-800',
     'alert_dismissed': 'bg-gray-100 text-gray-800',
+    'alert_config_update': 'bg-indigo-100 text-indigo-800',
+    'prediction_config_updated': 'bg-purple-100 text-purple-800',
     'notification_sent': 'bg-cyan-100 text-cyan-800',
     'sensor_data_received': 'bg-teal-100 text-teal-800',
     'system_config_updated': 'bg-pink-100 text-pink-800'
