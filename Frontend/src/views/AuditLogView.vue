@@ -163,9 +163,24 @@
 
       <!-- Pagination -->
       <div v-if="!isLoading && auditLogs.length > 0" class="bg-gray-50 px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-        <div class="text-sm text-gray-700">
-          Página <span class="font-semibold">{{ pagination.page }}</span> de <span class="font-semibold">{{ Math.ceil(pagination.total / pagination.page_size) }}</span>
-          ({{ pagination.total }} registros)
+        <div class="flex items-center gap-4">
+          <div class="text-sm text-gray-700">
+            Página <span class="font-semibold">{{ pagination.page }}</span> de <span class="font-semibold">{{ Math.ceil(pagination.total / pagination.page_size) }}</span>
+            ({{ pagination.total }} registros)
+          </div>
+          <div class="flex items-center gap-2">
+            <label for="pageSize" class="text-sm text-gray-700">Items por página:</label>
+            <select
+              id="pageSize"
+              v-model.number="pagination.page_size"
+              @change="changePageSize"
+              class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+            >
+              <option :value="10">10</option>
+              <option :value="20">20</option>
+              <option :value="50">50</option>
+            </select>
+          </div>
         </div>
         <div class="flex gap-2">
           <button
@@ -359,7 +374,7 @@ const statistics = ref<Statistics>({
 });
 const pagination = ref<Pagination>({
   page: 1,
-  page_size: 50,
+  page_size: 10,
   total: 0
 });
 const isLoading = ref(false);
@@ -446,7 +461,8 @@ async function loadAvailableActions() {
 
     if (!response.ok) throw new Error('Error al cargar acciones');
 
-    availableActions.value = await response.json();
+    const data = await response.json();
+    availableActions.value = data.actions || [];
   } catch (error) {
     console.error('Error loading actions:', error);
   }
@@ -480,6 +496,12 @@ function previousPage() {
     pagination.value.page--;
     loadAuditLogs();
   }
+}
+
+function changePageSize() {
+  // Reset a la primera página cuando se cambia el tamaño de página
+  pagination.value.page = 1;
+  loadAuditLogs();
 }
 
 function openDetailsModal(log: AuditLog) {

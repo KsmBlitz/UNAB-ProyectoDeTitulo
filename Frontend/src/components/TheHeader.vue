@@ -5,6 +5,7 @@ import { onMounted, onUnmounted } from 'vue';
 import { authStore } from '@/auth/store';
 import { alertStore } from '@/stores/alertStore';
 import { useClickOutside } from '@/composables/useClickOutside';
+import { API_BASE_URL } from '@/config/api';
 
 defineOptions({
   name: 'TheHeader'
@@ -27,11 +28,31 @@ function toggleUserMenu() {
 }
 
 // Cerrar sesión
-function handleLogout() {
+async function handleLogout() {
   console.log('Cerrando sesión...');
-  localStorage.removeItem('userToken');
-  authStore.user = null;
-  router.push('/login');
+  
+  try {
+    const token = localStorage.getItem('userToken');
+    
+    // Llamar al endpoint de logout para registrar en auditoría
+    if (token) {
+      await fetch(`${API_BASE_URL}/api/logout`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Error al registrar logout:', error);
+    // Continuar con el logout incluso si falla el registro
+  } finally {
+    // Limpiar localStorage y redirigir
+    localStorage.removeItem('userToken');
+    authStore.user = null;
+    router.push('/login');
+  }
 }
 
 // Navegar a alertas

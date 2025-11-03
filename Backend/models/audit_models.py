@@ -29,6 +29,7 @@ class AuditAction(str, Enum):
     ALERT_THRESHOLD_UPDATED = "alert_threshold_updated"
     ALERT_THRESHOLD_DELETED = "alert_threshold_deleted"
     ALERT_DISMISSED = "alert_dismissed"
+    ALERT_CONFIG_UPDATE = "alert_config_update"
     
     # System
     SYSTEM_CONFIG_CHANGED = "system_config_changed"

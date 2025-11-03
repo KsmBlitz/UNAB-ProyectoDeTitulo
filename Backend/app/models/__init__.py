@@ -12,7 +12,8 @@ from .user import (
     UserUpdate,
     UserPublic,
     ForgotPasswordRequest,
-    ResetPasswordRequest
+    ResetPasswordRequest,
+    ChangePasswordRequest
 )
 
 __all__ = [
@@ -24,5 +25,6 @@ __all__ = [
     "UserUpdate",
     "UserPublic",
     "ForgotPasswordRequest",
-    "ResetPasswordRequest"
+    "ResetPasswordRequest",
+    "ChangePasswordRequest"
 ]

@@ -91,3 +91,9 @@ class ResetPasswordRequest(BaseModel):
     """Request model for password reset confirmation"""
     token: str
     new_password: str
+
+
+class ChangePasswordRequest(BaseModel):
+    """Request model for changing password while authenticated"""
+    old_password: str
+    new_password: str

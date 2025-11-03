@@ -6,7 +6,7 @@ Alert management, configuration, and history endpoints
 from datetime import datetime, timezone
 from typing import List, Optional
 from bson import ObjectId
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 import logging
 
 # Import alert models from existing models directory
@@ -24,6 +24,8 @@ from app.config import (
 )
 from app.utils import get_current_user, get_current_admin_user
 from app.services import clear_notifications_sent_for_alert
+from app.services.audit import log_audit_event
+from models.audit_models import AuditAction
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +69,7 @@ async def get_active_alerts(current_user: dict = Depends(get_current_user)):
 
 @router.post("/dismiss")
 async def dismiss_alert(
+    fastapi_request: Request,
     request: DismissAlertRequest,
     current_user: dict = Depends(get_current_user)
 ):
@@ -183,6 +186,28 @@ async def dismiss_alert(
         # await clear_notifications_for_alert(request.alert_id)
         
         logger.info(f"Alerta {request.alert_id} cerrada por {user_email} ({user_role})")
+        
+        # Registrar en auditoría
+        client_ip = fastapi_request.client.host if fastapi_request.client else None
+        user_agent = fastapi_request.headers.get("user-agent", None)
+        
+        await log_audit_event(
+            action=AuditAction.ALERT_DISMISSED,
+            description=f"Alerta cerrada: {alert_doc.get('title', 'Sin título')}",
+            user_email=user_email,
+            user_id=str(current_user.get('_id')) if current_user.get('_id') else None,
+            resource_type="alert",
+            resource_id=str(request.alert_id),
+            details={
+                "alert_type": alert_doc.get('type'),
+                "alert_level": alert_doc.get('level'),
+                "alert_title": alert_doc.get('title'),
+                "alert_message": alert_doc.get('message')
+            },
+            ip_address=client_ip,
+            user_agent=user_agent,
+            success=True
+        )
         
         return {
             "message": "Alerta cerrada exitosamente",
@@ -329,6 +354,10 @@ async def get_alert_config(current_user: dict = Depends(get_current_user)):
                 "conductivity_max": 1500.0
             }
         
+        # Eliminar el _id de MongoDB antes de retornar
+        if "_id" in config:
+            del config["_id"]
+        
         return config
         
     except Exception as e:
@@ -342,6 +371,7 @@ async def get_alert_config(current_user: dict = Depends(get_current_user)):
 
 @router.put("/config")
 async def update_alert_config(
+    request: Request,
     config: AlertConfigUpdateRequest,
     admin_user: dict = Depends(get_current_admin_user)
 ):
@@ -349,14 +379,34 @@ async def update_alert_config(
     Update alert thresholds configuration (admin only)
     """
     try:
-        # Upsert configuration
+        # Convertir el modelo a diccionario
+        config_dict = config.model_dump()
+        
+        # Upsert configuration - guardar directamente los campos, no anidados
         await alert_thresholds_collection.update_one(
             {},
-            {"$set": {"config": config.model_dump()}},
+            {"$set": config_dict},
             upsert=True
         )
         
         logger.info(f"Configuración de alertas actualizada por {admin_user.get('email')}")
+        
+        # Extraer IP del cliente
+        client_ip = request.client.host if request.client else None
+        user_agent = request.headers.get("user-agent", None)
+        
+        # Registrar en auditoría
+        await log_audit_event(
+            action=AuditAction.ALERT_CONFIG_UPDATE,
+            description="Umbrales de alertas actualizados",
+            user_email=admin_user.get('email'),
+            user_id=str(admin_user.get('_id')) if admin_user.get('_id') else None,
+            resource_type="alert_config",
+            details=config_dict,
+            ip_address=client_ip,
+            user_agent=user_agent,
+            success=True
+        )
         
         return {
             "message": "Configuración actualizada exitosamente",

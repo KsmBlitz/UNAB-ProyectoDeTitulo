@@ -5,13 +5,15 @@ User management CRUD operations
 
 from typing import List
 from bson import ObjectId
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 import logging
 
 from app.models import UserPublic, UserCreate, UserUpdate
 from app.config import users_collection
 from app.services import get_password_hash
 from app.utils import get_current_user, get_current_admin_user
+from app.services.audit import log_audit_event
+from models.audit_models import AuditAction
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +46,7 @@ async def read_users(admin_user: dict = Depends(get_current_admin_user)):
 @router.post("", response_model=UserPublic, status_code=status.HTTP_201_CREATED)
 async def create_user(
     user: UserCreate,
+    request: Request,
     admin_user: dict = Depends(get_current_admin_user)
 ):
     """
@@ -81,6 +84,27 @@ async def create_user(
     
     logger.info(f"Usuario creado: {user.email}")
     
+    # Registrar en auditoría
+    client_ip = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent", None)
+    
+    await log_audit_event(
+        action=AuditAction.USER_CREATED,
+        description=f"Usuario creado: {user.email}",
+        user_email=admin_user.get('email'),
+        user_id=str(admin_user.get('_id')) if admin_user.get('_id') else None,
+        resource_type="user",
+        resource_id=str(new_user_doc.inserted_id),
+        details={
+            "created_user_email": user.email,
+            "created_user_role": user.role,
+            "created_user_full_name": user.full_name
+        },
+        ip_address=client_ip,
+        user_agent=user_agent,
+        success=True
+    )
+    
     return UserPublic(**created_user_from_db)  # type: ignore
 
 
@@ -88,6 +112,7 @@ async def create_user(
 async def update_user(
     user_id: str,
     user_update: UserUpdate,
+    request: Request,
     admin_user: dict = Depends(get_current_admin_user)
 ):
     """
@@ -121,6 +146,14 @@ async def update_user(
             detail="No se enviaron datos para actualizar"
         )
     
+    # Get user before update for audit log
+    user_before = await users_collection.find_one({"_id": ObjectId(user_id)})
+    if not user_before:
+        raise HTTPException(
+            status_code=404,
+            detail="No se encontró el usuario"
+        )
+    
     # Update user
     result = await users_collection.update_one(
         {"_id": ObjectId(user_id)},
@@ -140,12 +173,33 @@ async def update_user(
     
     logger.info(f"Usuario actualizado: {user_id}")
     
+    # Registrar en auditoría
+    client_ip = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent", None)
+    
+    await log_audit_event(
+        action=AuditAction.USER_UPDATED,
+        description=f"Usuario actualizado: {user_before.get('email', 'desconocido')}",
+        user_email=admin_user.get('email'),
+        user_id=str(admin_user.get('_id')) if admin_user.get('_id') else None,
+        resource_type="user",
+        resource_id=user_id,
+        details={
+            "updated_user_email": user_before.get('email'),
+            "fields_updated": list(update_data.keys())
+        },
+        ip_address=client_ip,
+        user_agent=user_agent,
+        success=True
+    )
+    
     return UserPublic(**updated_user_from_db)  # type: ignore
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(
     user_id: str,
+    request: Request,
     admin_user: dict = Depends(get_current_admin_user)
 ):
     """
@@ -171,6 +225,15 @@ async def delete_user(
             detail="Un administrador no puede eliminarse a sí mismo"
         )
     
+    # Get user info before deleting for audit log
+    user_to_delete = await users_collection.find_one({"_id": ObjectId(user_id)})
+    
+    if not user_to_delete:
+        raise HTTPException(
+            status_code=404,
+            detail="No se encontró el usuario a eliminar"
+        )
+    
     # Delete user
     result = await users_collection.delete_one({"_id": ObjectId(user_id)})
     
@@ -181,5 +244,25 @@ async def delete_user(
         )
     
     logger.info(f"Usuario eliminado: {user_id}")
+    
+    # Registrar en auditoría
+    client_ip = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent", None)
+    
+    await log_audit_event(
+        action=AuditAction.USER_DELETED,
+        description=f"Usuario eliminado: {user_to_delete.get('email', 'desconocido')}",
+        user_email=admin_user.get('email'),
+        user_id=str(admin_user.get('_id')) if admin_user.get('_id') else None,
+        resource_type="user",
+        resource_id=user_id,
+        details={
+            "deleted_user_email": user_to_delete.get('email'),
+            "deleted_user_role": user_to_delete.get('role')
+        },
+        ip_address=client_ip,
+        user_agent=user_agent,
+        success=True
+    )
     
     return

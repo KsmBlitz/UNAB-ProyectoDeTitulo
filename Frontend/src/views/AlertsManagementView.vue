@@ -293,11 +293,11 @@
     </div>
 
     <!-- Modal de configuración de umbrales (solo admin) -->
-    <div v-if="showConfigModal && isAdmin" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" @click="showConfigModal = false">
-      <div class="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden" @click.stop>
-        <div class="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-primary-50 to-primary-100">
-          <h3 class="text-2xl font-bold text-gray-800">Configuración de Umbrales para Arándanos</h3>
-          <button @click="showConfigModal = false" class="text-gray-500 hover:text-gray-700 transition-colors p-2 hover:bg-white rounded-lg">
+    <div v-if="showConfigModal && isAdmin" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" @click="showConfigModal = false">
+      <div class="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden border border-gray-200" @click.stop>
+        <div class="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-blue-500 to-blue-600">
+          <h3 class="text-2xl font-bold text-white">Configuración de Umbrales para Arándanos</h3>
+          <button @click="showConfigModal = false" class="text-white hover:bg-white/20 transition-colors p-2 rounded-lg">
             <i class="pi pi-times text-xl"></i>
           </button>
         </div>
@@ -453,7 +453,7 @@
           <button @click="showConfigModal = false" class="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed" :disabled="savingConfig">
             Cancelar
           </button>
-          <button @click="saveThresholdConfig" class="px-6 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed" :disabled="loadingConfig || savingConfig">
+          <button @click="saveThresholdConfig" class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed" :disabled="loadingConfig || savingConfig">
             <i v-if="savingConfig" class="pi pi-spin pi-spinner"></i>
             {{ savingConfig ? 'Guardando...' : 'Guardar Cambios' }}
           </button>
