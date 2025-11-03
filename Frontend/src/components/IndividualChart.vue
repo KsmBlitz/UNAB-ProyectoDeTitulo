@@ -38,6 +38,7 @@ const error = ref<string | null>(null);
 const currentTimeRange = ref(props.timeRange);
 const showPrediction = ref(false);
 const isPredictionLoading = ref(false);
+const predictionData = ref<any>(null);
 
 // Opciones de gráfico optimizadas para gráfico individual
 const chartOptions = {
@@ -49,7 +50,18 @@ const chartOptions = {
   },
   plugins: {
     legend: {
-      display: false, // Sin leyenda para gráficos individuales
+      display: true, // Show legend when prediction is visible
+      position: 'top' as const,
+      labels: {
+        font: {
+          size: 11
+        },
+        usePointStyle: true,
+        filter: (legendItem: any) => {
+          // Only show legend if there are multiple datasets (historical + prediction)
+          return true;
+        }
+      }
     },
     tooltip: {
       backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -57,7 +69,8 @@ const chartOptions = {
       bodyColor: '#fff',
       callbacks: {
         label: (context: any) => {
-          return `${context.parsed.y} ${props.unit}`;
+          const label = context.dataset.label || '';
+          return `${label}: ${context.parsed.y} ${props.unit}`;
         }
       }
     }
@@ -188,13 +201,126 @@ const refreshData = async () => {
 };
 
 // Toggle prediction visibility
-const togglePrediction = () => {
+const togglePrediction = async () => {
   showPrediction.value = !showPrediction.value;
   
   if (showPrediction.value) {
-    // Will load prediction data in Phase 4
-    console.log('Loading prediction for:', props.sensorType);
+    await loadPrediction();
+  } else {
+    // Remove prediction dataset when hiding
+    updateChartWithPrediction(null);
   }
+};
+
+// Load prediction data from API
+const loadPrediction = async () => {
+  isPredictionLoading.value = true;
+  
+  try {
+    const token = localStorage.getItem('userToken');
+    
+    // Map sensor type to API parameter
+    const sensorTypeMap: Record<string, string> = {
+      'ph': 'ph',
+      'conductividad': 'conductivity'
+    };
+    
+    const apiSensorType = sensorTypeMap[props.sensorType];
+    if (!apiSensorType) {
+      console.error('Invalid sensor type for prediction:', props.sensorType);
+      return;
+    }
+    
+    const response = await fetch(
+      `${API_BASE_URL}/api/sensors/predict/${apiSensorType}?days=5&lookback_days=7`,
+      {
+        headers: { 'Authorization': `Bearer ${token}` }
+      }
+    );
+    
+    if (!response.ok) {
+      throw new Error('Error al cargar predicción');
+    }
+    
+    const data = await response.json();
+    
+    if (data.success && data.predictions && data.predictions.length > 0) {
+      predictionData.value = data;
+      updateChartWithPrediction(data);
+    } else {
+      console.warn('No prediction data available:', data.message);
+      predictionData.value = null;
+      showPrediction.value = false;
+    }
+  } catch (error) {
+    console.error('Error loading prediction:', error);
+    predictionData.value = null;
+    showPrediction.value = false;
+  } finally {
+    isPredictionLoading.value = false;
+  }
+};
+
+// Update chart to include prediction line
+const updateChartWithPrediction = (prediction: any) => {
+  if (!chartData.value.datasets || chartData.value.datasets.length === 0) {
+    return;
+  }
+  
+  // Keep only the historical data dataset (first one)
+  const historicalDataset = chartData.value.datasets[0];
+  
+  if (!prediction) {
+    // Remove prediction - keep only historical
+    chartData.value = {
+      ...chartData.value,
+      datasets: [historicalDataset]
+    };
+    return;
+  }
+  
+  // Get current labels and data
+  const currentLabels = [...(chartData.value.labels || [])];
+  const currentData = [...historicalDataset.data];
+  
+  // Add prediction points
+  const predictionLabels: string[] = [];
+  const predictionValues: number[] = [];
+  
+  // Start prediction from last historical point
+  const lastValue = currentData[currentData.length - 1];
+  predictionValues.push(lastValue as number);
+  predictionLabels.push(currentLabels[currentLabels.length - 1] as string);
+  
+  // Add predicted values
+  prediction.predictions.forEach((pred: any) => {
+    const date = new Date(pred.timestamp);
+    const label = `${date.getDate()}/${date.getMonth() + 1}`;
+    predictionLabels.push(label);
+    predictionValues.push(pred.value);
+  });
+  
+  // Create prediction dataset
+  const predictionDataset = {
+    label: 'Predicción',
+    data: Array(currentData.length - 1).fill(null).concat(predictionValues),
+    borderColor: props.color,
+    backgroundColor: 'transparent',
+    borderDash: [5, 5], // Dashed line
+    tension: 0.4,
+    fill: false,
+    pointRadius: 3,
+    pointHoverRadius: 5,
+    borderWidth: 2,
+    pointStyle: 'circle',
+    pointBackgroundColor: props.color
+  };
+  
+  // Update chart with both datasets
+  chartData.value = {
+    labels: [...currentLabels, ...predictionLabels.slice(1)],
+    datasets: [historicalDataset, predictionDataset]
+  };
 };
 
 // Exponer funciones al componente padre
