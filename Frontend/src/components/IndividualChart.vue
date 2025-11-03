@@ -41,6 +41,14 @@ const showPrediction = ref(false);
 const isPredictionLoading = ref(false);
 const predictionData = ref<any>(null);
 
+// Modal de configuración del modelo
+const showConfigModal = ref(false);
+const modelConfig = ref({
+  days: 5,
+  lookback_days: 7
+});
+const isSavingConfig = ref(false);
+
 // Computed property to check for critical predictions
 const criticalPredictions = computed(() => {
   if (!predictionData.value || !showPrediction.value) return { hasCritical: false, hasWarning: false, count: 0 };
@@ -81,17 +89,13 @@ const chartOptions = {
   },
   plugins: {
     legend: {
-      display: true, // Show legend when prediction is visible
+      display: false, // Hide legend to avoid duplicate labels
       position: 'top' as const,
       labels: {
         font: {
           size: 11
         },
-        usePointStyle: true,
-        filter: (legendItem: any) => {
-          // Only show legend if there are multiple datasets (historical + prediction)
-          return true;
-        }
+        usePointStyle: true
       }
     },
     tooltip: {
@@ -231,6 +235,52 @@ const refreshData = async () => {
   await fetchData();
 };
 
+// Open config modal
+const openConfigModal = () => {
+  showConfigModal.value = true;
+};
+
+// Save model configuration
+const saveModelConfig = async () => {
+  isSavingConfig.value = true;
+  
+  try {
+    const token = localStorage.getItem('userToken');
+    
+    // Save configuration to backend for audit logging
+    const response = await fetch(`${API_BASE_URL}/api/sensors/prediction-config`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        sensor_type: props.sensorType,
+        days: modelConfig.value.days,
+        lookback_days: modelConfig.value.lookback_days
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error('Error al guardar configuración');
+    }
+    
+    // Close modal
+    showConfigModal.value = false;
+    
+    // Reload prediction if it's currently showing
+    if (showPrediction.value) {
+      await loadPrediction();
+    }
+    
+  } catch (err) {
+    console.error('Error saving model config:', err);
+    alert('Error al guardar la configuración del modelo');
+  } finally {
+    isSavingConfig.value = false;
+  }
+};
+
 // Toggle prediction visibility
 const togglePrediction = async () => {
   showPrediction.value = !showPrediction.value;
@@ -263,7 +313,7 @@ const loadPrediction = async () => {
     }
     
     const response = await fetch(
-      `${API_BASE_URL}/api/sensors/predict/${apiSensorType}?days=5&lookback_days=7`,
+      `${API_BASE_URL}/api/sensors/predict/${apiSensorType}?days=${modelConfig.value.days}&lookback_days=${modelConfig.value.lookback_days}`,
       {
         headers: { 'Authorization': `Bearer ${token}` }
       }
@@ -440,6 +490,16 @@ onMounted(fetchData);
           <span>{{ showPrediction ? 'Ocultar' : 'Predicción' }}</span>
         </button>
         
+        <!-- Config button for prediction model -->
+        <button
+          v-if="sensorType === 'ph' || sensorType === 'conductividad'"
+          @click="openConfigModal"
+          class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center gap-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200"
+          title="Configurar modelo de predicción"
+        >
+          <i class="pi pi-cog"></i>
+        </button>
+        
         <span v-if="isLoading" class="text-primary-500">
           <i class="pi pi-spin pi-spinner"></i>
         </span>
@@ -472,6 +532,92 @@ onMounted(fetchData);
 
       <div v-else class="relative h-full w-full min-h-[200px] max-h-[280px] md:min-h-[180px] md:max-h-[250px]">
         <Line :data="chartData" :options="chartOptions" />
+      </div>
+    </div>
+  </div>
+  
+  <!-- Modal de configuración del modelo -->
+  <div
+    v-if="showConfigModal"
+    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+    @click.self="showConfigModal = false"
+  >
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-bold text-gray-800 dark:text-white">
+          Configuración del Modelo de Predicción
+        </h3>
+        <button
+          @click="showConfigModal = false"
+          class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+        >
+          <i class="pi pi-times"></i>
+        </button>
+      </div>
+      
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Días a predecir
+          </label>
+          <input
+            v-model.number="modelConfig.days"
+            type="number"
+            min="1"
+            max="30"
+            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+          />
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Cantidad de días hacia adelante que predecirá el modelo (1-30)
+          </p>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Días históricos para entrenar
+          </label>
+          <input
+            v-model.number="modelConfig.lookback_days"
+            type="number"
+            min="1"
+            max="90"
+            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+          />
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Cantidad de días históricos para entrenar el modelo (1-90)
+          </p>
+        </div>
+        
+        <div class="bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
+          <div class="flex items-start gap-2">
+            <i class="pi pi-info-circle text-blue-500 mt-0.5"></i>
+            <div class="text-xs text-blue-700 dark:text-blue-200">
+              <p class="font-semibold mb-1">Recomendaciones:</p>
+              <ul class="list-disc list-inside space-y-1">
+                <li>Más días históricos = Mayor precisión (si hay datos suficientes)</li>
+                <li>Predicciones a largo plazo (>7 días) son menos precisas</li>
+                <li>Los cambios se registrarán en el historial de auditoría</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="flex gap-3 mt-6">
+        <button
+          @click="showConfigModal = false"
+          class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+        >
+          Cancelar
+        </button>
+        <button
+          @click="saveModelConfig"
+          :disabled="isSavingConfig"
+          class="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        >
+          <i v-if="isSavingConfig" class="pi pi-spin pi-spinner"></i>
+          <span>{{ isSavingConfig ? 'Guardando...' : 'Guardar' }}</span>
+        </button>
       </div>
     </div>
   </div>
