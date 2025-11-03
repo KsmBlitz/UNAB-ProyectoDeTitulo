@@ -36,6 +36,8 @@ const chartData = ref<ChartData<'line'>>({ labels: [], datasets: [] });
 const isLoading = ref(true);
 const error = ref<string | null>(null);
 const currentTimeRange = ref(props.timeRange);
+const showPrediction = ref(false);
+const isPredictionLoading = ref(false);
 
 // Opciones de gráfico optimizadas para gráfico individual
 const chartOptions = {
@@ -185,6 +187,16 @@ const refreshData = async () => {
   await fetchData();
 };
 
+// Toggle prediction visibility
+const togglePrediction = () => {
+  showPrediction.value = !showPrediction.value;
+  
+  if (showPrediction.value) {
+    // Will load prediction data in Phase 4
+    console.log('Loading prediction for:', props.sensorType);
+  }
+};
+
 // Exponer funciones al componente padre
 defineExpose({
   updateTimeRange,
@@ -208,7 +220,21 @@ onMounted(fetchData);
         <i :class="icon" class="text-base" :style="{ color: props.color }"></i>
         <h4 class="m-0 text-sm font-semibold text-gray-800">{{ title }}</h4>
       </div>
-      <div class="flex items-center">
+      <div class="flex items-center gap-2">
+        <!-- Prediction toggle button (only for pH and conductivity) -->
+        <button
+          v-if="sensorType === 'ph' || sensorType === 'conductividad'"
+          @click="togglePrediction"
+          :disabled="isPredictionLoading"
+          :class="showPrediction ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+          class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+          :title="showPrediction ? 'Ocultar predicción' : 'Ver predicción'"
+        >
+          <i v-if="isPredictionLoading" class="pi pi-spin pi-spinner"></i>
+          <i v-else :class="showPrediction ? 'pi pi-eye-slash' : 'pi pi-chart-line'"></i>
+          <span>{{ showPrediction ? 'Ocultar' : 'Predicción' }}</span>
+        </button>
+        
         <span v-if="isLoading" class="text-primary-500">
           <i class="pi pi-spin pi-spinner"></i>
         </span>
