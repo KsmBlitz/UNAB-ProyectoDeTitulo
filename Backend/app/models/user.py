@@ -47,7 +47,6 @@ class UserBase(BaseModel):
     role: str
     disabled: Optional[bool] = False
     phone: Optional[str] = None  # Teléfono en formato internacional (ej: +56912345678)
-    sms_notifications_enabled: Optional[bool] = False  # Preferencia de notificaciones SMS
     whatsapp_notifications_enabled: Optional[bool] = False  # Preferencia de notificaciones WhatsApp
 
 
@@ -62,7 +61,6 @@ class UserUpdate(BaseModel):
     role: Optional[str] = None
     disabled: Optional[bool] = None
     phone: Optional[str] = None
-    sms_notifications_enabled: Optional[bool] = None
     whatsapp_notifications_enabled: Optional[bool] = None
 
 

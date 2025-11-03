@@ -5,7 +5,6 @@ export interface User {
   role: string;
   disabled: boolean;
   phone?: string;
-  sms_notifications_enabled?: boolean;
   whatsapp_notifications_enabled?: boolean;
 }
 

@@ -21,7 +21,6 @@ const fullName = ref('');
 const role = ref(''); // Cambiado a string vacío, será 'operario' o 'admin'
 const disabled = ref(false);
 const phone = ref('');
-const smsNotificationsEnabled = ref(false);
 const whatsappNotificationsEnabled = ref(false);
 const error = ref('');
 const isLoading = ref(false);
@@ -33,7 +32,6 @@ function initializeForm() {
     role.value = props.user.role;
     disabled.value = props.user.disabled;
     phone.value = props.user.phone || '';
-    smsNotificationsEnabled.value = props.user.sms_notifications_enabled || false;
     whatsappNotificationsEnabled.value = props.user.whatsapp_notifications_enabled || false;
   }
 }
@@ -75,7 +73,6 @@ async function handleUpdate() {
         role: role.value,
         disabled: disabled.value,
         phone: phone.value,
-        sms_notifications_enabled: smsNotificationsEnabled.value,
         whatsapp_notifications_enabled: whatsappNotificationsEnabled.value
       })
     });
@@ -156,17 +153,6 @@ async function handleUpdate() {
           <label class="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
-              v-model="smsNotificationsEnabled"
-              class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-            >
-            <span class="text-sm font-semibold text-gray-700">Habilitar notificaciones por SMS</span>
-          </label>
-        </div>
-
-        <div class="mb-4">
-          <label class="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
               v-model="whatsappNotificationsEnabled"
               class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
             >
@@ -175,7 +161,6 @@ async function handleUpdate() {
               Habilitar notificaciones por WhatsApp
             </span>
           </label>
-          <p class="mt-1 ml-6 text-xs text-gray-500">Recomendado: Mayor tasa de entrega que SMS</p>
         </div>
 
         <div class="flex items-center gap-3 mb-6 p-3 bg-gray-50 rounded-lg border border-gray-200">
