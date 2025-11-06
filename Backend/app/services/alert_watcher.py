@@ -10,11 +10,11 @@ from typing import Dict, Any
 from app.config import alerts_collection, users_collection
 from app.services import (
     send_critical_alert_email,
-    send_critical_alert_whatsapp,
     should_send_notification,
     mark_notification_sent,
     build_notification_key
 )
+from app.services.twilio_whatsapp import send_critical_alert_twilio_whatsapp
 
 logger = logging.getLogger(__name__)
 
@@ -157,15 +157,15 @@ async def send_whatsapp_notification(
     title: str,
     value: str
 ) -> None:
-    """Send WhatsApp notification with throttling"""
+    """Send WhatsApp notification via Twilio with throttling"""
     try:
         notification_key = build_notification_key("whatsapp", alert_type, sensor_id, user_id)
         
         if await should_send_notification(notification_key):
-            sent = await send_critical_alert_whatsapp(phone, location, alert_type, value)
+            sent = await send_critical_alert_twilio_whatsapp(phone, location, alert_type, value)
             if sent:
                 await mark_notification_sent(notification_key)
-                logger.info(f"WhatsApp enviado a {phone} para alerta {alert_type}")
+                logger.info(f"WhatsApp (Twilio) enviado a {phone} para alerta {alert_type}")
                 
     except Exception as e:
-        logger.error(f"Error enviando WhatsApp a {phone}: {e}")
+        logger.error(f"Error enviando WhatsApp (Twilio) a {phone}: {e}")

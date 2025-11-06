@@ -18,8 +18,6 @@ from .email import (
     generate_reset_token
 )
 
-from .whatsapp import send_critical_alert_whatsapp
-
 from .notifications import (
     should_send_notification,
     mark_notification_sent,
@@ -51,8 +49,6 @@ __all__ = [
     "send_critical_alert_email",
     "send_reset_email",
     "generate_reset_token",
-    # WhatsApp
-    "send_critical_alert_whatsapp",
     # Notifications
     "should_send_notification",
     "mark_notification_sent",
