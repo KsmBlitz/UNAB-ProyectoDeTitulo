@@ -78,28 +78,51 @@ async def send_critical_alert_whatsapp(
             "Content-Type": "application/json"
         }
         
-        # Using approved WhatsApp template
-        payload = {
+        # Try text message first (works in sandbox/development mode)
+        message_text = (
+            f"*Alerta Crítica - Sistema de Monitoreo de Embalses*\n\n"
+            f"Embalse: {reservoir_name}\n"
+            f"Tipo de alerta: {alert_name}\n"
+            f"Valor detectado: {value}\n\n"
+            f"Por favor, revise el sistema inmediatamente."
+        )
+        
+        payload_text = {
             "messaging_product": "whatsapp",
             "to": phone_wa,
-            "type": "template",
-            "template": {
-                "name": "alerta_critica_embalse",
-                "language": {"code": "es_CL"},
-                "components": [{
-                    "type": "body",
-                    "parameters": [
-                        {"type": "text", "text": reservoir_name},
-                        {"type": "text", "text": alert_name},
-                        {"type": "text", "text": str(value)}
-                    ]
-                }]
+            "type": "text",
+            "text": {
+                "preview_url": False,
+                "body": message_text
             }
         }
         
         # Send HTTP request to WhatsApp API
         async with httpx.AsyncClient() as client:
-            response = await client.post(url, headers=headers, json=payload, timeout=10.0)
+            # Try text message first
+            response = await client.post(url, headers=headers, json=payload_text, timeout=10.0)
+            
+            # If text fails, try with template
+            if response.status_code != 200:
+                logger.info("Texto libre falló, intentando con template...")
+                payload_template = {
+                    "messaging_product": "whatsapp",
+                    "to": phone_wa,
+                    "type": "template",
+                    "template": {
+                        "name": "alerta_critica_embalse",
+                        "language": {"code": "es_CL"},
+                        "components": [{
+                            "type": "body",
+                            "parameters": [
+                                {"type": "text", "text": reservoir_name},
+                                {"type": "text", "text": alert_name},
+                                {"type": "text", "text": str(value)}
+                            ]
+                        }]
+                    }
+                }
+                response = await client.post(url, headers=headers, json=payload_template, timeout=10.0)
             
             if response.status_code == 200:
                 result = response.json()

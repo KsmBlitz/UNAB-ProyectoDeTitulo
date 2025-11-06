@@ -15,6 +15,7 @@ from app.services import (
     mark_notification_sent,
     build_notification_key
 )
+from app.services.twilio_whatsapp import send_critical_alert_twilio_whatsapp
 
 logger = logging.getLogger(__name__)
 
@@ -157,12 +158,18 @@ async def send_whatsapp_notification(
     title: str,
     value: str
 ) -> None:
-    """Send WhatsApp notification with throttling"""
+    """Send WhatsApp notification with throttling (tries Twilio first, then Meta)"""
     try:
         notification_key = build_notification_key("whatsapp", alert_type, sensor_id, user_id)
         
         if await should_send_notification(notification_key):
-            sent = await send_critical_alert_whatsapp(phone, location, alert_type, value)
+            # Try Twilio first
+            sent = await send_critical_alert_twilio_whatsapp(phone, location, alert_type, value)
+            
+            # If Twilio fails, try Meta WhatsApp as fallback
+            if not sent:
+                sent = await send_critical_alert_whatsapp(phone, location, alert_type, value)
+            
             if sent:
                 await mark_notification_sent(notification_key)
                 logger.info(f"WhatsApp enviado a {phone} para alerta {alert_type}")

@@ -44,6 +44,12 @@ class Settings(BaseSettings):
     WHATSAPP_ACCESS_TOKEN: Optional[str] = None
     WHATSAPP_PHONE_NUMBER_ID: Optional[str] = None
     
+    # Twilio WhatsApp Notifications
+    TWILIO_WHATSAPP_ENABLED: bool = False
+    TWILIO_ACCOUNT_SID: Optional[str] = None
+    TWILIO_AUTH_TOKEN: Optional[str] = None
+    TWILIO_WHATSAPP_FROM: Optional[str] = None
+    
     # AWS IoT Core Configuration
     AWS_IOT_ENDPOINT: Optional[str] = None
     AWS_REGION: Optional[str] = None
