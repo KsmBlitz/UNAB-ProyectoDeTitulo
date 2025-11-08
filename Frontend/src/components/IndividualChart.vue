@@ -491,7 +491,7 @@ onMounted(fetchData);
           <span>Advertencia</span>
         </div>
         
-        <!-- Prediction toggle button (only for pH and conductivity) -->
+        <!-- Prediction toggle button (for pH and conductivity - all users) -->
         <button
           v-if="sensorType === 'ph' || sensorType === 'conductividad'"
           @click="togglePrediction"
@@ -514,16 +514,6 @@ onMounted(fetchData);
         >
           <i class="pi pi-cog"></i>
         </button>
-        
-        <span v-if="isLoading" class="text-primary-500">
-          <i class="pi pi-spin pi-spinner"></i>
-        </span>
-        <span v-else-if="error" class="text-danger-500">
-          <i class="pi pi-exclamation-triangle"></i>
-        </span>
-        <span v-else class="text-success-500">
-          <i class="pi pi-check-circle"></i>
-        </span>
       </div>
     </div>
 
