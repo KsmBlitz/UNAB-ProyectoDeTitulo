@@ -3,6 +3,7 @@ import { ref } from 'vue';
 import { RouterView } from 'vue-router';
 import Sidebar from '@/components/Sidebar.vue';
 import TheHeader from '@/components/TheHeader.vue';
+import RouteLoader from '@/components/RouteLoader.vue';
 
 defineOptions({
   name: 'DashboardLayout'
@@ -23,7 +24,10 @@ const toggleSidebar = () => {
   <div class="flex-grow flex flex-col h-screen overflow-hidden max-w-full">
       <TheHeader />
 
-  <main class="flex-grow overflow-y-auto bg-gradient-to-br from-white via-blue-50 to-blue-100 px-0">
+  <main class="flex-grow overflow-y-auto bg-gradient-to-br from-white via-blue-50 to-blue-100 px-0 relative">
+        <!-- Barra de carga en la parte superior del contenido -->
+        <RouteLoader />
+        
         <RouterView />
       </main>
     </div>

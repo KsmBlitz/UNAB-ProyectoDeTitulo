@@ -4,8 +4,10 @@ import NotificationToast from '@/components/NotificationToast.vue'
 </script>
 
 <template>
-  <RouterView />
-  <NotificationToast />
+  <div id="app">
+    <RouterView />
+    <NotificationToast />
+  </div>
 </template>
 
 <!-- Global styles now managed by Tailwind CSS in assets/styles.css -->
