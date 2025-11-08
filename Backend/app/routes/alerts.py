@@ -182,8 +182,15 @@ async def dismiss_alert(
             logger.error(f"Error insertando en historial: {history_error}")
             # Don't fail dismiss due to history error
         
-        # TODO: Clear notification throttling for this alert if needed
-        # await clear_notifications_for_alert(request.alert_id)
+        # Clear notification throttling for this alert
+        try:
+            from app.services.notifications import clear_notifications_sent_for_alert
+            await clear_notifications_sent_for_alert(
+                alert_type=alert["type"],
+                sensor_id=alert.get("sensor_id")
+            )
+        except Exception as throttle_error:
+            logger.warning(f"Error clearing notification throttle: {throttle_error}")
         
         logger.info(f"Alerta {request.alert_id} cerrada por {user_email} ({user_role})")
         

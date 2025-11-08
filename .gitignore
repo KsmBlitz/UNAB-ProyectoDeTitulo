@@ -139,3 +139,5 @@ helm-charts/values-prod.yaml
 Backend/__pycache__/
 
 .venv/
+ARQUITECTURA-MICROSERVICIOS.md
+PRINCIPIOS-SOLID.md
