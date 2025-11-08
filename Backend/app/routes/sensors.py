@@ -10,7 +10,7 @@ from pydantic import BaseModel
 import logging
 
 from app.config import sensor_collection
-from app.utils import get_current_user
+from app.utils import get_current_user, get_current_admin_user
 from app.services import predict_sensor_values
 from app.services.audit import log_audit_event
 from models.audit_models import AuditAction
@@ -350,7 +350,7 @@ async def get_sensor_prediction(
 async def save_prediction_config(
     config: PredictionConfigModel,
     request: Request,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_admin_user)
 ):
     """
     Save prediction model configuration and log to audit

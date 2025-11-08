@@ -16,6 +16,7 @@ import {
   type ChartData
 } from 'chart.js';
 import { API_BASE_URL } from '@/config/api';
+import { authStore } from '@/auth/store';
 import { evaluateMetricStatus, BLUEBERRY_THRESHOLDS, type MetricStatus } from '@/utils/metrics';
 
 defineOptions({
@@ -48,6 +49,20 @@ const modelConfig = ref({
   lookback_days: 7
 });
 const isSavingConfig = ref(false);
+
+// Authorization - Verificar que el usuario sea administrador
+const isAdmin = computed(() => {
+  const userRole = authStore.user?.role;
+  // Debug: mostrar rol actual en consola
+  if (import.meta.env.DEV) {
+    console.log('[IndividualChart] Checking admin status:', {
+      userRole,
+      isAdmin: userRole === 'admin',
+      sensorType: props.sensorType
+    });
+  }
+  return userRole === 'admin';
+});
 
 // Computed property to check for critical predictions
 const criticalPredictions = computed(() => {
@@ -490,9 +505,9 @@ onMounted(fetchData);
           <span>{{ showPrediction ? 'Ocultar' : 'Predicción' }}</span>
         </button>
         
-        <!-- Config button for prediction model -->
+        <!-- Config button for prediction model (only admin) -->
         <button
-          v-if="sensorType === 'ph' || sensorType === 'conductividad'"
+          v-if="(sensorType === 'ph' || sensorType === 'conductividad') && isAdmin"
           @click="openConfigModal"
           class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center gap-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200"
           title="Configurar modelo de predicción"

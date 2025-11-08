@@ -134,7 +134,23 @@ onUnmounted(() => {
         <!-- User Info -->
         <div class="flex flex-col items-start">
           <span class="font-semibold text-sm text-gray-800">{{ authStore.user?.full_name || 'Usuario' }}</span>
-          <span class="text-xs text-gray-500">{{ userRoleFormatted }}</span>
+          <div class="flex items-center gap-1.5">
+            <span class="text-xs text-gray-500">{{ userRoleFormatted }}</span>
+            <span 
+              v-if="authStore.user?.role === 'admin'"
+              class="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-semibold rounded"
+              title="Usuario Administrador"
+            >
+              ADMIN
+            </span>
+            <span 
+              v-else-if="authStore.user?.role === 'operario'"
+              class="px-1.5 py-0.5 bg-green-100 text-green-700 text-[10px] font-semibold rounded"
+              title="Usuario Operario"
+            >
+              OP
+            </span>
+          </div>
         </div>
 
         <i class="pi pi-chevron-down text-xs text-gray-400"></i>
