@@ -17,6 +17,7 @@ import {
 } from 'chart.js';
 import { API_BASE_URL } from '@/config/api';
 import { authStore } from '@/auth/store';
+import { notify } from '@/stores/notificationStore';
 import { evaluateMetricStatus, BLUEBERRY_THRESHOLDS, type MetricStatus } from '@/utils/metrics';
 
 defineOptions({
@@ -280,6 +281,12 @@ const saveModelConfig = async () => {
       throw new Error('Error al guardar configuración');
     }
     
+    // Show success notification
+    notify.success(
+      'Configuración guardada',
+      `Predicción: ${modelConfig.value.days} días con ${modelConfig.value.lookback_days} días de histórico`
+    );
+    
     // Close modal
     showConfigModal.value = false;
     
@@ -290,7 +297,10 @@ const saveModelConfig = async () => {
     
   } catch (err) {
     console.error('Error saving model config:', err);
-    alert('Error al guardar la configuración del modelo');
+    notify.error(
+      'Error al guardar',
+      'No se pudo guardar la configuración del modelo. Intenta nuevamente.'
+    );
   } finally {
     isSavingConfig.value = false;
   }

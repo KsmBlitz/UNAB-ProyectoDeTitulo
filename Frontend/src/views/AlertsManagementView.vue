@@ -509,6 +509,7 @@ import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { alertStore, type ActiveAlert } from '@/stores/alertStore'
 import { authStore } from '@/auth/store'
 import { API_BASE_URL } from '@/config/api'
+import { notify } from '@/stores/notificationStore'
 
 defineOptions({
   name: 'AlertsManagementView'
@@ -716,8 +717,11 @@ async function dismissAlert(alert: ActiveAlert): Promise<void> {
       `Cerrada desde gestión de alertas por ${authStore.user?.email}`
     )
 
-    // Mostrar mensaje de éxito
-    showSuccessMessage(`Alerta "${alert.title}" cerrada exitosamente`)
+    // Mostrar notificación de éxito
+    notify.success(
+      'Alerta cerrada',
+      `"${alert.title}" ha sido cerrada exitosamente`
+    );
 
     // La alerta se removió automáticamente del store
     await refreshAlerts()
@@ -728,18 +732,13 @@ async function dismissAlert(alert: ActiveAlert): Promise<void> {
     }
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Error desconocido al cerrar la alerta'
-    showErrorMessage(`No se pudo cerrar la alerta: ${errorMsg}`)
+    notify.error(
+      'Error al cerrar alerta',
+      errorMsg
+    );
   } finally {
     dismissingAlerts.value.delete(alert.id)
   }
-}
-
-function showSuccessMessage(message: string): void {
-  alert(message)
-}
-
-function showErrorMessage(message: string): void {
-  alert(message)
 }
 
 function applyFilters(): void {
@@ -847,10 +846,18 @@ async function clearHistory(): Promise<void> {
 
     // Limpiar el historial local
     alertHistory.value = []
+    
+    notify.success(
+      'Historial borrado',
+      'Todo el historial de alertas ha sido eliminado'
+    );
 
   } catch (error) {
     console.error('Error borrando historial:', error)
-    alert('Error al borrar el historial. Por favor, inténtalo de nuevo.')
+    notify.error(
+      'Error al borrar historial',
+      'No se pudo borrar el historial. Intenta nuevamente.'
+    );
   } finally {
     clearingHistory.value = false
   }
