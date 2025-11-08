@@ -270,7 +270,7 @@
             </tr>
           </thead>
           <tbody class="bg-white divide-y divide-gray-200">
-            <tr v-for="historyItem in alertHistory" :key="historyItem.id" class="hover:bg-gray-50 transition-colors duration-150">
+            <tr v-for="historyItem in paginatedHistory" :key="historyItem.id" class="hover:bg-gray-50 transition-colors duration-150">
               <td class="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">{{ formatHistoryDate(historyItem.created_at) }}</td>
               <td class="px-6 py-4 text-sm text-gray-700">{{ getTypeLabel(historyItem.type) }}</td>
               <td class="px-6 py-4 text-sm">
@@ -289,6 +289,47 @@
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <!-- Paginación del historial -->
+      <div v-if="!loadingHistory && alertHistory.length > 0" class="bg-gray-50 px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <div class="text-sm text-gray-700">
+            Página <span class="font-semibold">{{ historyPagination.page }}</span> de <span class="font-semibold">{{ totalHistoryPages }}</span>
+            ({{ alertHistory.length }} registros)
+          </div>
+          <div class="flex items-center gap-2">
+            <label for="historyPageSize" class="text-sm text-gray-700">Items por página:</label>
+            <select
+              id="historyPageSize"
+              v-model.number="historyPagination.page_size"
+              @change="changeHistoryPageSize"
+              class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+            >
+              <option :value="10">10</option>
+              <option :value="20">20</option>
+              <option :value="50">50</option>
+            </select>
+          </div>
+        </div>
+        <div class="flex gap-2">
+          <button
+            @click="previousHistoryPage"
+            :disabled="historyPagination.page === 1"
+            class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
+          >
+            <i class="pi pi-chevron-left"></i>
+            Anterior
+          </button>
+          <button
+            @click="nextHistoryPage"
+            :disabled="historyPagination.page >= totalHistoryPages"
+            class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
+          >
+            Siguiente
+            <i class="pi pi-chevron-right"></i>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -508,6 +549,12 @@ const savingConfig = ref(false)
 const dismissingAlerts = ref(new Set<string>())
 const alertHistory = ref<AlertHistoryItem[]>([])
 
+// Paginación del historial
+const historyPagination = ref({
+  page: 1,
+  page_size: 10
+})
+
 // Configuración de umbrales
 const thresholdConfig = ref({
   ph_min: 4.5,
@@ -556,6 +603,17 @@ const filteredActiveAlerts = computed(() => {
     // Si mismo nivel, más reciente primero
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   })
+})
+
+// Historial paginado
+const paginatedHistory = computed(() => {
+  const start = (historyPagination.value.page - 1) * historyPagination.value.page_size
+  const end = start + historyPagination.value.page_size
+  return alertHistory.value.slice(start, end)
+})
+
+const totalHistoryPages = computed(() => {
+  return Math.ceil(alertHistory.value.length / historyPagination.value.page_size)
 })
 
 // Funciones
@@ -733,12 +791,32 @@ async function loadHistory(): Promise<void> {
       dismissed_by: item.dismissed_by
     }))
 
+    // Resetear a la primera página
+    historyPagination.value.page = 1
+
   } catch (error) {
     console.error('Error cargando historial:', error)
     alertHistory.value = []
   } finally {
     loadingHistory.value = false
   }
+}
+
+function nextHistoryPage() {
+  if (historyPagination.value.page < totalHistoryPages.value) {
+    historyPagination.value.page++
+  }
+}
+
+function previousHistoryPage() {
+  if (historyPagination.value.page > 1) {
+    historyPagination.value.page--
+  }
+}
+
+function changeHistoryPageSize() {
+  // Reset a la primera página cuando se cambia el tamaño de página
+  historyPagination.value.page = 1
 }
 
 async function clearHistory(): Promise<void> {

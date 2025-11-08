@@ -1,13 +1,28 @@
 # docker-compose.yml
 services:
+  # Nginx Proxy (Puerto 80)
+  nginx-proxy:
+    image: nginx:alpine
+    container_name: embalses-proxy
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx-proxy.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+      - frontend
+    restart: unless-stopped
+    networks:
+      - embalses-network
+
   # Backend (FastAPI)
   backend:
     build:
       context: ./Backend
       dockerfile: Dockerfile
     container_name: embalses-backend
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     env_file:
       - ./Backend/.env
     volumes:
@@ -23,8 +38,8 @@ services:
       context: ./Frontend
       dockerfile: Dockerfile
     container_name: embalses-frontend
-    ports:
-      - "3000:80"  # Puerto 3000 para acceder al frontend
+    expose:
+      - "80"
     depends_on:
       - backend
     restart: unless-stopped
