@@ -141,3 +141,5 @@ Backend/__pycache__/
 .venv/
 ARQUITECTURA-MICROSERVICIOS.md
 PRINCIPIOS-SOLID.md
+Backend/certificates
+
