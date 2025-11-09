@@ -17,6 +17,11 @@ Frontend/.env
 .env.*.local
 
 # ============================================
+# Seguridad - Archivos de contraseñas
+# ============================================
+.htpasswd
+
+# ============================================
 # Python
 # ============================================
 __pycache__/
@@ -70,12 +75,14 @@ Backend/build/
 .DS_Store
 
 # ============================================
-# Documentación temporal
+# Documentación temporal y de desarrollo
 # ============================================
 ARQUITECTURA-MICROSERVICIOS.md
 PRINCIPIOS-SOLID.md
 AUDITORIA-ARQUITECTURA.md
 NUEVAS-CARACTERISTICAS-v2.0.md
+AUTENTICACION-DOCS.md
+CAMBIAR-CREDENCIALES.md
 
 # ============================================
 # Logs
