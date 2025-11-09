@@ -74,9 +74,12 @@ Backend/build/
 # ============================================
 ARQUITECTURA-MICROSERVICIOS.md
 PRINCIPIOS-SOLID.md
+AUDITORIA-ARQUITECTURA.md
+NUEVAS-CARACTERISTICAS-v2.0.md
 
 # ============================================
 # Logs
 # ============================================
 *.log
 logs/
+

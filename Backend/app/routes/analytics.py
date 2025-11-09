@@ -5,6 +5,7 @@ from typing import Optional, Literal
 from datetime import datetime, timedelta
 from app.config import sensor_collection
 from app.utils.dependencies import get_current_user
+from app.services.cache import cache_service
 from pydantic import BaseModel
 import numpy as np
 from scipy import stats
@@ -56,6 +57,12 @@ async def calculate_correlation(
     """
     Calcula la correlación de Pearson entre dos variables
     """
+    # Intentar obtener desde caché
+    cache_key = f"correlation_{request.variable1}_{request.variable2}_{request.period}"
+    cached_data = await cache_service.get(cache_key)
+    if cached_data:
+        return cached_data
+    
     try:
         days = PERIOD_DAYS.get(request.period, 30)
         start_date = datetime.utcnow() - timedelta(days=days)
@@ -98,7 +105,7 @@ async def calculate_correlation(
         
         if var1_std == 0 or var2_std == 0:
             # Si una variable es constante, la correlación no está definida
-            return {
+            result = {
                 "coefficient": 0.0,
                 "p_value": 1.0,
                 "sample_size": min_length,
@@ -109,6 +116,8 @@ async def calculate_correlation(
                 "period": request.period,
                 "note": "Una o ambas variables son constantes, correlación no definida"
             }
+            await cache_service.set(cache_key, result, ttl=120)  # 2 minutos
+            return result
         
         # Calcular correlación de Pearson
         correlation, p_value = stats.pearsonr(var1_values, var2_values)
@@ -119,7 +128,7 @@ async def calculate_correlation(
         if not np.isfinite(p_value):
             p_value = 1.0
         
-        return {
+        result = {
             "coefficient": float(correlation),
             "p_value": float(p_value),
             "sample_size": min_length,
@@ -129,6 +138,10 @@ async def calculate_correlation(
             "var2_std": float(var2_std),
             "period": request.period
         }
+        
+        # Guardar en caché por 2 minutos
+        await cache_service.set(cache_key, result, ttl=120)
+        return result
         
     except HTTPException:
         raise
@@ -147,6 +160,12 @@ async def detect_anomalies(
     """
     Detecta anomalías usando el método de desviaciones estándar (Z-score)
     """
+    # Intentar obtener desde caché
+    cache_key = f"anomalies_{period}_{threshold}"
+    cached_data = await cache_service.get(cache_key)
+    if cached_data:
+        return cached_data
+    
     try:
         days = PERIOD_DAYS.get(period, 30)
         start_date = datetime.utcnow() - timedelta(days=days)
@@ -206,11 +225,15 @@ async def detect_anomalies(
         # Ordenar por timestamp descendente
         anomalies.sort(key=lambda x: x["timestamp"], reverse=True)
         
-        return {
+        result = {
             "anomalies": anomalies[:50],  # Limitar a 50 anomalías más recientes
             "total": len(anomalies),
             "period": period
         }
+        
+        # Guardar en caché por 2 minutos
+        await cache_service.set(cache_key, result, ttl=120)
+        return result
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al detectar anomalías: {str(e)}")
@@ -224,6 +247,12 @@ async def get_predictions(
     """
     Genera predicciones simples usando media móvil y tendencias lineales
     """
+    # Intentar obtener desde caché
+    cache_key = f"predictions_{hours}"
+    cached_data = await cache_service.get(cache_key)
+    if cached_data:
+        return cached_data
+    
     try:
         # Intentar obtener datos de las últimas 7 días
         start_date = datetime.utcnow() - timedelta(days=7)
@@ -306,6 +335,8 @@ async def get_predictions(
                 "hours_ahead": hours
             }
         
+        # Guardar en caché por 5 minutos
+        await cache_service.set(cache_key, predictions, ttl=300)
         return predictions
         
     except HTTPException:

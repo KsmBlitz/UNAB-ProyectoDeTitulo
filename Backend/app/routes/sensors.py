@@ -13,6 +13,7 @@ from app.config import sensor_collection
 from app.utils import get_current_user, get_current_admin_user
 from app.services import predict_sensor_values
 from app.services.audit import log_audit_event
+from app.services.cache import cache_service
 from models.audit_models import AuditAction
 
 logger = logging.getLogger(__name__)
@@ -107,6 +108,12 @@ async def get_latest_metrics(
     Args:
         reservoir_id: Optional filter by reservoir ID
     """
+    # Intentar obtener desde caché
+    cache_key = f"metrics_latest_{reservoir_id or 'all'}"
+    cached_data = await cache_service.get(cache_key)
+    if cached_data:
+        return cached_data
+    
     try:
         query = {}
         if reservoir_id:
@@ -119,7 +126,7 @@ async def get_latest_metrics(
         )
         
         if not latest_reading:
-            return {
+            result = {
                 "temperature": 0,
                 "ph": 0,
                 "conductivity": 0,
@@ -127,15 +134,19 @@ async def get_latest_metrics(
                 "timestamp": None,
                 "reservoir_id": reservoir_id
             }
+        else:
+            result = {
+                "temperature": latest_reading.get("Temperature", 0),
+                "ph": latest_reading.get("pH_Value", 0),
+                "conductivity": latest_reading.get("EC", 0),
+                "water_level": latest_reading.get("Water_Level", 0),
+                "timestamp": latest_reading.get("ReadTime"),
+                "reservoir_id": latest_reading.get("reservoirId")
+            }
         
-        return {
-            "temperature": latest_reading.get("Temperature", 0),
-            "ph": latest_reading.get("pH_Value", 0),
-            "conductivity": latest_reading.get("EC", 0),
-            "water_level": latest_reading.get("Water_Level", 0),
-            "timestamp": latest_reading.get("ReadTime"),
-            "reservoir_id": latest_reading.get("reservoirId")
-        }
+        # Guardar en caché por 30 segundos
+        await cache_service.set(cache_key, result, ttl=30)
+        return result
         
     except Exception as e:
         logger.error(f"Error obteniendo métricas: {e}")
