@@ -100,6 +100,17 @@ const emit = defineEmits(['toggle-sidebar']);
           </span>
         </RouterLink>
 
+        <!-- Analytics Link -->
+        <RouterLink
+          to="/analytics"
+          class="flex items-center px-4 py-3 text-gray-700 no-underline rounded-lg mb-1 transition-all duration-200 whitespace-nowrap hover:bg-blue-100 hover:text-blue-700 group"
+          :class="isCollapsed ? 'justify-center' : ''"
+          active-class="!bg-gradient-to-r !from-blue-600 !to-blue-500 !text-white !shadow-lg !shadow-blue-500/30"
+        >
+          <i class="pi pi-chart-line text-lg w-5 text-center flex-shrink-0 group-hover:scale-110 transition-transform" :class="isCollapsed ? '' : 'mr-4'"></i>
+          <span v-if="!isCollapsed" class="font-medium text-sm">Analítica</span>
+        </RouterLink>
+
         <!-- Users Link (Admin only) -->
         <RouterLink
           v-if="authStore.user?.role === 'admin'"
