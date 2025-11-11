@@ -70,7 +70,7 @@ const dismiss = (notification: Notification) => {
 
 <template>
   <Teleport to="body">
-    <div class="fixed top-20 right-6 z-[9999] flex flex-col gap-3 pointer-events-none max-w-md">
+    <div class="fixed top-20 right-6 flex flex-col gap-3 pointer-events-none max-w-md" style="z-index: 99999;">
       <TransitionGroup name="notification">
         <div
           v-for="notification in notifications"

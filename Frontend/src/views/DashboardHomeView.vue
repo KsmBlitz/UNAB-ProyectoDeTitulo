@@ -42,6 +42,9 @@ const chartsGridRef = ref<InstanceType<typeof HistoricalChartGrid> | null>(null)
 onMounted(async () => {
   themeStore.applyTheme();
   await fetchMetrics();
+  
+  // Auto-refresh cada 30 segundos
+  setInterval(fetchMetrics, 30000);
 });
 
 watch(() => themeStore.isDark, () => {
@@ -49,9 +52,8 @@ watch(() => themeStore.isDark, () => {
 });
 
 async function fetchMetrics() {
-  // Prevent loading flicker if data already exists
-  const shouldShowLoading = !metrics.value;
-  if (shouldShowLoading) {
+  // Solo mostrar loading en la primera carga
+  if (!metrics.value) {
     isLoadingMetrics.value = true;
   }
 
@@ -132,9 +134,7 @@ async function fetchMetrics() {
       errorMetrics.value = "Error al cargar las métricas. Intenta actualizar la página.";
     }
   } finally {
-    if (shouldShowLoading) {
-      isLoadingMetrics.value = false;
-    }
+    isLoadingMetrics.value = false;
   }
 }
 </script>

@@ -157,7 +157,11 @@ const chartOptions = {
 };
 
 const fetchData = async () => {
-  isLoading.value = true;
+  // Solo mostrar loading en la primera carga
+  if (!chartData.value || chartData.value.labels?.length === 0) {
+    isLoading.value = true;
+  }
+  
   error.value = null;
 
   const token = localStorage.getItem('userToken');
@@ -176,6 +180,27 @@ const fetchData = async () => {
     }
 
     const data = await response.json();
+
+    // Las fechas ya vienen en hora de Chile desde el backend (sin timezone info)
+    // Solo necesitamos extraer la hora (HH:MM)
+    const localLabels = (data.labels || []).map((isoString: string) => {
+      if (!isoString) return '';
+      try {
+        const date = new Date(isoString);
+        // Verificar si la fecha es válida
+        if (isNaN(date.getTime())) {
+          return '';
+        }
+        // Extraer hora y minutos directamente (ya están en hora de Chile)
+        return date.toLocaleTimeString('es-CL', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          hour12: false
+        });
+      } catch (e) {
+        return '';
+      }
+    });
 
     // Crear dataset según el tipo de sensor
     let datasetData = [];
@@ -201,7 +226,7 @@ const fetchData = async () => {
     }
 
     chartData.value = {
-      labels: data.labels || [],
+      labels: localLabels,
       datasets: [
         {
           label: datasetLabel,
@@ -243,11 +268,23 @@ const fetchData = async () => {
 
 // Funciones expuestas para control externo
 const updateTimeRange = (hours: number) => {
+  // Evitar actualizar si ya está cargando (throttling)
+  if (isLoading.value) {
+    console.log(`[${props.title}] Ignorando actualización - ya está cargando`);
+    return;
+  }
+  
   currentTimeRange.value = hours;
   fetchData();
 };
 
 const refreshData = async () => {
+  // Evitar refresh si ya está cargando
+  if (isLoading.value) {
+    console.log(`[${props.title}] Ignorando refresh - ya está cargando`);
+    return;
+  }
+  
   await fetchData();
 };
 

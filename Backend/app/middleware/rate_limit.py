@@ -27,8 +27,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.user_requests: Dict[str, list] = defaultdict(list)
         
         # Configuración de límites
-        self.IP_LIMIT_PER_MINUTE = 100
-        self.USER_LIMIT_PER_HOUR = 1000
+        self.IP_LIMIT_PER_MINUTE = 300  # Aumentado de 100 a 300
+        self.USER_LIMIT_PER_HOUR = 5000  # Aumentado de 1000 a 5000
+        self.AUTHENTICATED_USER_LIMIT_PER_MINUTE = 200  # Nuevo límite por minuto para usuarios autenticados
         self.CRITICAL_ENDPOINTS_LIMIT = 5  # Por minuto
         
         # Endpoints considerados críticos
@@ -80,6 +81,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Verificar si es endpoint crítico
         is_critical = self._is_critical_endpoint(path, method)
         
+        # Obtener usuario autenticado (si existe)
+        user_email = self._get_user_from_token(request)
+        
         # Rate limiting por IP (ventana de 1 minuto)
         self.ip_requests[client_ip] = self._clean_old_requests(
             self.ip_requests[client_ip],
@@ -102,9 +106,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                     headers={"Retry-After": "60"}
                 )
         else:
-            # Límite general por IP
-            if len(self.ip_requests[client_ip]) >= self.IP_LIMIT_PER_MINUTE:
-                logger.warning(f"Rate limit exceeded by IP: {client_ip}")
+            # Para usuarios autenticados, usar límite más permisivo
+            if user_email:
+                ip_limit = self.AUTHENTICATED_USER_LIMIT_PER_MINUTE
+            else:
+                ip_limit = self.IP_LIMIT_PER_MINUTE
+                
+            if len(self.ip_requests[client_ip]) >= ip_limit:
+                logger.warning(f"Rate limit exceeded by IP: {client_ip} (authenticated: {user_email is not None})")
                 return JSONResponse(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                     content={
@@ -115,7 +124,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 )
         
         # Rate limiting por usuario autenticado (ventana de 1 hora)
-        user_email = self._get_user_from_token(request)
         if user_email:
             self.user_requests[user_email] = self._clean_old_requests(
                 self.user_requests[user_email],
@@ -143,8 +151,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         
         # Agregar headers de rate limit info
-        remaining_requests = self.IP_LIMIT_PER_MINUTE - len(self.ip_requests[client_ip])
-        response.headers["X-RateLimit-Limit"] = str(self.IP_LIMIT_PER_MINUTE)
+        # Usar el límite apropiado según si está autenticado
+        current_limit = self.AUTHENTICATED_USER_LIMIT_PER_MINUTE if user_email else self.IP_LIMIT_PER_MINUTE
+        remaining_requests = current_limit - len(self.ip_requests[client_ip])
+        response.headers["X-RateLimit-Limit"] = str(current_limit)
         response.headers["X-RateLimit-Remaining"] = str(max(0, remaining_requests))
         response.headers["X-RateLimit-Reset"] = str(int((now + timedelta(minutes=1)).timestamp()))
         

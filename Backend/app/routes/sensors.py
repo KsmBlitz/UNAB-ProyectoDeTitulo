@@ -18,6 +18,9 @@ from models.audit_models import AuditAction
 
 logger = logging.getLogger(__name__)
 
+# Timezone offset para Chile (UTC-3)
+CHILE_OFFSET = timedelta(hours=-3)
+
 router = APIRouter(prefix="/api", tags=["Datos de Sensores"])
 
 
@@ -25,38 +28,17 @@ def normalize_sensor_reading(reading: dict) -> dict:
     """
     Normaliza los nombres de campos de diferentes formatos de datos de sensores
     
-    Soporta:
-    - Formato antiguo: Temperature, pH_Value, EC, Water_Level, ReadTime
-    - Formato ESP32 nuevo: temperature, ph, ec, timestamp
+    Usa SOLO el formato nuevo (minúsculas): temperature, ph, ec, water_level
+    Esto es lo que Lambda guarda en MongoDB
     """
-    temperature = (
-        reading.get("Temperature") or 
-        reading.get("temperature") or 
-        0
-    )
+    # Usar formato nuevo (minúsculas) directamente
+    temperature = reading.get("temperature", 0)
+    ph = reading.get("ph", 0)
+    ec = reading.get("ec", 0)
+    water_level = reading.get("water_level", 0)
     
-    ph = (
-        reading.get("pH_Value") or 
-        reading.get("ph") or 
-        reading.get("pH") or
-        0
-    )
-    
-    ec = (
-        reading.get("EC") or 
-        reading.get("ec") or 
-        reading.get("conductivity") or
-        0
-    )
-    
-    water_level = (
-        reading.get("Water_Level") or 
-        reading.get("water_level") or 
-        reading.get("waterLevel") or
-        0
-    )
-    
-    timestamp = reading.get("ReadTime") or reading.get("timestamp")
+    # Timestamp puede venir como 'timestamp' o 'ReadTime'
+    timestamp = reading.get("timestamp") or reading.get("ReadTime")
     
     return {
         "temperature": temperature,
@@ -129,10 +111,11 @@ async def get_individual_sensors_status(current_user: dict = Depends(get_current
             
             sensor_data = {
                 "uid": reservoir_id,
-                "last_value": {
-                    "value": round(normalized["temperature"], 1),
-                    "unit": "°C",
-                    "type": "Temperatura"
+                "last_values": {
+                    "temperature": round(normalized["temperature"], 1) if normalized["temperature"] is not None and normalized["temperature"] != 0 else normalized["temperature"],
+                    "ph": round(normalized["ph"], 2) if normalized["ph"] is not None and normalized["ph"] != 0 else normalized["ph"],
+                    "ec": round(normalized["ec"], 1) if normalized["ec"] is not None and normalized["ec"] != 0 else normalized["ec"],
+                    "water_level": round(normalized["water_level"], 1) if normalized["water_level"] is not None and normalized["water_level"] != 0 else normalized["water_level"]
                 },
                 "status": status,
                 "location": f"Embalse {reservoir_id}",
@@ -256,14 +239,35 @@ async def get_historical_data(
             # Normalizar datos
             normalized = normalize_sensor_reading(reading)
             
-            # Format timestamp
+            # Format timestamp - convertir UTC a hora de Chile (UTC-3)
             timestamp = normalized["timestamp"]
             if timestamp:
-                labels.append(timestamp.strftime("%H:%M") if hasattr(timestamp, 'strftime') else str(timestamp))
+                # Si es datetime, convertir a hora de Chile
+                if hasattr(timestamp, 'isoformat'):
+                    # Si el timestamp no tiene timezone, asumimos UTC
+                    if timestamp.tzinfo is None:
+                        timestamp = timestamp.replace(tzinfo=timezone.utc)
+                    # Convertir a hora de Chile (UTC-3)
+                    chile_time = timestamp.astimezone(timezone(CHILE_OFFSET))
+                    # Enviar como ISO string sin timezone info para que el frontend no lo reconvierta
+                    labels.append(chile_time.strftime('%Y-%m-%dT%H:%M:%S'))
+                # Si ya es string, intentar parsearlo y convertirlo
+                elif isinstance(timestamp, str):
+                    try:
+                        # Parse ISO string
+                        dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                        if dt.tzinfo is None:
+                            dt = dt.replace(tzinfo=timezone.utc)
+                        chile_time = dt.astimezone(timezone(CHILE_OFFSET))
+                        labels.append(chile_time.strftime('%Y-%m-%dT%H:%M:%S'))
+                    except:
+                        labels.append(timestamp)
+                else:
+                    labels.append(str(timestamp))
             else:
                 labels.append("")
             
-            # Extract values using normalized fields
+            # Extract values using normalized fields - usar solo formato nuevo
             temperatura_data.append(normalized["temperature"])
             ph_data.append(normalized["ph"])
             conductividad_data.append(normalized["ec"])

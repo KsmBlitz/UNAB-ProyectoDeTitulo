@@ -274,10 +274,8 @@ async def clear_alert_history(admin_user: dict = Depends(get_current_admin_user)
     Permanently deletes all records from alert history.
     """
     try:
+        # Eliminar todos los registros del historial
         result = await alert_history_collection.delete_many({})
-        
-        # Eliminar registros del historial
-        result = await alerts_collection.delete_many(query)
         
         logger.info(f"Historial limpiado: {result.deleted_count} registros eliminados")
         

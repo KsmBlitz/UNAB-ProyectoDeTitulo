@@ -9,10 +9,11 @@ defineOptions({
 
 interface SensorReading {
   uid: string;
-  last_value: {
-    value: number;
-    unit: string;
-    type: string;
+  last_values: {
+    temperature: number;
+    ph: number;
+    ec: number;
+    water_level: number;
   };
   status: 'online' | 'offline' | 'warning';
   location: string;
@@ -25,7 +26,11 @@ const isLoading = ref(true);
 const error = ref<string | null>(null);
 
 const fetchSensorsStatus = async () => {
-  isLoading.value = true;
+  // Solo mostrar loading en la primera carga
+  if (sensors.value.length === 0) {
+    isLoading.value = true;
+  }
+  
   error.value = null;
 
   const token = localStorage.getItem('userToken');
@@ -54,14 +59,19 @@ const fetchSensorsStatus = async () => {
 
     const sensorsData = await response.json();
 
-    // Mapear datos del backend
+    // Siempre actualizar, pero sin mostrar loading después de la primera carga
     sensors.value = sensorsData.map((sensor: any) => ({
-      uid: sensor.uid,
-      last_value: sensor.last_value,
-      status: sensor.status,
-      location: sensor.location,
-      last_reading: sensor.last_reading,
-      minutes_since_reading: sensor.minutes_since_reading
+      uid: sensor.uid || 'N/A',
+      last_values: sensor.last_values || {
+        temperature: 0,
+        ph: 0,
+        ec: 0,
+        water_level: 0
+      },
+      status: sensor.status || 'offline',
+      location: sensor.location || 'Desconocida',
+      last_reading: sensor.last_reading || new Date().toISOString(),
+      minutes_since_reading: sensor.minutes_since_reading || 0
     }));
 
   } catch (err) {
@@ -79,13 +89,31 @@ const fetchSensorsStatus = async () => {
 
 const formatLastReading = (isoString: string) => {
   const date = new Date(isoString);
-  return date.toLocaleDateString('es-ES', {
+  // Formatear en hora local de Chile (UTC-3)
+  return date.toLocaleDateString('es-CL', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
     hour: '2-digit',
-    minute: '2-digit'
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'America/Santiago'
   });
+};
+
+// Función para obtener calidad de señal basada en minutos desde última lectura
+const getSignalQuality = (minutes: number) => {
+  if (minutes < 5) {
+    return { level: 'Excelente', icon: 'pi pi-wifi', color: 'text-green-600', bg: 'bg-green-100', bars: 4 };
+  } else if (minutes < 15) {
+    return { level: 'Buena', icon: 'pi pi-wifi', color: 'text-blue-600', bg: 'bg-blue-100', bars: 3 };
+  } else if (minutes < 30) {
+    return { level: 'Regular', icon: 'pi pi-wifi', color: 'text-yellow-600', bg: 'bg-yellow-100', bars: 2 };
+  } else if (minutes < 60) {
+    return { level: 'Débil', icon: 'pi pi-wifi', color: 'text-orange-600', bg: 'bg-orange-100', bars: 1 };
+  } else {
+    return { level: 'Sin Señal', icon: 'pi pi-times-circle', color: 'text-red-600', bg: 'bg-red-100', bars: 0 };
+  }
 };
 
 const getStatusText = (status: string) => {
@@ -101,16 +129,11 @@ onMounted(fetchSensorsStatus);
 
 // Auto-refresh cada 30 segundos
 setInterval(fetchSensorsStatus, 30000);
-
-// Exponer la función al componente padre
-defineExpose({
-  fetchSensorsStatus
-});
 </script>
 
 <template>
   <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-    <!-- Header con botón actualizar -->
+    <!-- Header sin botón actualizar -->
     <div class="flex justify-between items-center mb-6 pb-4 border-b border-gray-200">
       <div class="flex gap-6">
         <div class="flex flex-col items-center gap-1">
@@ -126,14 +149,11 @@ defineExpose({
           <span class="text-xs text-gray-600 uppercase tracking-wider font-medium">Desconectados</span>
         </div>
       </div>
-      <button
-        @click="fetchSensorsStatus"
-        class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
-        :disabled="isLoading"
-      >
-        <i class="pi text-sm" :class="isLoading ? 'pi-spin pi-spinner' : 'pi-refresh'"></i>
-        <span class="text-sm font-medium">Actualizar</span>
-      </button>
+      <!-- Indicador de actualización automática -->
+      <div class="flex items-center gap-2 text-sm text-gray-500">
+        <i class="pi pi-sync text-xs" :class="{ 'pi-spin': isLoading }"></i>
+        <span>Actualización automática cada 30s</span>
+      </div>
     </div>
 
     <div v-if="error" class="flex items-center gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg text-blue-700 mb-4">
@@ -152,7 +172,7 @@ defineExpose({
         <thead>
           <tr class="bg-gradient-to-r from-slate-50 to-gray-100">
             <th class="text-left p-4 font-semibold text-gray-700 text-xs uppercase tracking-wider border-b border-gray-300">UID Sensor (MAC)</th>
-            <th class="text-left p-4 font-semibold text-gray-700 text-xs uppercase tracking-wider border-b border-gray-300">Últimos Valores</th>
+            <th class="text-left p-4 font-semibold text-gray-700 text-xs uppercase tracking-wider border-b border-gray-300">Calidad de Señal</th>
             <th class="text-left p-4 font-semibold text-gray-700 text-xs uppercase tracking-wider border-b border-gray-300">Estado</th>
             <th class="text-left p-4 font-semibold text-gray-700 text-xs uppercase tracking-wider border-b border-gray-300">Ubicación</th>
             <th class="text-left p-4 font-semibold text-gray-700 text-xs uppercase tracking-wider border-b border-gray-300">Última Lectura</th>
@@ -170,12 +190,36 @@ defineExpose({
               </div>
             </td>
 
-            <!-- Últimos valores -->
-            <td class="p-4 border-b border-gray-100 text-center">
-              <div>
-                <span class="text-xl font-bold text-gray-900">{{ sensor.last_value.value }}</span>
-                <span class="text-sm text-gray-600 ml-1">{{ sensor.last_value.unit }}</span>
-                <div class="text-xs text-gray-500 mt-1 uppercase tracking-wide">{{ sensor.last_value.type }}</div>
+            <!-- Calidad de Señal -->
+            <td class="p-4 border-b border-gray-100">
+              <div class="flex items-center gap-3">
+                <!-- Indicador visual de barras de señal -->
+                <div class="flex items-end gap-0.5 h-8">
+                  <div 
+                    v-for="bar in 4" 
+                    :key="bar"
+                    class="w-1.5 rounded-t transition-all"
+                    :class="bar <= getSignalQuality(sensor.minutes_since_reading).bars 
+                      ? getSignalQuality(sensor.minutes_since_reading).bg.replace('bg-', 'bg-') + ' opacity-100'
+                      : 'bg-gray-200 opacity-40'"
+                    :style="{ height: `${bar * 25}%` }"
+                  ></div>
+                </div>
+                
+                <!-- Texto de calidad -->
+                <div>
+                  <div class="flex items-center gap-1.5">
+                    <span 
+                      class="font-semibold text-sm"
+                      :class="getSignalQuality(sensor.minutes_since_reading).color"
+                    >
+                      {{ getSignalQuality(sensor.minutes_since_reading).level }}
+                    </span>
+                  </div>
+                  <div class="text-xs text-gray-500 mt-0.5">
+                    Hace {{ sensor.minutes_since_reading }} min
+                  </div>
+                </div>
               </div>
             </td>
 
@@ -250,11 +294,34 @@ defineExpose({
             </div>
           </div>
 
-          <div class="mb-4 py-3 bg-gray-50 rounded-lg text-center">
-            <div class="text-sm text-gray-600 uppercase tracking-wide mb-1">{{ sensor.last_value.type }}</div>
-            <div>
-              <span class="text-2xl font-bold text-gray-900">{{ sensor.last_value.value }}</span>
-              <span class="text-sm text-gray-600 ml-1">{{ sensor.last_value.unit }}</span>
+          <!-- Calidad de Señal en Mobile -->
+          <div class="mb-4 py-4 bg-gray-50 rounded-lg">
+            <div class="flex flex-col items-center gap-3">
+              <div class="text-xs font-medium text-gray-500 uppercase tracking-wide">Calidad de Señal</div>
+              
+              <!-- Signal bars -->
+              <div class="flex items-end gap-1 h-12">
+                <div v-for="bar in 4" :key="bar"
+                  class="w-2.5 rounded-t transition-all"
+                  :class="bar <= getSignalQuality(sensor.minutes_since_reading).bars 
+                    ? getSignalQuality(sensor.minutes_since_reading).bg + ' opacity-100'
+                    : 'bg-gray-200 opacity-40'"
+                  :style="{ height: `${bar * 25}%` }">
+                </div>
+              </div>
+              
+              <!-- Quality text -->
+              <div class="flex items-center gap-2">
+                <span class="font-bold text-base"
+                      :class="getSignalQuality(sensor.minutes_since_reading).color">
+                  {{ getSignalQuality(sensor.minutes_since_reading).level }}
+                </span>
+              </div>
+              
+              <!-- Time indicator -->
+              <div class="text-sm text-gray-500">
+                Hace {{ sensor.minutes_since_reading }} min
+              </div>
             </div>
           </div>
 
