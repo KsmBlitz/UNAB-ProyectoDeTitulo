@@ -39,16 +39,30 @@ const chartData = ref<ChartData<'line'>>({ labels: [], datasets: [] });
 const isLoading = ref(true);
 const error = ref<string | null>(null);
 const currentTimeRange = ref(props.timeRange);
-const showPrediction = ref(false);
+
+// Cargar estado de predicción desde localStorage
+const savedPredictionState = localStorage.getItem(`prediction_${props.sensorType}_enabled`);
+const showPrediction = ref(savedPredictionState === 'true');
 const isPredictionLoading = ref(false);
 const predictionData = ref<any>(null);
 
 // Modal de configuración del modelo
 const showConfigModal = ref(false);
-const modelConfig = ref({
-  days: 5,
-  lookback_days: 7
-});
+
+// Cargar configuración del modelo desde localStorage o usar defaults
+const getStoredConfig = () => {
+  const stored = localStorage.getItem(`prediction_${props.sensorType}_config`);
+  if (stored) {
+    try {
+      return JSON.parse(stored);
+    } catch {
+      return { days: 5, lookback_days: 7 };
+    }
+  }
+  return { days: 5, lookback_days: 7 };
+};
+
+const modelConfig = ref(getStoredConfig());
 const isSavingConfig = ref(false);
 
 // Authorization - Verificar que el usuario sea administrador
@@ -318,6 +332,9 @@ const saveModelConfig = async () => {
       throw new Error('Error al guardar configuración');
     }
     
+    // Save configuration to localStorage
+    localStorage.setItem(`prediction_${props.sensorType}_config`, JSON.stringify(modelConfig.value));
+    
     // Show success notification
     notify.success(
       'Configuración guardada',
@@ -346,6 +363,9 @@ const saveModelConfig = async () => {
 // Toggle prediction visibility
 const togglePrediction = async () => {
   showPrediction.value = !showPrediction.value;
+  
+  // Save prediction state to localStorage
+  localStorage.setItem(`prediction_${props.sensorType}_enabled`, showPrediction.value.toString());
   
   if (showPrediction.value) {
     await loadPrediction();

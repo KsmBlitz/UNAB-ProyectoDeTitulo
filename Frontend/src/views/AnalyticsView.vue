@@ -87,10 +87,7 @@ const fetchAnalyticsData = async () => {
     // 2. Detectar anomalías
     await detectAnomalies();
     
-    // 3. Obtener predicciones
-    await fetchPredictions();
-    
-    // 4. Comparativa histórica
+    // 3. Comparativa histórica
     await fetchHistoricalComparison();
     
   } catch (error: any) {
@@ -193,14 +190,20 @@ const fetchPredictions = async () => {
 
 const fetchHistoricalComparison = async () => {
   try {
+    console.log('[AnalyticsView] Fetching historical comparison...');
     const response: any = await api.get('/api/analytics/comparison', {
       params: { period: selectedPeriod.value }
     });
     
+    console.log('[AnalyticsView] Comparison response:', response);
+    
     currentPeriodStats.value = response.current;
     previousPeriodStats.value = response.previous;
+    
+    console.log('[AnalyticsView] Current stats:', currentPeriodStats.value);
+    console.log('[AnalyticsView] Previous stats:', previousPeriodStats.value);
   } catch (error: any) {
-    console.error('Error fetching historical comparison:', error);
+    console.error('[AnalyticsView] Error fetching historical comparison:', error);
     // Datos mockeados para demo
     currentPeriodStats.value = {
       avgPH: 7.2,
@@ -214,6 +217,8 @@ const fetchHistoricalComparison = async () => {
       avgEC: 445,
       totalReadings: 1180
     };
+    console.log('[AnalyticsView] Using mock data - Current:', currentPeriodStats.value);
+    console.log('[AnalyticsView] Using mock data - Previous:', previousPeriodStats.value);
   }
 };
 
@@ -526,73 +531,6 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Predictions -->
-      <div class="bg-white rounded-xl shadow-md p-6">
-        <div class="flex items-center justify-between mb-6">
-          <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
-            <i class="pi pi-forward text-purple-600"></i>
-            Predicciones a Corto Plazo (24-48h)
-          </h2>
-        </div>
-
-        <div v-if="predictions" class="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div class="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-6">
-            <div class="flex items-center justify-between mb-4">
-              <i class="pi pi-flask text-3xl text-purple-600"></i>
-              <span class="text-xs text-purple-700 font-medium">pH</span>
-            </div>
-            <p class="text-3xl font-bold text-purple-800 mb-1">
-              {{ formatNumber(predictions.pH?.predicted_value, 2) }}
-            </p>
-            <p class="text-sm text-purple-600">
-              <i class="pi pi-arrow-up text-xs mr-1"></i>
-              Tendencia: {{ predictions.pH?.trend || 'Estable' }}
-            </p>
-            <div class="mt-3 pt-3 border-t border-purple-200">
-              <p class="text-xs text-purple-700">Confianza: {{ predictions.pH?.confidence || '85%' }}</p>
-            </div>
-          </div>
-
-          <div class="bg-gradient-to-br from-red-50 to-red-100 rounded-lg p-6">
-            <div class="flex items-center justify-between mb-4">
-              <i class="pi pi-sun text-3xl text-red-600"></i>
-              <span class="text-xs text-red-700 font-medium">Temperatura</span>
-            </div>
-            <p class="text-3xl font-bold text-red-800 mb-1">
-              {{ formatNumber(predictions.temperature?.predicted_value, 1) }}°C
-            </p>
-            <p class="text-sm text-red-600">
-              <i class="pi pi-arrow-down text-xs mr-1"></i>
-              Tendencia: {{ predictions.temperature?.trend || 'Descendente' }}
-            </p>
-            <div class="mt-3 pt-3 border-t border-red-200">
-              <p class="text-xs text-red-700">Confianza: {{ predictions.temperature?.confidence || '82%' }}</p>
-            </div>
-          </div>
-
-          <div class="bg-gradient-to-br from-cyan-50 to-cyan-100 rounded-lg p-6">
-            <div class="flex items-center justify-between mb-4">
-              <i class="pi pi-bolt text-3xl text-cyan-600"></i>
-              <span class="text-xs text-cyan-700 font-medium">Electrocond.</span>
-            </div>
-            <p class="text-3xl font-bold text-cyan-800 mb-1">
-              {{ formatNumber(predictions.electroconductivity?.predicted_value, 0) }}
-            </p>
-            <p class="text-sm text-cyan-600">
-              <i class="pi pi-minus text-xs mr-1"></i>
-              Tendencia: {{ predictions.electroconductivity?.trend || 'Estable' }}
-            </p>
-            <div class="mt-3 pt-3 border-t border-cyan-200">
-              <p class="text-xs text-cyan-700">Confianza: {{ predictions.electroconductivity?.confidence || '88%' }}</p>
-            </div>
-          </div>
-        </div>
-        <div v-else class="text-center text-gray-500 py-8">
-          <i class="pi pi-chart-line text-4xl mb-2"></i>
-          <p>Cargando predicciones...</p>
-        </div>
-      </div>
-
       <!-- Historical Comparison -->
       <div class="bg-white rounded-xl shadow-md p-6">
         <div class="flex items-center justify-between mb-6">
@@ -602,7 +540,7 @@ onMounted(() => {
           </h2>
         </div>
 
-        <div v-if="currentPeriodStats && previousPeriodStats" class="space-y-4">
+        <div v-if="currentPeriodStats" class="space-y-4">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <!-- Current Period -->
             <div class="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-6">
@@ -618,7 +556,7 @@ onMounted(() => {
                 </div>
                 <div class="flex justify-between items-center">
                   <span class="text-gray-700">EC Promedio</span>
-                  <span class="text-xl font-bold text-green-800">{{ formatNumber(currentPeriodStats.avgEC, 0) }}</span>
+                  <span class="text-xl font-bold text-green-800">{{ formatNumber(currentPeriodStats.avgEC, 0) }} µS/cm</span>
                 </div>
                 <div class="flex justify-between items-center">
                   <span class="text-gray-700">Lecturas Totales</span>
@@ -628,7 +566,7 @@ onMounted(() => {
             </div>
 
             <!-- Previous Period -->
-            <div class="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-6">
+            <div v-if="previousPeriodStats" class="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-6">
               <h3 class="text-lg font-semibold text-gray-800 mb-4">Período Anterior</h3>
               <div class="space-y-3">
                 <div class="flex justify-between items-center">
@@ -641,12 +579,23 @@ onMounted(() => {
                 </div>
                 <div class="flex justify-between items-center">
                   <span class="text-gray-700">EC Promedio</span>
-                  <span class="text-xl font-bold text-gray-800">{{ formatNumber(previousPeriodStats.avgEC, 0) }}</span>
+                  <span class="text-xl font-bold text-gray-800">{{ formatNumber(previousPeriodStats.avgEC, 0) }} µS/cm</span>
                 </div>
                 <div class="flex justify-between items-center">
                   <span class="text-gray-700">Lecturas Totales</span>
                   <span class="text-xl font-bold text-gray-800">{{ previousPeriodStats.totalReadings || 'N/A' }}</span>
                 </div>
+              </div>
+            </div>
+            
+            <!-- No Previous Data Message -->
+            <div v-else class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-6 flex items-center justify-center">
+              <div class="text-center">
+                <i class="pi pi-info-circle text-4xl text-blue-600 mb-3"></i>
+                <h3 class="text-lg font-semibold text-blue-800 mb-2">Sin Datos Anteriores</h3>
+                <p class="text-sm text-blue-700">
+                  No hay datos suficientes del período anterior para realizar la comparación.
+                </p>
               </div>
             </div>
           </div>

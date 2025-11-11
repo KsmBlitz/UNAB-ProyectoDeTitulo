@@ -131,10 +131,10 @@ async def predict_sensor_values(
         Dictionary with predictions and metadata
     """
     try:
-        # Map sensor type to field name
+        # Map sensor type to field name (must match actual MongoDB field names in lowercase)
         field_mapping = {
-            'ph': 'pH',
-            'conductivity': 'Conductividad_Electrica'
+            'ph': 'ph',
+            'conductivity': 'ec'
         }
         
         if sensor_type not in field_mapping:
@@ -152,13 +152,29 @@ async def predict_sensor_values(
         
         historical_readings = await cursor.to_list(length=10000)
         
-        if len(historical_readings) < 2:
-            logger.warning(f"Insufficient data for {sensor_type} prediction")
-            return {
-                "success": False,
-                "message": "Datos históricos insuficientes para generar predicción",
-                "predictions": []
-            }
+        # Adjust minimum required readings based on lookback_days
+        # For shorter periods, we need fewer readings
+        min_required_readings = max(2, min(10, lookback_days * 2))
+        
+        # If not enough data in the specified period, try to get all available data
+        if len(historical_readings) < min_required_readings:
+            logger.info(f"Not enough data in last {lookback_days} days ({len(historical_readings)} readings), trying all available data...")
+            
+            cursor = sensor_collection.find({
+                field_name: {"$exists": True, "$ne": None}
+            }).sort("ReadTime", 1)
+            
+            historical_readings = await cursor.to_list(length=10000)
+            
+            if len(historical_readings) < min_required_readings:
+                logger.warning(f"Insufficient data for {sensor_type} prediction: {len(historical_readings)} readings (need {min_required_readings})")
+                return {
+                    "success": False,
+                    "message": f"Se necesitan al menos {min_required_readings} lecturas. Actualmente hay {len(historical_readings)} lecturas totales en la base de datos.",
+                    "predictions": []
+                }
+            
+            logger.info(f"Using all available data: {len(historical_readings)} readings")
         
         # Prepare data for prediction
         historical_data = [
