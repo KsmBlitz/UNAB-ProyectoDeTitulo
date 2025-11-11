@@ -85,6 +85,14 @@ AUTENTICACION-DOCS.md
 CAMBIAR-CREDENCIALES.md
 
 # ============================================
+# AWS Deployment (ya está en producción)
+# ============================================
+aws-deployment/
+lambda-package/
+lambda-deployment.zip
+*.zip
+
+# ============================================
 # Logs
 # ============================================
 *.log

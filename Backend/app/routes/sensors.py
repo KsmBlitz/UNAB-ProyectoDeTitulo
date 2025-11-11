@@ -21,6 +21,52 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["Datos de Sensores"])
 
 
+def normalize_sensor_reading(reading: dict) -> dict:
+    """
+    Normaliza los nombres de campos de diferentes formatos de datos de sensores
+    
+    Soporta:
+    - Formato antiguo: Temperature, pH_Value, EC, Water_Level, ReadTime
+    - Formato ESP32 nuevo: temperature, ph, ec, timestamp
+    """
+    temperature = (
+        reading.get("Temperature") or 
+        reading.get("temperature") or 
+        0
+    )
+    
+    ph = (
+        reading.get("pH_Value") or 
+        reading.get("ph") or 
+        reading.get("pH") or
+        0
+    )
+    
+    ec = (
+        reading.get("EC") or 
+        reading.get("ec") or 
+        reading.get("conductivity") or
+        0
+    )
+    
+    water_level = (
+        reading.get("Water_Level") or 
+        reading.get("water_level") or 
+        reading.get("waterLevel") or
+        0
+    )
+    
+    timestamp = reading.get("ReadTime") or reading.get("timestamp")
+    
+    return {
+        "temperature": temperature,
+        "ph": ph,
+        "ec": ec,
+        "water_level": water_level,
+        "timestamp": timestamp
+    }
+
+
 class PredictionConfigModel(BaseModel):
     """Model for prediction configuration"""
     sensor_type: str
@@ -58,14 +104,20 @@ async def get_individual_sensors_status(current_user: dict = Depends(get_current
             reservoir_id = sensor_group["_id"]
             latest_reading = sensor_group["lastReading"]
             
+            # Normalizar datos
+            normalized = normalize_sensor_reading(latest_reading)
+            
             # Ensure timezone aware datetime
-            last_reading_time = latest_reading["ReadTime"]
-            if last_reading_time.tzinfo is None:
+            last_reading_time = normalized["timestamp"]
+            if last_reading_time and last_reading_time.tzinfo is None:
                 last_reading_time = last_reading_time.replace(tzinfo=timezone.utc)
             
             # Calculate time difference
-            time_diff = (current_time - last_reading_time).total_seconds()
-            minutes_diff = time_diff / 60
+            if last_reading_time:
+                time_diff = (current_time - last_reading_time).total_seconds()
+                minutes_diff = time_diff / 60
+            else:
+                minutes_diff = 999999  # Sin timestamp
             
             # Determine status
             if minutes_diff < 15:
@@ -78,13 +130,13 @@ async def get_individual_sensors_status(current_user: dict = Depends(get_current
             sensor_data = {
                 "uid": reservoir_id,
                 "last_value": {
-                    "value": round(latest_reading.get("Temperature", 0), 1),
+                    "value": round(normalized["temperature"], 1),
                     "unit": "°C",
                     "type": "Temperatura"
                 },
                 "status": status,
                 "location": f"Embalse {reservoir_id}",
-                "last_reading": last_reading_time.isoformat(),
+                "last_reading": last_reading_time.isoformat() if last_reading_time else None,
                 "minutes_since_reading": int(minutes_diff)
             }
             
@@ -135,12 +187,18 @@ async def get_latest_metrics(
                 "reservoir_id": reservoir_id
             }
         else:
+            # Log para debug - ver qué campos tiene el documento
+            logger.info(f"Documento recibido de MongoDB - Campos: {list(latest_reading.keys())}")
+            
+            # Normalizar campos usando la función helper
+            normalized = normalize_sensor_reading(latest_reading)
+            
             result = {
-                "temperature": latest_reading.get("Temperature", 0),
-                "ph": latest_reading.get("pH_Value", 0),
-                "conductivity": latest_reading.get("EC", 0),
-                "water_level": latest_reading.get("Water_Level", 0),
-                "timestamp": latest_reading.get("ReadTime"),
+                "temperature": normalized["temperature"],
+                "ph": normalized["ph"],
+                "conductivity": normalized["ec"],
+                "water_level": normalized["water_level"],
+                "timestamp": normalized["timestamp"],
                 "reservoir_id": latest_reading.get("reservoirId")
             }
         
@@ -195,18 +253,21 @@ async def get_historical_data(
         nivel_agua_data = []
         
         for reading in readings:
+            # Normalizar datos
+            normalized = normalize_sensor_reading(reading)
+            
             # Format timestamp
-            timestamp = reading.get("ReadTime")
+            timestamp = normalized["timestamp"]
             if timestamp:
                 labels.append(timestamp.strftime("%H:%M") if hasattr(timestamp, 'strftime') else str(timestamp))
             else:
                 labels.append("")
             
-            # Extract values using correct field names
-            temperatura_data.append(reading.get("Temperature", 0))
-            ph_data.append(reading.get("pH_Value", 0))
-            conductividad_data.append(reading.get("EC", 0))
-            nivel_agua_data.append(reading.get("Water_Level", 0))
+            # Extract values using normalized fields
+            temperatura_data.append(normalized["temperature"])
+            ph_data.append(normalized["ph"])
+            conductividad_data.append(normalized["ec"])
+            nivel_agua_data.append(normalized["water_level"])
         
         return {
             "labels": labels,
