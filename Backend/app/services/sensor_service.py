@@ -6,6 +6,7 @@ Handles sensor operations, data processing, and predictions
 import logging
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Any, Optional
+from bson import ObjectId
 
 from app.repositories.sensor_repository import sensor_repository
 from app.services.prediction import predict_sensor_values
@@ -46,12 +47,17 @@ class SensorService:
         """
         normalized = reading.copy()
         
+        # Convert MongoDB ObjectId to string for JSON serialization
+        if '_id' in normalized:
+            if isinstance(normalized['_id'], ObjectId):
+                normalized['_id'] = str(normalized['_id'])
+        
         # Map common field variations to standard names
         field_mappings = {
-            'ph': ['pH', 'PH'],
+            'ph': ['pH', 'PH', 'pH_Value'],
             'temperature': ['temp', 'TEMP', 'Temperature'],
             'ec': ['EC', 'conductivity', 'Conductivity'],
-            'water_level': ['waterLevel', 'water_level', 'nivel_agua']
+            'water_level': ['waterLevel', 'water_level', 'Water_Level', 'nivel_agua']
         }
         
         for standard_field, variations in field_mappings.items():
@@ -61,9 +67,19 @@ class SensorService:
                         normalized[standard_field] = normalized[variation]
                         break
         
-        # Ensure timestamp is present
-        if 'timestamp' not in normalized and 'created_at' in normalized:
-            normalized['timestamp'] = normalized['created_at']
+        # Ensure timestamp is present - try multiple sources
+        if 'timestamp' not in normalized:
+            if 'ReadTime' in normalized:
+                normalized['timestamp'] = normalized['ReadTime']
+            elif 'created_at' in normalized:
+                normalized['timestamp'] = normalized['created_at']
+            else:
+                normalized['timestamp'] = None
+        
+        # Set default values for missing fields
+        for field in ['ph', 'temperature', 'ec', 'water_level']:
+            if field not in normalized:
+                normalized[field] = 0
         
         return normalized
     
@@ -115,26 +131,51 @@ class SensorService:
         Get latest metrics from all sensors
         
         Returns:
-            Dictionary with latest readings for each sensor
+            Dictionary with latest sensor readings in the format expected by frontend:
+            {
+                "temperature": float,
+                "ph": float,
+                "conductivity": float (EC),
+                "water_level": float,
+                "timestamp": datetime,
+                "sensor_id": str
+            }
         """
         try:
-            from app.config import sensor_collection
+            from app.config.database import db
+            sensor_data_collection = db["Sensor_Data"]
             
-            # Get latest reading from each sensor
-            latest_readings = {}
+            # Get the most recent reading from any sensor
+            latest_reading = await sensor_data_collection.find_one(
+                sort=[("ReadTime", -1)]
+            )
             
-            # Query sensor_collection for latest data
-            cursor = sensor_collection.find().sort("timestamp", -1).limit(10)
-            readings = await cursor.to_list(length=10)
+            if not latest_reading:
+                logger.warning("No sensor data found in database")
+                return {
+                    "temperature": 0,
+                    "ph": 0,
+                    "conductivity": 0,
+                    "water_level": 0,
+                    "timestamp": None,
+                    "sensor_id": None
+                }
             
-            for reading in readings:
-                sensor_id = reading.get("sensor_id") or reading.get("device_id")
-                if sensor_id:
-                    normalized = self.normalize_sensor_reading(reading)
-                    latest_readings[sensor_id] = normalized
+            # Normalize the reading
+            normalized = self.normalize_sensor_reading(latest_reading)
             
-            logger.info(f"Retrieved latest metrics for {len(latest_readings)} sensors")
-            return latest_readings
+            # Build response in frontend-expected format
+            response = {
+                "temperature": normalized.get("temperature", 0),
+                "ph": normalized.get("ph", 0),
+                "conductivity": normalized.get("ec", 0),  # EC maps to conductivity
+                "water_level": normalized.get("water_level", 0),
+                "timestamp": normalized.get("timestamp"),
+                "sensor_id": latest_reading.get("reservoirId", latest_reading.get("sensor_id"))
+            }
+            
+            logger.info(f"Retrieved latest metrics for sensor {response['sensor_id']}")
+            return response
             
         except Exception as e:
             logger.error(f"Error getting latest metrics: {e}")

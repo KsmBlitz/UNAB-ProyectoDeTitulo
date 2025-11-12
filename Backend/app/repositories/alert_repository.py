@@ -55,6 +55,7 @@ class AlertRepository(BaseRepository):
         self, 
         alert_id: str, 
         dismissed_by: str,
+        dismissed_at: Optional[datetime] = None,
         reason: Optional[str] = None
     ) -> bool:
         """
@@ -63,12 +64,16 @@ class AlertRepository(BaseRepository):
         Args:
             alert_id: Alert ID
             dismissed_by: Email of user dismissing
+            dismissed_at: Optional timestamp of dismissal (defaults to now)
             reason: Optional reason for dismissal
             
         Returns:
             True if successful
         """
         try:
+            # Use provided timestamp or default to now
+            resolved_time = dismissed_at or datetime.utcnow()
+            
             # Find alert by ID or _id
             alert = await self.find_one({
                 "$or": [
@@ -85,7 +90,7 @@ class AlertRepository(BaseRepository):
                 "$set": {
                     "is_resolved": True,
                     "status": "dismissed",
-                    "resolved_at": datetime.utcnow(),
+                    "resolved_at": resolved_time,
                     "resolved_by": dismissed_by,
                     "dismissal_reason": reason
                 }
