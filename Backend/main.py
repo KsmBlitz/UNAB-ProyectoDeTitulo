@@ -8,6 +8,7 @@ from app.config import Database, settings
 from app.routes import auth_router, users_router, sensors_router, alerts_router, audit_router
 from app.routes.analytics import router as analytics_router
 from app.routes.health import router as health_router
+from app.routes.websocket import router as websocket_router
 from app.services import alert_change_stream_watcher
 from app.services.cache import cache_service
 from app.middleware import RateLimitMiddleware
@@ -69,6 +70,7 @@ async def root():
 
 # Register routers
 app.include_router(health_router, tags=["Health"])
+app.include_router(websocket_router)  # WebSocket routes
 app.include_router(auth_router)
 app.include_router(users_router)
 app.include_router(sensors_router)
