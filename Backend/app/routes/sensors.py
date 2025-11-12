@@ -170,9 +170,6 @@ async def get_latest_metrics(
                 "reservoir_id": reservoir_id
             }
         else:
-            # Log para debug - ver qué campos tiene el documento
-            logger.info(f"Documento recibido de MongoDB - Campos: {list(latest_reading.keys())}")
-            
             # Normalizar campos usando la función helper
             normalized = normalize_sensor_reading(latest_reading)
             

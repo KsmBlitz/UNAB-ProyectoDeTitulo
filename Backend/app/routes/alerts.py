@@ -100,14 +100,7 @@ async def dismiss_alert(
         })
         
         if not alert_doc:
-            # Debug: show example IDs
-            all_alerts = await alerts_collection.find(
-                {"is_resolved": False}
-            ).limit(5).to_list(length=5)
-            logger.warning(
-                f"Alerta no encontrada. Ejemplos de IDs en BD: "
-                f"{[str(a.get('_id', a.get('id', 'sin-id'))) for a in all_alerts]}"
-            )
+            logger.warning(f"Alerta no encontrada: {request.alert_id}")
             raise HTTPException(
                 status_code=404,
                 detail=f"Alerta no encontrada con ID: {request.alert_id}"
@@ -186,8 +179,8 @@ async def dismiss_alert(
         try:
             from app.services.notifications import clear_notifications_sent_for_alert
             await clear_notifications_sent_for_alert(
-                alert_type=alert["type"],
-                sensor_id=alert.get("sensor_id")
+                alert_type=alert_doc["type"],
+                sensor_id=alert_doc.get("sensor_id")
             )
         except Exception as throttle_error:
             logger.warning(f"Error clearing notification throttle: {throttle_error}")

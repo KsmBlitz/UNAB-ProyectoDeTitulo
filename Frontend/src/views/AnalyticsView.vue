@@ -190,20 +190,14 @@ const fetchPredictions = async () => {
 
 const fetchHistoricalComparison = async () => {
   try {
-    console.log('[AnalyticsView] Fetching historical comparison...');
     const response: any = await api.get('/api/analytics/comparison', {
       params: { period: selectedPeriod.value }
     });
     
-    console.log('[AnalyticsView] Comparison response:', response);
-    
     currentPeriodStats.value = response.current;
     previousPeriodStats.value = response.previous;
-    
-    console.log('[AnalyticsView] Current stats:', currentPeriodStats.value);
-    console.log('[AnalyticsView] Previous stats:', previousPeriodStats.value);
   } catch (error: any) {
-    console.error('[AnalyticsView] Error fetching historical comparison:', error);
+    console.error('Error fetching historical comparison:', error);
     // Datos mockeados para demo
     currentPeriodStats.value = {
       avgPH: 7.2,
@@ -217,8 +211,6 @@ const fetchHistoricalComparison = async () => {
       avgEC: 445,
       totalReadings: 1180
     };
-    console.log('[AnalyticsView] Using mock data - Current:', currentPeriodStats.value);
-    console.log('[AnalyticsView] Using mock data - Previous:', previousPeriodStats.value);
   }
 };
 

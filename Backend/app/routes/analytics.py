@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from fastapi.responses import StreamingResponse
 from typing import Optional, Literal
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from app.config import sensor_collection
 from app.utils.dependencies import get_current_user
 from app.services.cache import cache_service
@@ -65,7 +65,7 @@ async def calculate_correlation(
     
     try:
         days = PERIOD_DAYS.get(request.period, 30)
-        start_date = datetime.utcnow() - timedelta(days=days)
+        start_date = datetime.now(timezone.utc) - timedelta(days=days)
         
         # Obtener datos desde MongoDB
         cursor = sensor_collection.find(
@@ -168,7 +168,7 @@ async def detect_anomalies(
     
     try:
         days = PERIOD_DAYS.get(period, 30)
-        start_date = datetime.utcnow() - timedelta(days=days)
+        start_date = datetime.now(timezone.utc) - timedelta(days=days)
         
         # Obtener datos
         cursor = sensor_collection.find(
@@ -255,7 +255,7 @@ async def get_predictions(
     
     try:
         # Intentar obtener datos de las últimas 7 días
-        start_date = datetime.utcnow() - timedelta(days=7)
+        start_date = datetime.now(timezone.utc) - timedelta(days=7)
         
         cursor = sensor_collection.find(
             {"ReadTime": {"$gte": start_date}},
@@ -358,8 +358,8 @@ async def get_historical_comparison(
         days = PERIOD_DAYS.get(period, 30)
         
         # Período actual
-        current_start = datetime.utcnow() - timedelta(days=days)
-        current_end = datetime.utcnow()
+        current_start = datetime.now(timezone.utc) - timedelta(days=days)
+        current_end = datetime.now(timezone.utc)
         
         # Período anterior
         previous_start = current_start - timedelta(days=days)
@@ -460,7 +460,7 @@ async def export_excel(
     
     try:
         days = PERIOD_DAYS.get(period, 30)
-        start_date = datetime.utcnow() - timedelta(days=days)
+        start_date = datetime.now(timezone.utc) - timedelta(days=days)
         
         # Obtener datos
         cursor = sensor_collection.find(
@@ -545,7 +545,7 @@ async def export_pdf(
     
     try:
         days = PERIOD_DAYS.get(period, 30)
-        start_date = datetime.utcnow() - timedelta(days=days)
+        start_date = datetime.now(timezone.utc) - timedelta(days=days)
         
         # Obtener estadísticas resumidas
         cursor = sensor_collection.find(
