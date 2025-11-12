@@ -10,6 +10,7 @@ from app.routes.analytics import router as analytics_router
 from app.routes.health import router as health_router
 from app.routes.websocket import router as websocket_router
 from app.services import alert_change_stream_watcher
+from app.services.sensor_monitor import sensor_monitor
 from app.services.cache import cache_service
 from app.middleware import RateLimitMiddleware
 from app.middleware.request_id import RequestIDMiddleware
@@ -60,11 +61,16 @@ async def startup_event():
     asyncio.create_task(alert_change_stream_watcher())
     logger.info("Alert watcher iniciado")
     
+    # Iniciar el monitor de sensores en background
+    asyncio.create_task(sensor_monitor.start())
+    logger.info("Sensor monitor iniciado")
+    
     logger.info("Aplicación lista")
 
 @app.on_event("shutdown")
 async def shutdown_event():
     logger.info("Cerrando aplicación...")
+    sensor_monitor.stop()
     await cache_service.disconnect()
     await Database.close()
     logger.info("Aplicación cerrada correctamente")
