@@ -41,6 +41,7 @@ from .prediction import predict_sensor_values
 # New refactored services
 from .alert_service import alert_service
 from .notification_service import notification_service
+from .user_service import user_service
 
 __all__ = [
     # Auth
@@ -71,5 +72,6 @@ __all__ = [
     "predict_sensor_values",
     # New Services (SOLID compliant)
     "alert_service",
-    "notification_service"
+    "notification_service",
+    "user_service"
 ]
