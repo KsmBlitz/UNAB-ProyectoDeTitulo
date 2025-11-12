@@ -1,6 +1,7 @@
 """
 Sensors routes
 Sensor data and metrics endpoints
+Refactored to use SensorService for business logic
 """
 
 from datetime import datetime, timezone, timedelta
@@ -9,9 +10,8 @@ from fastapi import APIRouter, Depends, Query, Request, HTTPException
 from pydantic import BaseModel
 import logging
 
-from app.config import sensor_collection
 from app.utils import get_current_user, get_current_admin_user
-from app.services import predict_sensor_values
+from app.services.sensor_service import sensor_service
 from app.services.audit import log_audit_event
 from app.services.cache import cache_service
 from app.models.audit_models import AuditAction
@@ -20,38 +20,10 @@ from app.models.alert_models import UpdateSensorAlertConfigRequest
 
 logger = logging.getLogger(__name__)
 
-# Timezone offset para Chile (UTC-3)
+# Timezone offset for Chile (UTC-3)
 CHILE_OFFSET = timedelta(hours=-3)
 
 router = APIRouter(prefix="/api", tags=["Datos de Sensores"])
-
-
-def normalize_sensor_reading(reading: dict) -> dict:
-    """
-    Normaliza los nombres de campos de diferentes formatos de datos de sensores
-    
-    Usa SOLO el formato nuevo (minúsculas): temperature, ph, ec, water_level
-    Esto es lo que Lambda guarda en MongoDB
-    """
-    # Usar formato nuevo (minúsculas) directamente
-    temperature = reading.get("temperature", 0)
-    ph = reading.get("ph", 0)
-    ec = reading.get("ec", 0)
-    water_level = reading.get("water_level", 0)
-    
-    # Timestamp puede venir como 'timestamp' o 'ReadTime'
-    timestamp = reading.get("timestamp") or reading.get("ReadTime")
-    
-    return {
-        "temperature": temperature,
-        "ph": ph,
-        "ec": ec,
-        "water_level": water_level,
-        "timestamp": timestamp
-    }
-
-
-# Removed PredictionConfigModel - now using models.sensor_models.PredictionRequest
 
 
 @router.get("/sensors/individual")
@@ -524,41 +496,23 @@ async def update_sensor_alert_config(
     admin_user: dict = Depends(get_current_admin_user)
 ):
     """
-    Actualizar configuración de alertas para un sensor específico (solo admin)
+    Update alert configuration for a specific sensor (admin only)
     """
     try:
-        from app.config import db
-        sensors_collection = db["sensors"]
-        
         sensor_id = config_request.sensor_id
         alert_config = config_request.alert_config.model_dump()
         
-        # Verificar que el sensor existe
-        sensor = await sensors_collection.find_one({"sensor_id": sensor_id})
-        if not sensor:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Sensor {sensor_id} no encontrado"
-            )
-        
-        # Actualizar configuración
-        result = await sensors_collection.update_one(
-            {"sensor_id": sensor_id},
-            {
-                "$set": {
-                    "alert_config": alert_config,
-                    "updated_at": datetime.utcnow()
-                }
-            }
+        # Delegate to sensor service
+        updated_sensor = await sensor_service.update_sensor_alert_config(
+            sensor_id=sensor_id,
+            alert_config=alert_config,
+            updated_by=admin_user.get('email')
         )
         
-        if result.modified_count == 0:
-            logger.warning(f"No se modificó la configuración del sensor {sensor_id}")
-        
-        # Log de auditoría
+        # Log audit event
         await log_audit_event(
             action=AuditAction.ALERT_CONFIG_UPDATE,
-            description=f"Configuración de alertas actualizada para sensor {sensor_id}",
+            description=f"Alert configuration updated for sensor {sensor_id}",
             user_email=admin_user.get('email'),
             user_id=str(admin_user.get('_id')) if admin_user.get('_id') else None,
             resource_type="sensor_alert_config",
@@ -570,19 +524,23 @@ async def update_sensor_alert_config(
         )
         
         logger.info(
-            f"Configuración de alertas actualizada por {admin_user.get('email')} "
-            f"para sensor {sensor_id}"
+            f"Alert configuration updated by {admin_user.get('email')} "
+            f"for sensor {sensor_id}"
         )
         
         return {
             "success": True,
-            "message": f"Configuración de alertas actualizada para {sensor_id}",
+            "message": f"Alert configuration updated for {sensor_id}",
             "sensor_id": sensor_id,
             "alert_config": alert_config
         }
         
-    except HTTPException:
-        raise
+    except ValueError as ve:
+        logger.warning(f"Validation error: {ve}")
+        raise HTTPException(status_code=404, detail=str(ve))
+    except RuntimeError as re:
+        logger.error(f"Runtime error: {re}")
+        raise HTTPException(status_code=500, detail=str(re))
     except Exception as e:
         logger.error(f"Error updating sensor alert config: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -594,27 +552,23 @@ async def get_sensor_alert_config(
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Obtener configuración de alertas de un sensor específico
+    Get alert configuration for a specific sensor
     """
     try:
-        from app.config import db
-        sensors_collection = db["sensors"]
+        # Delegate to sensor service
+        config_data = await sensor_service.get_sensor_alert_config(sensor_id)
         
-        sensor = await sensors_collection.find_one({"sensor_id": sensor_id})
+        return {
+            "sensor_id": sensor_id,
+            "alert_config": config_data["alert_config"]
+        }
         
-        if not sensor:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Sensor {sensor_id} no encontrado"
-            )
-        
-        alert_config = sensor.get("alert_config", {
-            "enabled": False,
-            "parameters": {},
-            "notification_enabled": False,
-            "whatsapp_enabled": False,
-            "email_enabled": False
-        })
+    except ValueError as ve:
+        logger.warning(f"Validation error: {ve}")
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        logger.error(f"Error getting sensor alert config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
         
         return {
             "success": True,
