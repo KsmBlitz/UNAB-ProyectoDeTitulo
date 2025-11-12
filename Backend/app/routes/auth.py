@@ -1,6 +1,7 @@
 """
 Authentication routes
 Login, password reset, and token management
+Refactored to use repository pattern
 """
 
 from datetime import datetime, timedelta, timezone
@@ -14,7 +15,9 @@ from app.models import (
     ResetPasswordRequest,
     ChangePasswordRequest
 )
-from app.config import users_collection, reset_tokens_collection
+from app.config import reset_tokens_collection
+from app.repositories.user_repository import user_repository
+from app.services.user_service import user_service
 from app.services import (
     verify_password,
     get_password_hash,
@@ -46,7 +49,7 @@ async def login_for_access_token(
     Returns:
         JWT access token and token type
     """
-    user = await users_collection.find_one({"email": form_data.username})
+    user = await user_repository.get_user_by_email(form_data.username)
     
     if not user or not verify_password(form_data.password, user["hashed_password"]):
         # Log failed login attempt
@@ -134,7 +137,7 @@ async def forgot_password(
     """
     try:
         # Check if user exists
-        user = await users_collection.find_one({"email": request.email})
+        user = await user_repository.get_user_by_email(request.email)
         
         if not user:
             # Security: always return success even if email doesn't exist
@@ -208,19 +211,19 @@ async def reset_password(
                 detail="Token inválido o expirado"
             )
         
-        # Update user password
-        hashed_password = get_password_hash(request.new_password)
-        
-        result = await users_collection.update_one(
-            {"email": token_data["email"]},
-            {"$set": {"hashed_password": hashed_password}}
-        )
-        
-        if result.modified_count == 0:
+        # Get user to update
+        user = await user_repository.get_user_by_email(token_data["email"])
+        if not user:
             raise HTTPException(
                 status_code=404,
                 detail="Usuario no encontrado"
             )
+        
+        # Update password using user service
+        await user_service.update_password(
+            user_id=str(user["_id"]),
+            new_password=request.new_password
+        )
         
         # Mark token as used
         await reset_tokens_collection.update_one(
@@ -228,10 +231,7 @@ async def reset_password(
             {"$set": {"used": True, "used_at": datetime.now(timezone.utc)}}
         )
         
-        logger.info(f"Contraseña actualizada para usuario: {token_data['email']}")
-        
-        # Get user for audit log
-        user = await users_collection.find_one({"email": token_data["email"]})
+        logger.info(f"Password updated for user: {token_data['email']}")
         
         # Log password reset completion
         await log_audit_from_request(
@@ -302,7 +302,7 @@ async def change_password(
         user_email = current_user.get("email")
         
         # Get user from database
-        user = await users_collection.find_one({"email": user_email})
+        user = await user_repository.get_user_by_email(user_email)
         
         if not user:
             raise HTTPException(
@@ -327,22 +327,13 @@ async def change_password(
                 detail="La contraseña actual es incorrecta"
             )
         
-        # Hash new password
-        hashed_password = get_password_hash(password_request.new_password)
-        
-        # Update password
-        result = await users_collection.update_one(
-            {"_id": user["_id"]},
-            {"$set": {"hashed_password": hashed_password}}
+        # Update password using user service
+        await user_service.update_password(
+            user_id=str(user["_id"]),
+            new_password=password_request.new_password
         )
         
-        if result.modified_count == 0:
-            raise HTTPException(
-                status_code=500,
-                detail="Error al actualizar la contraseña"
-            )
-        
-        logger.info(f"Contraseña cambiada para usuario: {user_email}")
+        logger.info(f"Password changed for user: {user_email}")
         
         # Log successful password change
         await log_audit_from_request(
