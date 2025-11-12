@@ -17,20 +17,29 @@ from .user import (
 )
 
 from .alert_models import (
-    AlertCreate,
-    AlertUpdate,
-    AlertResponse,
-    AlertDismiss
+    AlertLevel,
+    AlertType,
+    AlertStatus,
+    AlertThresholds,
+    ActiveAlert,
+    AlertHistory,
+    AlertSummary,
+    AlertConfigUpdateRequest,
+    DismissAlertRequest
 )
 
 from .audit_models import (
-    AuditLogCreate,
-    AuditLogResponse
+    AuditAction,
+    AuditLogEntry,
+    AuditLogResponse,
+    AuditLogFilter
 )
 
 from .sensor_models import (
     SensorReading,
-    SensorReadingCreate
+    PredictionRequest,
+    SensorConfigUpdate,
+    TimeRangeQuery
 )
 
 __all__ = [
@@ -46,15 +55,24 @@ __all__ = [
     "ResetPasswordRequest",
     "ChangePasswordRequest",
     # Alert models
-    "AlertCreate",
-    "AlertUpdate",
-    "AlertResponse",
-    "AlertDismiss",
+    "AlertLevel",
+    "AlertType",
+    "AlertStatus",
+    "AlertThresholds",
+    "ActiveAlert",
+    "AlertHistory",
+    "AlertSummary",
+    "AlertConfigUpdateRequest",
+    "DismissAlertRequest",
     # Audit models
-    "AuditLogCreate",
+    "AuditAction",
+    "AuditLogEntry",
     "AuditLogResponse",
+    "AuditLogFilter",
     # Sensor models
     "SensorReading",
-    "SensorReadingCreate"
+    "PredictionRequest",
+    "SensorConfigUpdate",
+    "TimeRangeQuery"
 ]
 
