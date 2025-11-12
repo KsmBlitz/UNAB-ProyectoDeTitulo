@@ -16,6 +16,7 @@ from app.services.audit import log_audit_event
 from app.services.cache import cache_service
 from app.models.audit_models import AuditAction
 from app.models.sensor_models import PredictionRequest, TimeRangeQuery
+from app.models.alert_models import UpdateSensorAlertConfigRequest
 
 logger = logging.getLogger(__name__)
 
@@ -469,3 +470,161 @@ async def save_prediction_config(
             "success": False,
             "message": f"Error al guardar configuración: {str(e)}"
         }
+
+
+@router.get("/sensors/list")
+async def get_sensors_list(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Obtener lista de sensores con su configuración de alertas
+    """
+    try:
+        from app.config import db
+        sensors_collection = db["sensors"]
+        
+        # Obtener todos los sensores
+        sensors_cursor = sensors_collection.find({})
+        sensors = await sensors_cursor.to_list(length=100)
+        
+        # Formatear respuesta
+        sensors_list = []
+        for sensor in sensors:
+            sensor_data = {
+                "sensor_id": sensor.get("sensor_id"),
+                "name": sensor.get("name", sensor.get("sensor_id")),
+                "location": sensor.get("location", "N/A"),
+                "type": sensor.get("type", "IoT_Monitoring"),
+                "status": sensor.get("status", "active"),
+                "alert_config": sensor.get("alert_config", {
+                    "enabled": False,
+                    "parameters": {},
+                    "notification_enabled": False,
+                    "whatsapp_enabled": False,
+                    "email_enabled": False
+                })
+            }
+            sensors_list.append(sensor_data)
+        
+        return {
+            "success": True,
+            "sensors": sensors_list,
+            "total": len(sensors_list)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting sensors list: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/sensors/alert-config")
+async def update_sensor_alert_config(
+    request: Request,
+    config_request: UpdateSensorAlertConfigRequest,
+    admin_user: dict = Depends(get_current_admin_user)
+):
+    """
+    Actualizar configuración de alertas para un sensor específico (solo admin)
+    """
+    try:
+        from app.config import db
+        sensors_collection = db["sensors"]
+        
+        sensor_id = config_request.sensor_id
+        alert_config = config_request.alert_config.model_dump()
+        
+        # Verificar que el sensor existe
+        sensor = await sensors_collection.find_one({"sensor_id": sensor_id})
+        if not sensor:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Sensor {sensor_id} no encontrado"
+            )
+        
+        # Actualizar configuración
+        result = await sensors_collection.update_one(
+            {"sensor_id": sensor_id},
+            {
+                "$set": {
+                    "alert_config": alert_config,
+                    "updated_at": datetime.utcnow()
+                }
+            }
+        )
+        
+        if result.modified_count == 0:
+            logger.warning(f"No se modificó la configuración del sensor {sensor_id}")
+        
+        # Log de auditoría
+        await log_audit_event(
+            action=AuditAction.ALERT_CONFIG_UPDATE,
+            description=f"Configuración de alertas actualizada para sensor {sensor_id}",
+            user_email=admin_user.get('email'),
+            user_id=str(admin_user.get('_id')) if admin_user.get('_id') else None,
+            resource_type="sensor_alert_config",
+            resource_id=sensor_id,
+            details=alert_config,
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            success=True
+        )
+        
+        logger.info(
+            f"Configuración de alertas actualizada por {admin_user.get('email')} "
+            f"para sensor {sensor_id}"
+        )
+        
+        return {
+            "success": True,
+            "message": f"Configuración de alertas actualizada para {sensor_id}",
+            "sensor_id": sensor_id,
+            "alert_config": alert_config
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating sensor alert config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/sensors/{sensor_id}/alert-config")
+async def get_sensor_alert_config(
+    sensor_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Obtener configuración de alertas de un sensor específico
+    """
+    try:
+        from app.config import db
+        sensors_collection = db["sensors"]
+        
+        sensor = await sensors_collection.find_one({"sensor_id": sensor_id})
+        
+        if not sensor:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Sensor {sensor_id} no encontrado"
+            )
+        
+        alert_config = sensor.get("alert_config", {
+            "enabled": False,
+            "parameters": {},
+            "notification_enabled": False,
+            "whatsapp_enabled": False,
+            "email_enabled": False
+        })
+        
+        return {
+            "success": True,
+            "sensor_id": sensor_id,
+            "name": sensor.get("name", sensor_id),
+            "alert_config": alert_config
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting sensor alert config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

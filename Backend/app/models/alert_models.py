@@ -193,3 +193,29 @@ BLUEBERRY_CHILE_THRESHOLDS = AlertThresholds(
     sensor_timeout_warning=6,
     sensor_timeout_critical=15
 )
+
+class ParameterThreshold(BaseModel):
+    """Umbral para un parámetro individual"""
+    min: float
+    max: float
+    critical_min: Optional[float] = None
+    critical_max: Optional[float] = None
+
+class SensorAlertConfig(BaseModel):
+    """Configuración de alertas para un sensor individual"""
+    enabled: bool = True
+    parameters: Dict[str, ParameterThreshold]
+    notification_enabled: bool = True
+    whatsapp_enabled: bool = True
+    email_enabled: bool = True
+
+class UpdateSensorAlertConfigRequest(BaseModel):
+    """Request para actualizar configuración de alertas de un sensor"""
+    sensor_id: str
+    alert_config: SensorAlertConfig
+    
+    @validator('sensor_id')
+    def validate_sensor_id(cls, v):
+        if not v or not v.strip():
+            raise ValueError('sensor_id no puede estar vacío')
+        return v.strip()
