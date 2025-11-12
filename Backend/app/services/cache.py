@@ -3,9 +3,15 @@ import json
 import logging
 from typing import Any, Optional
 from datetime import timedelta
-import redis.asyncio as redis
 from functools import wraps
 import hashlib
+
+try:
+    import redis.asyncio as redis  # type: ignore
+    REDIS_AVAILABLE = True
+except ImportError:
+    REDIS_AVAILABLE = False
+    redis = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +27,7 @@ class CacheService:
     """
     
     def __init__(self):
-        self.redis_client: Optional[redis.Redis] = None
+        self.redis_client: Optional[Any] = None
         self.enabled = True
         
         # TTLs configurables

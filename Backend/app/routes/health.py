@@ -1,12 +1,19 @@
 # app/routes/health.py
 from fastapi import APIRouter, HTTPException
 from datetime import datetime
-import psutil
 import asyncio
 from typing import Dict, Any
 from app.config.database import sensor_collection, users_collection
 from app.services.cache import cache_service
 import logging
+
+# Optional dependency for system monitoring
+try:
+    import psutil  # type: ignore
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
+    psutil = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 

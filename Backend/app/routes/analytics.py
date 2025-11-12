@@ -18,18 +18,18 @@ logger = logging.getLogger(__name__)
 
 # Librerías para exportación (instalar si no están)
 try:
-    from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl import Workbook  # type: ignore
+    from openpyxl.styles import Font, PatternFill, Alignment  # type: ignore
     EXCEL_AVAILABLE = True
 except ImportError:
     EXCEL_AVAILABLE = False
 
 try:
-    from reportlab.lib.pagesizes import letter, A4
-    from reportlab.lib.styles import getSampleStyleSheet
-    from reportlab.lib.units import inch
-    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter, A4  # type: ignore
+    from reportlab.lib.styles import getSampleStyleSheet  # type: ignore
+    from reportlab.lib.units import inch  # type: ignore
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer  # type: ignore
+    from reportlab.lib import colors  # type: ignore
     PDF_AVAILABLE = True
 except ImportError:
     PDF_AVAILABLE = False
