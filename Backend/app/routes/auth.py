@@ -219,7 +219,6 @@ async def reset_password(
                 detail="Usuario no encontrado"
             )
         
-        # Update password using user service
         await user_service.update_password(
             user_id=str(user["_id"]),
             new_password=request.new_password
@@ -327,7 +326,6 @@ async def change_password(
                 detail="La contraseña actual es incorrecta"
             )
         
-        # Update password using user service
         await user_service.update_password(
             user_id=str(user["_id"]),
             new_password=password_request.new_password
@@ -335,7 +333,6 @@ async def change_password(
         
         logger.info(f"Password changed for user: {user_email}")
         
-        # Log successful password change
         await log_audit_from_request(
             request=request,
             action=AuditAction.PASSWORD_CHANGED,

@@ -151,11 +151,9 @@ class UserService:
             if phone:
                 user_data["phone"] = phone
             
-            # Insert user
             from app.config import users_collection
             result = await users_collection.insert_one(user_data)
             
-            # Retrieve created user
             created_user = await users_collection.find_one({"_id": result.inserted_id})
             
             if not created_user:
@@ -288,7 +286,6 @@ class UserService:
             if current_user_id == user_id:
                 raise PermissionError("Users cannot delete themselves")
             
-            # Delete user
             from app.config import users_collection
             result = await users_collection.delete_one({"_id": ObjectId(user_id)})
             
