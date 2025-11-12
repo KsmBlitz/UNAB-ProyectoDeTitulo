@@ -48,10 +48,10 @@ class CacheService:
             )
             # Test connection
             await self.redis_client.ping()
-            logger.info("✅ Redis cache connected successfully")
+            logger.info("Redis cache connected successfully")
             self.enabled = True
         except Exception as e:
-            logger.warning(f"⚠️  Redis connection failed, cache disabled: {str(e)}")
+            logger.warning(f"Redis connection failed, cache disabled: {str(e)}")
             self.enabled = False
             self.redis_client = None
     

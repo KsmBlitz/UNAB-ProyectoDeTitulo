@@ -105,7 +105,7 @@ async def clear_notifications_sent_for_alert(
         )
         
         logger.info(
-            f"🧹 Throttle cleared for alert {alert_type} sensor {sensor_id} "
+            f"Throttle cleared for alert {alert_type} sensor {sensor_id} "
             f"({result.deleted_count} records)"
         )
         

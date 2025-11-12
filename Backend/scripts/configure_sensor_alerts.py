@@ -78,7 +78,7 @@ async def main():
             print()
             return
         
-        print(f"✓ Encontrados {len(sensor_ids)} sensor(es) con datos:")
+        print(f"[OK] Encontrados {len(sensor_ids)} sensor(es) con datos:")
         for sid in sensor_ids:
             print(f"  - {sid}")
         print()
@@ -93,7 +93,7 @@ async def main():
             
             if not sensor:
                 # Crear sensor con configuración por defecto
-                print(f"📝 Creando sensor: {sensor_id}")
+                print(f"[CREATING] Sensor: {sensor_id}")
                 
                 sensor_doc = {
                     "sensor_id": sensor_id,
@@ -108,14 +108,14 @@ async def main():
                 
                 await sensors_collection.insert_one(sensor_doc)
                 configured_count += 1
-                print(f"  ✅ Sensor creado con alertas activadas")
+                print(f"  [OK] Sensor creado con alertas activadas")
                 
             else:
                 # Actualizar configuración de alertas si no está habilitada
                 current_config = sensor.get("alert_config", {})
                 
                 if not current_config.get("enabled"):
-                    print(f"📝 Actualizando sensor: {sensor_id}")
+                    print(f"[UPDATING] Sensor: {sensor_id}")
                     
                     await sensors_collection.update_one(
                         {"sensor_id": sensor_id},
@@ -127,13 +127,13 @@ async def main():
                         }
                     )
                     updated_count += 1
-                    print(f"  ✅ Alertas activadas")
+                    print(f"  [OK] Alertas activadas")
                 else:
-                    print(f"✓ {sensor_id}: Ya tiene alertas configuradas")
+                    print(f"[OK] {sensor_id}: Ya tiene alertas configuradas")
         
         print()
         print("=" * 80)
-        print("📊 RESUMEN:")
+        print("[SUMMARY]:")
         print("=" * 80)
         print(f"Sensores nuevos configurados: {configured_count}")
         print(f"Sensores actualizados: {updated_count}")
@@ -141,26 +141,26 @@ async def main():
         print()
         
         if configured_count > 0 or updated_count > 0:
-            print("✅ ¡CONFIGURACIÓN COMPLETADA!")
+            print("[SUCCESS] CONFIGURACIÓN COMPLETADA!")
             print()
-            print("📋 Configuración aplicada (Arándanos):")
+            print("[CONFIG] Configuración aplicada (Arándanos):")
             print("  • pH: 4.5-5.5 (crítico: 4.0-6.0)")
             print("  • Temperatura: 15-25°C (crítico: 10-30°C)")
             print("  • EC: 0-2 dS/m (crítico: 0-3 dS/m)")
             print("  • Water Level: 20-100% (crítico: 10-100%)")
             print()
-            print("🔔 Notificaciones activadas:")
-            print("  • WhatsApp: ✅")
-            print("  • Email: ✅")
+            print("[NOTIFICATIONS] Notificaciones activadas:")
+            print("  • WhatsApp: Yes")
+            print("  • Email: Yes")
             print()
-            print("⚡ Las alertas se generarán automáticamente cuando:")
+            print("[INFO] Las alertas se generarán automáticamente cuando:")
             print("  1. Lleguen nuevos datos del ESP32")
             print("  2. Los valores estén fuera del rango configurado")
             print("  3. El alert_watcher detectará y enviará notificaciones")
             print()
         
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"[ERROR] {e}")
         import traceback
         traceback.print_exc()
     finally:

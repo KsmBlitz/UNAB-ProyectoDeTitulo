@@ -698,7 +698,7 @@ onMounted(fetchData);
               </div>
               <div class="flex-1">
                 <p class="font-semibold text-amber-900 text-sm mb-2">
-                  💡 Recomendaciones
+                  Recomendaciones
                 </p>
                 <ul class="space-y-1.5 text-xs text-amber-800">
                   <li class="flex items-start gap-2">

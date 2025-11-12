@@ -55,7 +55,7 @@ async def send_critical_alert_email(
         body = f"""
         <html>
         <body>
-            <h2>🚨 Alerta Crítica</h2>
+            <h2>ALERTA CRÍTICA</h2>
             <p><strong>Embalse:</strong> {reservoir_name}</p>
             <p><strong>Tipo de alerta:</strong> {alert_type}</p>
             <p><strong>Valor detectado:</strong> {value}</p>

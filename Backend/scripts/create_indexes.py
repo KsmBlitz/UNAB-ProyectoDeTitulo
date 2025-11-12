@@ -35,7 +35,7 @@ async def create_indexes():
         name="idx_reservoir_time",
         background=True
     )
-    logger.info("✓ Índice creado: idx_reservoir_time")
+    logger.info("[OK] Índice creado: idx_reservoir_time")
     
     # Índice para consultas solo por tiempo
     await sensor_collection.create_index(
@@ -43,7 +43,7 @@ async def create_indexes():
         name="idx_time",
         background=True
     )
-    logger.info("✓ Índice creado: idx_time")
+    logger.info("[OK] Índice creado: idx_time")
     
     # Índice para timestamp alternativo
     await sensor_collection.create_index(
@@ -52,7 +52,7 @@ async def create_indexes():
         background=True,
         sparse=True  # Solo documentos con timestamp
     )
-    logger.info("✓ Índice creado: idx_timestamp")
+    logger.info("[OK] Índice creado: idx_timestamp")
     
     # ============================================
     # COLECCIÓN: alerts
@@ -67,7 +67,7 @@ async def create_indexes():
         name="idx_active_alerts",
         background=True
     )
-    logger.info("✓ Índice creado: idx_active_alerts")
+    logger.info("[OK] Índice creado: idx_active_alerts")
     
     # Índice para búsqueda por tipo y sensor
     await alerts_collection.create_index(
@@ -75,7 +75,7 @@ async def create_indexes():
         name="idx_type_sensor",
         background=True
     )
-    logger.info("✓ Índice creado: idx_type_sensor")
+    logger.info("[OK] Índice creado: idx_type_sensor")
     
     # Índice para búsqueda por fecha de creación
     await alerts_collection.create_index(
@@ -83,7 +83,7 @@ async def create_indexes():
         name="idx_created_at",
         background=True
     )
-    logger.info("✓ Índice creado: idx_created_at")
+    logger.info("[OK] Índice creado: idx_created_at")
     
     # ============================================
     # COLECCIÓN: alert_history
@@ -98,7 +98,7 @@ async def create_indexes():
         name="idx_history_created",
         background=True
     )
-    logger.info("✓ Índice creado: idx_history_created")
+    logger.info("[OK] Índice creado: idx_history_created")
     
     # Índice para búsqueda por tipo y nivel
     await alert_history_collection.create_index(
@@ -106,7 +106,7 @@ async def create_indexes():
         name="idx_history_type_level",
         background=True
     )
-    logger.info("✓ Índice creado: idx_history_type_level")
+    logger.info("[OK] Índice creado: idx_history_type_level")
     
     # Índice para búsqueda por usuario que cerró la alerta
     await alert_history_collection.create_index(
@@ -115,7 +115,7 @@ async def create_indexes():
         background=True,
         sparse=True
     )
-    logger.info("✓ Índice creado: idx_dismissed_by")
+    logger.info("[OK] Índice creado: idx_dismissed_by")
     
     # ============================================
     # COLECCIÓN: users
@@ -131,7 +131,7 @@ async def create_indexes():
         unique=True,
         background=True
     )
-    logger.info("✓ Índice creado: idx_email_unique")
+    logger.info("[OK] Índice creado: idx_email_unique")
     
     # Índice para búsqueda por rol y estado
     await users_collection.create_index(
@@ -139,7 +139,7 @@ async def create_indexes():
         name="idx_role_status",
         background=True
     )
-    logger.info("✓ Índice creado: idx_role_status")
+    logger.info("[OK] Índice creado: idx_role_status")
     
     # ============================================
     # COLECCIÓN: audit_log
@@ -154,7 +154,7 @@ async def create_indexes():
         name="idx_user_audit",
         background=True
     )
-    logger.info("✓ Índice creado: idx_user_audit")
+    logger.info("[OK] Índice creado: idx_user_audit")
     
     # Índice para búsqueda por acción
     await audit_collection.create_index(
@@ -162,7 +162,7 @@ async def create_indexes():
         name="idx_action_time",
         background=True
     )
-    logger.info("✓ Índice creado: idx_action_time")
+    logger.info("[OK] Índice creado: idx_action_time")
     
     # Índice para búsqueda por timestamp (limpieza de logs antiguos)
     await audit_collection.create_index(
@@ -170,7 +170,7 @@ async def create_indexes():
         name="idx_audit_timestamp",
         background=True
     )
-    logger.info("✓ Índice creado: idx_audit_timestamp")
+    logger.info("[OK] Índice creado: idx_audit_timestamp")
     
     # Índice TTL para auto-eliminar logs después de 180 días (opcional)
     await audit_collection.create_index(
@@ -179,7 +179,7 @@ async def create_indexes():
         expireAfterSeconds=15552000,  # 180 días
         background=True
     )
-    logger.info("✓ Índice TTL creado: idx_audit_ttl (180 días)")
+    logger.info("[OK] Índice TTL creado: idx_audit_ttl (180 días)")
     
     # ============================================
     # COLECCIÓN: notifications_sent
@@ -194,7 +194,7 @@ async def create_indexes():
         name="idx_last_sent",
         background=True
     )
-    logger.info("✓ Índice creado: idx_last_sent")
+    logger.info("[OK] Índice creado: idx_last_sent")
     
     # Índice TTL para limpiar notificaciones antiguas (7 días)
     await notifications_collection.create_index(
@@ -203,7 +203,7 @@ async def create_indexes():
         expireAfterSeconds=604800,  # 7 días
         background=True
     )
-    logger.info("✓ Índice TTL creado: idx_notifications_ttl (7 días)")
+    logger.info("[OK] Índice TTL creado: idx_notifications_ttl (7 días)")
     
     # ============================================
     # RESUMEN
@@ -229,7 +229,7 @@ async def create_indexes():
                 logger.info(f"  - {idx_name}")
     
     logger.info("\n" + "="*60)
-    logger.info("✅ Todos los índices creados exitosamente")
+    logger.info("[SUCCESS] Todos los índices creados exitosamente")
     logger.info("="*60)
     
     # Cerrar conexión

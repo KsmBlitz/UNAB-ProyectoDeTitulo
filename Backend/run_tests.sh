@@ -19,28 +19,28 @@ NC='\033[0m' # No Color
 
 # Check if virtual environment exists
 if [ ! -d "venv" ]; then
-    echo -e "${YELLOW}⚠️  Virtual environment not found. Creating...${NC}"
+    echo -e "${YELLOW}Virtual environment not found. Creating...${NC}"
     python3 -m venv venv
     source venv/bin/activate
     pip install --upgrade pip
     pip install -r requirements.txt
-    echo -e "${GREEN}✅ Virtual environment created${NC}"
+    echo -e "${GREEN}Virtual environment created${NC}"
 else
     source venv/bin/activate
 fi
 
-echo -e "${GREEN}✅ Virtual environment activated${NC}"
+echo -e "${GREEN}Virtual environment activated${NC}"
 echo ""
 
 # Install test dependencies if not present
-echo "📦 Checking test dependencies..."
+echo "Checking test dependencies..."
 pip list | grep -q pytest || pip install pytest pytest-asyncio pytest-cov pytest-mock httpx faker
-echo -e "${GREEN}✅ Dependencies installed${NC}"
+echo -e "${GREEN}Dependencies installed${NC}"
 echo ""
 
 # Run tests based on argument
 if [ "$1" = "coverage" ]; then
-    echo "🧪 Running tests with coverage..."
+    echo "Running tests with coverage..."
     python3 -m pytest tests/ \
         --cov=app \
         --cov-report=term-missing \
@@ -51,10 +51,10 @@ if [ "$1" = "coverage" ]; then
         --color=yes
     
     echo ""
-    echo -e "${GREEN}✅ Coverage report generated in htmlcov/index.html${NC}"
+    echo -e "${GREEN}Coverage report generated in htmlcov/index.html${NC}"
     
 elif [ "$1" = "fast" ]; then
-    echo "🧪 Running fast tests (no integration)..."
+    echo "Running fast tests (no integration)..."
     python3 -m pytest tests/ \
         -v \
         --tb=short \
@@ -63,19 +63,19 @@ elif [ "$1" = "fast" ]; then
     
 elif [ "$1" = "specific" ]; then
     if [ -z "$2" ]; then
-        echo -e "${RED}❌ Please provide test file or pattern${NC}"
+        echo -e "${RED}Please provide test file or pattern${NC}"
         echo "Example: ./run_tests.sh specific test_auth_service.py"
         exit 1
     fi
     
-    echo "🧪 Running specific tests: $2"
+    echo "Running specific tests: $2"
     python3 -m pytest tests/$2 \
         -v \
         --tb=short \
         --color=yes
     
 elif [ "$1" = "watch" ]; then
-    echo "👀 Running tests in watch mode..."
+    echo "Running tests in watch mode..."
     python3 -m pytest tests/ \
         -v \
         --tb=short \
@@ -84,7 +84,7 @@ elif [ "$1" = "watch" ]; then
     
 else
     # Default: run all tests
-    echo "🧪 Running all tests..."
+    echo "Running all tests..."
     python3 -m pytest tests/ \
         -v \
         --tb=short \
@@ -96,12 +96,12 @@ fi
 if [ $? -eq 0 ]; then
     echo ""
     echo -e "${GREEN}======================================"
-    echo -e "   ✅ ALL TESTS PASSED! ✅           "
+    echo -e "   ALL TESTS PASSED!           "
     echo -e "======================================${NC}"
 else
     echo ""
     echo -e "${RED}======================================"
-    echo -e "   ❌ SOME TESTS FAILED ❌          "
+    echo -e "   SOME TESTS FAILED          "
     echo -e "======================================${NC}"
     exit 1
 fi
