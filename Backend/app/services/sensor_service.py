@@ -523,6 +523,56 @@ class SensorService:
         except Exception as e:
             logger.error(f"Error getting alert config for {sensor_id}: {e}")
             raise
+    
+    async def is_sensor_connected(self, sensor_id: str, threshold_minutes: int = 15) -> bool:
+        """
+        Check if a sensor is currently connected (has recent data)
+        
+        Args:
+            sensor_id: Sensor identifier
+            threshold_minutes: Minutes threshold to consider sensor as connected (default: 15)
+            
+        Returns:
+            True if sensor is connected (has data within threshold), False otherwise
+        """
+        try:
+            from app.config.database import db
+            sensor_data_collection = db["Sensor_Data"]
+            current_time = datetime.now(timezone.utc)
+            
+            # Get most recent reading for this sensor
+            latest_reading = await sensor_data_collection.find_one(
+                {"reservoirId": sensor_id},
+                sort=[("ReadTime", -1)]
+            )
+            
+            if not latest_reading:
+                logger.info(f"Sensor {sensor_id} has no data - considered disconnected")
+                return False
+            
+            # Get timestamp
+            last_reading_time = latest_reading.get("ReadTime")
+            if not last_reading_time:
+                return False
+            
+            # Ensure timezone aware
+            if last_reading_time.tzinfo is None:
+                last_reading_time = last_reading_time.replace(tzinfo=timezone.utc)
+            
+            # Calculate time difference
+            time_diff_minutes = (current_time - last_reading_time).total_seconds() / 60
+            
+            is_connected = time_diff_minutes < threshold_minutes
+            logger.debug(
+                f"Sensor {sensor_id}: last reading {time_diff_minutes:.1f} min ago - "
+                f"{'connected' if is_connected else 'disconnected'}"
+            )
+            
+            return is_connected
+            
+        except Exception as e:
+            logger.error(f"Error checking sensor connection status: {e}")
+            return False
 
 
 # Singleton instance

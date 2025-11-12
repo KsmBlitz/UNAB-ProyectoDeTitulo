@@ -634,10 +634,7 @@ function getAlertIcon(level: string): string {
 function formatAlertTime(dateString: string): string {
   try {
     const date = new Date(dateString)
-
-    // Obtener hora actual en zona horaria de Chile
-    const nowInChile = new Date().toLocaleString('sv-SE', { timeZone: 'America/Santiago' })
-    const now = new Date(nowInChile)
+    const now = new Date()
 
     const diffMs = now.getTime() - date.getTime()
     const diffMinutes = Math.floor(diffMs / 60000)

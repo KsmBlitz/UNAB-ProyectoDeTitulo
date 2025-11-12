@@ -296,3 +296,104 @@ async def update_alert_config(
             status_code=500,
             detail="Error interno del servidor"
         )
+
+
+@router.post("/create")
+async def create_sensor_alert(
+    alert_data: dict,
+    request: Request
+):
+    """
+    Create a sensor alert with automatic validation
+    
+    Validates that measurement alerts (pH, temp, EC, water_level) are only created
+    for connected sensors. This endpoint is typically called by external systems
+    (ESP32, monitoring scripts, etc).
+    
+    Required fields in alert_data:
+    - type: Alert type (ph, temperature, ec, water_level, sensor_disconnected, etc)
+    - sensor_id: Sensor identifier
+    - level: Severity level (info, warning, critical)
+    - title: Alert title
+    - message: Alert message
+    - location: Sensor location
+    - value: (optional) Sensor reading value
+    
+    Returns:
+        201: Alert created successfully
+        400: Alert creation skipped (sensor disconnected for measurement alerts)
+        422: Invalid request data
+    """
+    try:
+        # Validate required fields
+        required_fields = ['type', 'sensor_id', 'level', 'title', 'message', 'location']
+        missing_fields = [f for f in required_fields if f not in alert_data]
+        
+        if missing_fields:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Missing required fields: {', '.join(missing_fields)}"
+            )
+        
+        alert_type = alert_data['type']
+        sensor_id = alert_data['sensor_id']
+        
+        # Check if alert should be created based on sensor status
+        should_create, skip_reason = await alert_service.should_create_sensor_alert(
+            alert_type=alert_type,
+            sensor_id=sensor_id
+        )
+        
+        if not should_create:
+            logger.info(f"Skipping alert creation: {skip_reason}")
+            return {
+                "status": "skipped",
+                "reason": skip_reason,
+                "alert_type": alert_type,
+                "sensor_id": sensor_id
+            }
+        
+        # Create the alert
+        from app.config import alerts_collection
+        current_time = datetime.now(timezone.utc)
+        
+        alert_doc = {
+            "type": alert_data['type'],
+            "level": alert_data['level'].lower(),
+            "title": alert_data['title'],
+            "message": alert_data['message'],
+            "location": alert_data['location'],
+            "sensor_id": sensor_id,
+            "created_at": current_time,
+            "is_resolved": False,
+            "status": "active",
+            "source": alert_data.get('source', 'external')
+        }
+        
+        # Add optional fields
+        if 'value' in alert_data:
+            alert_doc['value'] = alert_data['value']
+        
+        result = await alerts_collection.insert_one(alert_doc)
+        alert_doc['_id'] = result.inserted_id
+        alert_doc['id'] = str(result.inserted_id)
+        
+        logger.info(
+            f"Sensor alert created: {alert_type} for sensor {sensor_id} "
+            f"(level: {alert_data['level']})"
+        )
+        
+        return {
+            "status": "created",
+            "alert_id": str(result.inserted_id),
+            "alert": alert_doc
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating sensor alert: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error creating alert: {str(e)}"
+        )

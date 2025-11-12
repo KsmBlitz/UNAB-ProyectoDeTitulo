@@ -376,6 +376,74 @@ class AlertService:
         except Exception as e:
             logger.error(f"Error sending critical alert notifications: {e}")
             # Don't fail alert creation due to notification error
+    
+    async def should_create_sensor_alert(
+        self,
+        alert_type: str,
+        sensor_id: str,
+        connection_threshold_minutes: int = 15
+    ) -> tuple[bool, Optional[str]]:
+        """
+        Determine if a sensor alert should be created based on sensor connection status
+        
+        Business rules:
+        - Sensor measurement alerts (pH, temperature, EC, water_level) should only be
+          created if the sensor is connected (has recent data)
+        - Sensor disconnection alerts should only be created if sensor is actually disconnected
+        
+        Args:
+            alert_type: Type of alert ('ph', 'temperature', 'ec', 'water_level', 'sensor_disconnected')
+            sensor_id: Sensor identifier
+            connection_threshold_minutes: Minutes to consider sensor as connected
+            
+        Returns:
+            Tuple of (should_create: bool, reason: Optional[str])
+            - should_create: True if alert should be created
+            - reason: Explanation if alert should NOT be created
+        """
+        try:
+            # Import sensor service to check connection status
+            from app.services.sensor_service import sensor_service
+            
+            is_connected = await sensor_service.is_sensor_connected(
+                sensor_id=sensor_id,
+                threshold_minutes=connection_threshold_minutes
+            )
+            
+            # Measurement alerts (pH, temp, EC, water_level) require connected sensor
+            measurement_alert_types = ['ph', 'temperature', 'ec', 'water_level', 'conductivity']
+            
+            if alert_type.lower() in measurement_alert_types:
+                if not is_connected:
+                    reason = (
+                        f"Sensor {sensor_id} is disconnected - skipping {alert_type} alert. "
+                        f"Measurement alerts only created for connected sensors."
+                    )
+                    logger.info(reason)
+                    return False, reason
+                else:
+                    logger.debug(f"Sensor {sensor_id} is connected - {alert_type} alert allowed")
+                    return True, None
+            
+            # Disconnection alerts only for actually disconnected sensors
+            elif alert_type.lower() in ['sensor_disconnected', 'disconnected', 'offline']:
+                if is_connected:
+                    reason = f"Sensor {sensor_id} is still connected - not creating disconnection alert"
+                    logger.debug(reason)
+                    return False, reason
+                else:
+                    logger.info(f"Sensor {sensor_id} is disconnected - disconnection alert allowed")
+                    return True, None
+            
+            # Other alert types (manual, system, etc) - always allow
+            else:
+                logger.debug(f"Alert type '{alert_type}' is not sensor-dependent - always allowed")
+                return True, None
+                
+        except Exception as e:
+            logger.error(f"Error checking if alert should be created: {e}")
+            # On error, allow alert creation (fail open)
+            return True, None
 
 
 # Singleton instance
