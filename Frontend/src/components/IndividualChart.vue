@@ -68,14 +68,6 @@ const isSavingConfig = ref(false);
 // Authorization - Verificar que el usuario sea administrador
 const isAdmin = computed(() => {
   const userRole = authStore.user?.role;
-  // Debug: mostrar rol actual en consola
-  if (import.meta.env.DEV) {
-    console.log('[IndividualChart] Checking admin status:', {
-      userRole,
-      isAdmin: userRole === 'admin',
-      sensorType: props.sensorType
-    });
-  }
   return userRole === 'admin';
 });
 
@@ -284,7 +276,6 @@ const fetchData = async () => {
 const updateTimeRange = (hours: number) => {
   // Evitar actualizar si ya está cargando (throttling)
   if (isLoading.value) {
-    console.log(`[${props.title}] Ignorando actualización - ya está cargando`);
     return;
   }
   
@@ -295,7 +286,6 @@ const updateTimeRange = (hours: number) => {
 const refreshData = async () => {
   // Evitar refresh si ya está cargando
   if (isLoading.value) {
-    console.log(`[${props.title}] Ignorando refresh - ya está cargando`);
     return;
   }
   

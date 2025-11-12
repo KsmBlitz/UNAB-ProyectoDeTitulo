@@ -28,32 +28,11 @@ function toggleUserMenu() {
 }
 
 // Cerrar sesión
-async function handleLogout() {
-  console.log('Cerrando sesión...');
-  
-  try {
-    const token = localStorage.getItem('userToken');
-    
-    // Llamar al endpoint de logout para registrar en auditoría
-    if (token) {
-      await fetch(`${API_BASE_URL}/api/logout`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-    }
-  } catch (error) {
-    console.error('Error al registrar logout:', error);
-    // Continuar con el logout incluso si falla el registro
-  } finally {
-    // Limpiar localStorage y redirigir
-    localStorage.removeItem('userToken');
-    authStore.user = null;
-    router.push('/login');
-  }
-}
+const logout = () => {
+  authStore.user = null;
+  localStorage.removeItem('userToken');
+  router.push('/login');
+};
 
 // Navegar a alertas
 function navigateToAlerts() {
