@@ -57,7 +57,7 @@ async def get_latest_metrics(
         reservoir_id: Optional filter by reservoir ID
     """
     try:
-        result = await sensor_service.get_latest_metrics(reservoir_id=reservoir_id)
+        result = await sensor_service.get_latest_metrics()
         return result
         
     except Exception as e:
@@ -86,9 +86,16 @@ async def get_historical_data(
         hours: Number of hours to retrieve (0 = all data, max 8760 = 1 year)
     """
     try:
+        # Calculate start_time based on hours
+        start_time = None
+        if hours > 0:
+            start_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+        
+        # Call service with sensor_ids parameter
+        sensor_ids = [reservoir_id] if reservoir_id else None
         result = await sensor_service.get_historical_data(
-            reservoir_id=reservoir_id,
-            hours=hours
+            sensor_ids=sensor_ids,
+            start_time=start_time
         )
         return result
         

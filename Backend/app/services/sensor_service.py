@@ -145,51 +145,68 @@ class SensorService:
         Get status of all sensors (online/offline based on last reading)
         
         Returns:
-            List of sensor status dictionaries
+            List of sensor status dictionaries with format expected by frontend
         """
         try:
-            sensors = await self.sensor_repo.get_all_sensors()
+            from app.config.database import db
+            sensor_data_collection = db["Sensor_Data"]
+            current_time = datetime.now(timezone.utc)
             
+            # Get unique sensors and their latest readings using aggregation
+            pipeline = [
+                {"$sort": {"ReadTime": -1}},
+                {"$group": {
+                    "_id": "$reservoirId",
+                    "lastReading": {"$first": "$$ROOT"}
+                }},
+                {"$limit": 20}
+            ]
+            
+            db_sensors = await sensor_data_collection.aggregate(pipeline).to_list(length=None)
             sensor_status_list = []
-            for sensor in sensors:
-                sensor_id = sensor.get("sensor_id")
+            
+            for sensor_group in db_sensors:
+                reservoir_id = sensor_group["_id"]
+                latest_reading = sensor_group["lastReading"]
                 
-                # Get latest reading
-                latest_readings = await self.sensor_repo.get_sensor_data(
-                    sensor_id=sensor_id,
-                    limit=1
-                )
+                # Normalize data
+                normalized = self.normalize_sensor_reading(latest_reading)
                 
-                if latest_readings:
-                    latest = latest_readings[0]
-                    last_reading_time = latest.get("timestamp") or latest.get("created_at")
-                    
-                    # Check if sensor is online (reading within last hour)
-                    if isinstance(last_reading_time, str):
-                        last_reading_time = datetime.fromisoformat(last_reading_time.replace('Z', '+00:00'))
-                    
-                    time_diff = datetime.now(timezone.utc) - last_reading_time
-                    is_online = time_diff < timedelta(hours=1)
-                    
-                    status = {
-                        "sensor_id": sensor_id,
-                        "name": sensor.get("name", sensor_id),
-                        "location": sensor.get("location", "Unknown"),
-                        "is_online": is_online,
-                        "last_reading": last_reading_time.isoformat(),
-                        "minutes_since_last_reading": int(time_diff.total_seconds() / 60)
-                    }
+                # Get timestamp
+                last_reading_time = normalized["timestamp"]
+                if last_reading_time and last_reading_time.tzinfo is None:
+                    last_reading_time = last_reading_time.replace(tzinfo=timezone.utc)
+                
+                # Calculate time difference
+                if last_reading_time:
+                    time_diff = (current_time - last_reading_time).total_seconds()
+                    minutes_diff = time_diff / 60
                 else:
-                    status = {
-                        "sensor_id": sensor_id,
-                        "name": sensor.get("name", sensor_id),
-                        "location": sensor.get("location", "Unknown"),
-                        "is_online": False,
-                        "last_reading": None,
-                        "minutes_since_last_reading": None
-                    }
+                    minutes_diff = 999999
                 
-                sensor_status_list.append(status)
+                # Determine status
+                if minutes_diff < 15:
+                    status_label = "online"
+                elif minutes_diff < 30:
+                    status_label = "warning"
+                else:
+                    status_label = "offline"
+                
+                sensor_data = {
+                    "uid": reservoir_id,
+                    "last_values": {
+                        "temperature": round(normalized["temperature"], 1) if normalized["temperature"] is not None and normalized["temperature"] != 0 else normalized["temperature"],
+                        "ph": round(normalized["ph"], 2) if normalized["ph"] is not None and normalized["ph"] != 0 else normalized["ph"],
+                        "ec": round(normalized["ec"], 1) if normalized["ec"] is not None and normalized["ec"] != 0 else normalized["ec"],
+                        "water_level": round(normalized["water_level"], 1) if normalized["water_level"] is not None and normalized["water_level"] != 0 else normalized["water_level"]
+                    },
+                    "status": status_label,
+                    "location": f"Embalse {reservoir_id}",
+                    "last_reading": last_reading_time.isoformat() if last_reading_time else None,
+                    "minutes_since_reading": int(minutes_diff)
+                }
+                
+                sensor_status_list.append(sensor_data)
             
             logger.info(f"Retrieved status for {len(sensor_status_list)} sensors")
             return sensor_status_list
@@ -204,50 +221,90 @@ class SensorService:
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
         limit: int = 1000
-    ) -> Dict[str, List[Dict[str, Any]]]:
+    ) -> Dict[str, Any]:
         """
-        Get historical data for multiple sensors
+        Get historical data formatted for charts
         
         Args:
-            sensor_ids: List of sensor IDs (None = all sensors)
+            sensor_ids: List of reservoir IDs (None = all sensors)
             start_time: Start of time range
             end_time: End of time range
-            limit: Maximum readings per sensor
+            limit: Maximum readings
             
         Returns:
-            Dictionary mapping sensor_id to list of readings
+            Dictionary with labels and data arrays for charts
         """
         try:
-            # Default time range: last 24 hours
-            if not end_time:
-                end_time = datetime.now(timezone.utc)
-            if not start_time:
-                start_time = end_time - timedelta(hours=24)
+            from app.config.database import db
+            sensor_data_collection = db["Sensor_Data"]
             
-            # Get sensors to query
-            if not sensor_ids:
-                sensors = await self.sensor_repo.get_all_sensors()
-                sensor_ids = [s.get("sensor_id") for s in sensors if s.get("sensor_id")]
+            # Build query
+            query = {}
+            if sensor_ids:
+                query["reservoirId"] = {"$in": sensor_ids}
+            if start_time:
+                query["ReadTime"] = {"$gte": start_time}
+            if end_time:
+                if "ReadTime" in query:
+                    query["ReadTime"]["$lte"] = end_time
+                else:
+                    query["ReadTime"] = {"$lte": end_time}
             
-            # Get data for each sensor
-            historical_data = {}
-            for sensor_id in sensor_ids:
-                readings = await self.sensor_repo.get_sensor_data(
-                    sensor_id=sensor_id,
-                    start_time=start_time,
-                    end_time=end_time,
-                    limit=limit
-                )
+            # Fetch data
+            cursor = sensor_data_collection.find(query).sort("ReadTime", 1).limit(limit)
+            readings = await cursor.to_list(length=limit)
+            
+            # Format data for charts
+            labels = []
+            temperatura_data = []
+            ph_data = []
+            conductividad_data = []
+            nivel_agua_data = []
+            
+            # Chile timezone offset
+            CHILE_OFFSET = timedelta(hours=-3)
+            
+            for reading in readings:
+                # Normalize data
+                normalized = self.normalize_sensor_reading(reading)
                 
-                normalized_readings = [
-                    self.normalize_sensor_reading(r)
-                    for r in readings
-                ]
+                # Format timestamp - convertir UTC a hora de Chile (UTC-3)
+                timestamp = normalized["timestamp"]
+                if timestamp:
+                    if hasattr(timestamp, 'isoformat'):
+                        if timestamp.tzinfo is None:
+                            timestamp = timestamp.replace(tzinfo=timezone.utc)
+                        chile_time = timestamp.astimezone(timezone(CHILE_OFFSET))
+                        labels.append(chile_time.strftime('%Y-%m-%dT%H:%M:%S'))
+                    elif isinstance(timestamp, str):
+                        try:
+                            dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                            if dt.tzinfo is None:
+                                dt = dt.replace(tzinfo=timezone.utc)
+                            chile_time = dt.astimezone(timezone(CHILE_OFFSET))
+                            labels.append(chile_time.strftime('%Y-%m-%dT%H:%M:%S'))
+                        except:
+                            labels.append(timestamp)
+                    else:
+                        labels.append(str(timestamp))
+                else:
+                    labels.append("")
                 
-                historical_data[sensor_id] = normalized_readings
+                # Extract values
+                temperatura_data.append(normalized["temperature"])
+                ph_data.append(normalized["ph"])
+                conductividad_data.append(normalized["ec"])
+                nivel_agua_data.append(normalized["water_level"])
             
-            logger.info(f"Retrieved historical data for {len(historical_data)} sensors")
-            return historical_data
+            return {
+                "labels": labels,
+                "temperatura": temperatura_data,
+                "ph": ph_data,
+                "conductividad": conductividad_data,
+                "nivel_agua": nivel_agua_data,
+                "count": len(readings),
+                "period_hours": int((end_time - start_time).total_seconds() / 3600) if start_time and end_time else 0
+            }
             
         except Exception as e:
             logger.error(f"Error getting historical data: {e}")
