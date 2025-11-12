@@ -1,7 +1,7 @@
 import logging
 import asyncio
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import Database, settings
@@ -13,6 +13,7 @@ from app.services import alert_change_stream_watcher
 from app.services.cache import cache_service
 from app.middleware import RateLimitMiddleware
 from app.middleware.request_id import RequestIDMiddleware
+from app.utils.dependencies import get_current_user
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -35,7 +36,15 @@ app.add_middleware(
 app.add_middleware(RequestIDMiddleware)
 
 # Rate limiting middleware
-app.add_middleware(RateLimitMiddleware)
+rate_limit_middleware = None
+for middleware in app.user_middleware:
+    if middleware.cls == RateLimitMiddleware:
+        rate_limit_middleware = middleware
+        break
+
+# Si no se encontró, agregarlo
+if not rate_limit_middleware:
+    app.add_middleware(RateLimitMiddleware)
 
 @app.on_event("startup")
 async def startup_event():
@@ -66,6 +75,43 @@ async def root():
         "status": "online",
         "message": "Sistema de Monitoreo de Embalses IoT API",
         "version": "2.0.0"
+    }
+
+@app.get("/api/rate-limit/stats", tags=["Monitoring"])
+async def get_rate_limit_stats(current_user: dict = Depends(get_current_user)):
+    """
+    Obtiene estadísticas del rate limiting (solo para administradores).
+    
+    Requiere autenticación y rol de administrador.
+    """
+    from fastapi import HTTPException, status
+    
+    # Verificar que sea administrador
+    if current_user.get("role") != "administrador":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo los administradores pueden ver estadísticas de rate limiting"
+        )
+    
+    # Obtener el middleware de rate limiting
+    rate_limit_instance = None
+    for middleware in app.user_middleware:
+        if middleware.cls == RateLimitMiddleware:
+            # El middleware es una instancia envuelta, necesitamos acceder al app original
+            rate_limit_instance = middleware.kwargs.get("app")
+            break
+    
+    if rate_limit_instance:
+        # Buscar la instancia real del middleware en la cadena
+        for mw in app.middleware_stack.__self__.middleware:
+            if isinstance(mw, RateLimitMiddleware):
+                return mw.get_stats()
+    
+    # Fallback: crear respuesta básica
+    return {
+        "message": "Rate limiting activo pero sin estadísticas disponibles",
+        "active_ips": 0,
+        "active_users": 0
     }
 
 # Register routers
