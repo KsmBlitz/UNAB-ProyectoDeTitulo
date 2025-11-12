@@ -37,64 +37,7 @@ async def get_individual_sensors_status(current_user: dict = Depends(get_current
     - offline: > 30 minutes
     """
     try:
-        current_time = datetime.now(timezone.utc)
-        
-        # Find unique sensors and their latest readings
-        pipeline = [
-            {"$sort": {"ReadTime": -1}},
-            {"$group": {
-                "_id": "$reservoirId",
-                "lastReading": {"$first": "$$ROOT"}
-            }},
-            {"$limit": 20}
-        ]
-        
-        db_sensors = await sensor_collection.aggregate(pipeline).to_list(length=None)
-        sensors = []
-        
-        for sensor_group in db_sensors:
-            reservoir_id = sensor_group["_id"]
-            latest_reading = sensor_group["lastReading"]
-            
-            # Normalizar datos
-            normalized = normalize_sensor_reading(latest_reading)
-            
-            # Ensure timezone aware datetime
-            last_reading_time = normalized["timestamp"]
-            if last_reading_time and last_reading_time.tzinfo is None:
-                last_reading_time = last_reading_time.replace(tzinfo=timezone.utc)
-            
-            # Calculate time difference
-            if last_reading_time:
-                time_diff = (current_time - last_reading_time).total_seconds()
-                minutes_diff = time_diff / 60
-            else:
-                minutes_diff = 999999  # Sin timestamp
-            
-            # Determine status
-            if minutes_diff < 15:
-                status = "online"
-            elif minutes_diff < 30:
-                status = "warning"
-            else:
-                status = "offline"
-            
-            sensor_data = {
-                "uid": reservoir_id,
-                "last_values": {
-                    "temperature": round(normalized["temperature"], 1) if normalized["temperature"] is not None and normalized["temperature"] != 0 else normalized["temperature"],
-                    "ph": round(normalized["ph"], 2) if normalized["ph"] is not None and normalized["ph"] != 0 else normalized["ph"],
-                    "ec": round(normalized["ec"], 1) if normalized["ec"] is not None and normalized["ec"] != 0 else normalized["ec"],
-                    "water_level": round(normalized["water_level"], 1) if normalized["water_level"] is not None and normalized["water_level"] != 0 else normalized["water_level"]
-                },
-                "status": status,
-                "location": f"Embalse {reservoir_id}",
-                "last_reading": last_reading_time.isoformat() if last_reading_time else None,
-                "minutes_since_reading": int(minutes_diff)
-            }
-            
-            sensors.append(sensor_data)
-        
+        sensors = await sensor_service.get_sensor_status()
         return sensors
         
     except Exception as e:
@@ -113,47 +56,8 @@ async def get_latest_metrics(
     Args:
         reservoir_id: Optional filter by reservoir ID
     """
-    # Intentar obtener desde caché
-    cache_key = f"metrics_latest_{reservoir_id or 'all'}"
-    cached_data = await cache_service.get(cache_key)
-    if cached_data:
-        return cached_data
-    
     try:
-        query = {}
-        if reservoir_id:
-            query["reservoirId"] = reservoir_id
-        
-        # Get latest reading
-        latest_reading = await sensor_collection.find_one(
-            query,
-            sort=[("ReadTime", -1)]
-        )
-        
-        if not latest_reading:
-            result = {
-                "temperature": 0,
-                "ph": 0,
-                "conductivity": 0,
-                "water_level": 0,
-                "timestamp": None,
-                "reservoir_id": reservoir_id
-            }
-        else:
-            # Normalizar campos usando la función helper
-            normalized = normalize_sensor_reading(latest_reading)
-            
-            result = {
-                "temperature": normalized["temperature"],
-                "ph": normalized["ph"],
-                "conductivity": normalized["ec"],
-                "water_level": normalized["water_level"],
-                "timestamp": normalized["timestamp"],
-                "reservoir_id": latest_reading.get("reservoirId")
-            }
-        
-        # Guardar en caché por 30 segundos
-        await cache_service.set(cache_key, result, ttl=30)
+        result = await sensor_service.get_latest_metrics(reservoir_id=reservoir_id)
         return result
         
     except Exception as e:
@@ -182,73 +86,11 @@ async def get_historical_data(
         hours: Number of hours to retrieve (0 = all data, max 8760 = 1 year)
     """
     try:
-        query: Dict[str, Any] = {}
-        if reservoir_id:
-            query["reservoirId"] = reservoir_id
-        
-        # Get data from last N hours (0 = all data)
-        if hours > 0:
-            start_time = datetime.now(timezone.utc) - timedelta(hours=hours)
-            query["ReadTime"] = {"$gte": start_time}
-        
-        # Fetch data
-        cursor = sensor_collection.find(query).sort("ReadTime", 1).limit(1000)
-        readings = await cursor.to_list(length=1000)
-        
-        # Format data for charts - separate arrays for each sensor type
-        labels = []
-        temperatura_data = []
-        ph_data = []
-        conductividad_data = []
-        nivel_agua_data = []
-        
-        for reading in readings:
-            # Normalizar datos
-            normalized = normalize_sensor_reading(reading)
-            
-            # Format timestamp - convertir UTC a hora de Chile (UTC-3)
-            timestamp = normalized["timestamp"]
-            if timestamp:
-                # Si es datetime, convertir a hora de Chile
-                if hasattr(timestamp, 'isoformat'):
-                    # Si el timestamp no tiene timezone, asumimos UTC
-                    if timestamp.tzinfo is None:
-                        timestamp = timestamp.replace(tzinfo=timezone.utc)
-                    # Convertir a hora de Chile (UTC-3)
-                    chile_time = timestamp.astimezone(timezone(CHILE_OFFSET))
-                    # Enviar como ISO string sin timezone info para que el frontend no lo reconvierta
-                    labels.append(chile_time.strftime('%Y-%m-%dT%H:%M:%S'))
-                # Si ya es string, intentar parsearlo y convertirlo
-                elif isinstance(timestamp, str):
-                    try:
-                        # Parse ISO string
-                        dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
-                        if dt.tzinfo is None:
-                            dt = dt.replace(tzinfo=timezone.utc)
-                        chile_time = dt.astimezone(timezone(CHILE_OFFSET))
-                        labels.append(chile_time.strftime('%Y-%m-%dT%H:%M:%S'))
-                    except:
-                        labels.append(timestamp)
-                else:
-                    labels.append(str(timestamp))
-            else:
-                labels.append("")
-            
-            # Extract values using normalized fields - usar solo formato nuevo
-            temperatura_data.append(normalized["temperature"])
-            ph_data.append(normalized["ph"])
-            conductividad_data.append(normalized["ec"])
-            nivel_agua_data.append(normalized["water_level"])
-        
-        return {
-            "labels": labels,
-            "temperatura": temperatura_data,
-            "ph": ph_data,
-            "conductividad": conductividad_data,
-            "nivel_agua": nivel_agua_data,
-            "count": len(readings),
-            "period_hours": hours
-        }
+        result = await sensor_service.get_historical_data(
+            reservoir_id=reservoir_id,
+            hours=hours
+        )
+        return result
         
     except Exception as e:
         logger.error(f"Error obteniendo datos históricos: {e}")
@@ -271,38 +113,13 @@ async def get_sensors_status(current_user: dict = Depends(get_current_user)):
     Returns summary of online/offline sensors
     """
     try:
-        current_time = datetime.now(timezone.utc)
+        # Use sensor_service to get all sensor statuses
+        sensors = await sensor_service.get_sensor_status()
         
-        # Get unique sensors
-        pipeline = [
-            {"$sort": {"ReadTime": -1}},
-            {"$group": {
-                "_id": "$reservoirId",
-                "lastReading": {"$first": "$$ROOT"}
-            }}
-        ]
-        
-        db_sensors = await sensor_collection.aggregate(pipeline).to_list(length=None)
-        
-        online_count = 0
-        offline_count = 0
-        warning_count = 0
-        
-        for sensor_group in db_sensors:
-            latest_reading = sensor_group["lastReading"]
-            last_reading_time = latest_reading["ReadTime"]
-            
-            if last_reading_time.tzinfo is None:
-                last_reading_time = last_reading_time.replace(tzinfo=timezone.utc)
-            
-            minutes_diff = (current_time - last_reading_time).total_seconds() / 60
-            
-            if minutes_diff < 15:
-                online_count += 1
-            elif minutes_diff < 30:
-                warning_count += 1
-            else:
-                offline_count += 1
+        # Count statuses
+        online_count = sum(1 for s in sensors if s.get("status") == "online")
+        warning_count = sum(1 for s in sensors if s.get("status") == "warning")
+        offline_count = sum(1 for s in sensors if s.get("status") == "offline")
         
         return {
             "online": online_count,
@@ -370,9 +187,8 @@ async def get_sensor_prediction(
                 "predictions": []
             }
         
-        # Get predictions
-        result = await predict_sensor_values(
-            sensor_collection=sensor_collection,
+        # Get predictions using sensor_service
+        result = await sensor_service.predict_sensor_value(
             sensor_type=sensor_type,
             days_to_predict=days,
             lookback_days=lookback_days
