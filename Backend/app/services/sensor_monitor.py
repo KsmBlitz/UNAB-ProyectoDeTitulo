@@ -381,6 +381,7 @@ class SensorMonitor:
             "title": f"Sensor Desconectado",
             "message": f"El sensor {sensor_id} no ha enviado datos en los últimos 15 minutos",
             "location": location,
+            "threshold_info": "Timeout crítico: 15 minutos",
             "sensor_id": sensor_id,
             "created_at": datetime.now(timezone.utc),
             "is_resolved": False,
@@ -430,12 +431,20 @@ class SensorMonitor:
         location = sensor_config.get("location", f"Sensor {sensor_id}")
         sensor_name = sensor_config.get("name", f"Sensor {sensor_id}")
         
+        # Build threshold info string
+        threshold_info = f"Nivel {level}"
+        if level == "critical":
+            threshold_info = "Valor fuera de rango crítico"
+        elif level == "warning":
+            threshold_info = "Valor fuera de rango óptimo"
+        
         alert_doc = {
             "type": alert_type,
             "level": level,
             "title": f"{alert_type.upper()} - {sensor_name}",
             "message": message,
             "location": location,
+            "threshold_info": threshold_info,
             "sensor_id": sensor_id,
             "value": value,
             "created_at": datetime.now(timezone.utc),

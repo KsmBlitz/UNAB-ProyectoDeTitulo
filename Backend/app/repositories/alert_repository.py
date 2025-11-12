@@ -102,8 +102,10 @@ class AlertRepository(BaseRepository):
             )
             
             if success:
-                # Move to history
+                # Move to history and delete from active alerts
                 await self._move_to_history(alert, dismissed_by, reason)
+                # Delete from active alerts collection
+                await self.delete_one({"_id": alert.get("_id")})
             
             return success
             
@@ -119,22 +121,45 @@ class AlertRepository(BaseRepository):
     ) -> None:
         """Move dismissed alert to history collection"""
         try:
+            current_time = datetime.utcnow()
+            alert_id_str = str(alert.get("_id"))
+            
+            # Calculate duration if created_at exists
+            duration_minutes = None
+            if alert.get("created_at"):
+                created_at = alert.get("created_at")
+                if isinstance(created_at, datetime):
+                    duration = current_time - created_at
+                    duration_minutes = int(duration.total_seconds() / 60)
+            
             history_doc = {
-                **alert,
-                "dismissed_at": datetime.utcnow(),
+                "alert_id": alert_id_str,
+                "type": alert.get("type"),
+                "level": alert.get("level"),
+                "title": alert.get("title"),
+                "message": alert.get("message"),
+                "value": alert.get("value"),
+                "threshold_info": alert.get("threshold_info", ""),
+                "location": alert.get("location", "Sistema de Riego"),
+                "sensor_id": alert.get("sensor_id"),
+                "created_at": alert.get("created_at", current_time),
+                "resolved_at": alert.get("resolved_at", current_time),
+                "dismissed_at": current_time,
                 "dismissed_by": dismissed_by,
+                "dismissed_by_role": alert.get("dismissed_by_role", "operario"),
+                "resolution_type": "manual_dismiss",
+                "duration_minutes": duration_minutes,
                 "dismissal_reason": reason,
-                "archived_at": datetime.utcnow()
+                "archived_at": current_time
             }
             
-            # Remove _id for new insert
-            history_doc.pop("_id", None)
-            
             await self.history_collection.insert_one(history_doc)
-            logger.info(f"Alert moved to history: {alert.get('id')}")
+            logger.info(f"Alert moved to history: {alert_id_str}")
             
         except Exception as e:
             logger.error(f"Error moving alert to history: {e}")
+            import traceback
+            traceback.print_exc()
     
     async def get_alerts_by_sensor(
         self, 
