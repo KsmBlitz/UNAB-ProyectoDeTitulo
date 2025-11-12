@@ -950,6 +950,17 @@ docker exec embalses-frontend npm run test:coverage
 
 ---
 
+## Documentación Adicional
+
+Este proyecto cuenta con documentación técnica detallada:
+
+- **[SISTEMA-ALERTAS.md](./SISTEMA-ALERTAS.md)** - Arquitectura completa del sistema de alertas, modelos, API y configuración
+- **[INFORME-SESION-ALERTAS.md](./INFORME-SESION-ALERTAS.md)** - Informe detallado de correcciones y mejoras (Nov 2025)
+- **[ARQUITECTURA-MICROSERVICIOS.md](../ARQUITECTURA-MICROSERVICIOS.md)** - Diseño de arquitectura y principios aplicados
+- **[PRINCIPIOS-SOLID.md](../PRINCIPIOS-SOLID.md)** - Aplicación de principios SOLID en el proyecto
+
+---
+
 ## Contribuciones
 
 ### Guía de Contribución
