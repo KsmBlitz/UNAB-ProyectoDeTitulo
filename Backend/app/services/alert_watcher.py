@@ -72,9 +72,10 @@ async def notify_admins_of_alert(alert_doc: Dict[str, Any]) -> None:
         sensor_id = alert_doc.get("sensor_id")
         
         # Use unified notification service to handle all channels
-        await notification_service.notify_admins(
-            alert_type=alert_type,
-            sensor_id=sensor_id,
+        from app.services.notification_service import notify_admins_of_critical_alert
+        await notify_admins_of_critical_alert(
+            alert_type=alert_type or "unknown",
+            sensor_id=sensor_id or "unknown",
             location=alert_location,
             title=alert_title,
             value=alert_value

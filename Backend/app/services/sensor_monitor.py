@@ -364,7 +364,7 @@ class SensorMonitor:
         # Check if disconnection alert already exists
         existing_alert = await self.alerts_collection.find_one({
             "sensor_id": sensor_id,
-            "type": "sensor_disconnected",
+            "type": "sensor_disconnection",
             "is_resolved": False
         })
         
@@ -376,7 +376,7 @@ class SensorMonitor:
         location = sensor_config.get("location", f"Sensor {sensor_id}")
         
         alert_doc = {
-            "type": "sensor_disconnected",
+            "type": "sensor_disconnection",
             "level": "warning",
             "title": f"Sensor Desconectado",
             "message": f"El sensor {sensor_id} no ha enviado datos en los últimos 15 minutos",

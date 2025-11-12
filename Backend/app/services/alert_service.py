@@ -280,10 +280,8 @@ class AlertService:
             
             if alert_type and sensor_id:
                 # Clear throttling in notification service
-                self.notif_service.clear_throttle_for_alert(
-                    alert_type=alert_type,
-                    sensor_id=sensor_id
-                )
+                from app.services.notifications import clear_throttle_for_alert
+                await clear_throttle_for_alert(alert_type, sensor_id)
                 logger.debug(f"Cleared notification throttle for {alert_type}/{sensor_id}")
                 
         except Exception as e:
@@ -426,7 +424,7 @@ class AlertService:
                     return True, None
             
             # Disconnection alerts only for actually disconnected sensors
-            elif alert_type.lower() in ['sensor_disconnected', 'disconnected', 'offline']:
+            elif alert_type.lower() in ['sensor_disconnection', 'disconnected', 'offline']:
                 if is_connected:
                     reason = f"Sensor {sensor_id} is still connected - not creating disconnection alert"
                     logger.debug(reason)
