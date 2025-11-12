@@ -13,7 +13,7 @@ from app.config import users_collection
 from app.services import get_password_hash
 from app.utils import get_current_user, get_current_admin_user
 from app.services.audit import log_audit_event
-from models.audit_models import AuditAction
+from app.models.audit_models import AuditAction
 
 logger = logging.getLogger(__name__)
 

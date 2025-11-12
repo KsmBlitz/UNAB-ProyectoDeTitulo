@@ -14,8 +14,8 @@ from app.utils import get_current_user, get_current_admin_user
 from app.services import predict_sensor_values
 from app.services.audit import log_audit_event
 from app.services.cache import cache_service
-from models.audit_models import AuditAction
-from models.sensor_models import PredictionRequest, TimeRangeQuery
+from app.models.audit_models import AuditAction
+from app.models.sensor_models import PredictionRequest, TimeRangeQuery
 
 logger = logging.getLogger(__name__)
 

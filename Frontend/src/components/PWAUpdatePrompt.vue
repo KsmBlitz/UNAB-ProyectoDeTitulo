@@ -11,7 +11,7 @@ const {
   needRefresh,
   updateServiceWorker,
 } = useRegisterSW({
-  onRegistered(r) {
+  onRegistered(r: any) {
     console.log('[PWA] Service Worker registered:', r)
     
     // Check for updates every hour
@@ -19,7 +19,7 @@ const {
       r.update()
     }, 60 * 60 * 1000)
   },
-  onRegisterError(error) {
+  onRegisterError(error: any) {
     console.error('[PWA] Service Worker registration error:', error)
   },
 })

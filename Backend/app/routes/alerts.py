@@ -9,10 +9,8 @@ from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 import logging
 
-# Import alert models from existing models directory
-import sys
-sys.path.append('/app')
-from models.alert_models import (
+# Import alert models
+from app.models.alert_models import (
     AlertThresholds, ActiveAlert, AlertHistory, AlertSummary,
     AlertConfigUpdateRequest, DismissAlertRequest, AlertStatus
 )
@@ -25,7 +23,7 @@ from app.config import (
 from app.utils import get_current_user, get_current_admin_user
 from app.services import clear_notifications_sent_for_alert
 from app.services.audit import log_audit_event
-from models.audit_models import AuditAction
+from app.models.audit_models import AuditAction
 
 logger = logging.getLogger(__name__)
 

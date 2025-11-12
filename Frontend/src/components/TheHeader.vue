@@ -34,6 +34,9 @@ const logout = () => {
   router.push('/login');
 };
 
+// Alias para handleLogout (usado en el template)
+const handleLogout = logout;
+
 // Navegar a alertas
 function navigateToAlerts() {
   router.push('/alerts');

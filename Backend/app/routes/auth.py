@@ -24,7 +24,7 @@ from app.services import (
     log_audit_from_request
 )
 from app.utils import get_current_user
-from models.audit_models import AuditAction
+from app.models.audit_models import AuditAction
 
 logger = logging.getLogger(__name__)
 
