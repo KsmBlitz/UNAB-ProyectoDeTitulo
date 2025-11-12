@@ -11,6 +11,7 @@ from app.routes.health import router as health_router
 from app.services import alert_change_stream_watcher
 from app.services.cache import cache_service
 from app.middleware import RateLimitMiddleware
+from app.middleware.request_id import RequestIDMiddleware
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -28,6 +29,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Request ID middleware (debe ir antes que otros middlewares)
+app.add_middleware(RequestIDMiddleware)
 
 # Rate limiting middleware
 app.add_middleware(RateLimitMiddleware)
