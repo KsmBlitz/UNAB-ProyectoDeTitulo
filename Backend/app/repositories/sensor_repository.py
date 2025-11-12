@@ -5,7 +5,7 @@ Data access layer for sensors
 
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-from app.config import db
+from app.config.database import db
 from .base_repository import BaseRepository
 import logging
 
