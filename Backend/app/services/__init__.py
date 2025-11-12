@@ -1,6 +1,7 @@
 """
 Services package
 Business logic and external integrations
+Refactored to follow SOLID principles
 """
 
 from .auth import (
@@ -37,6 +38,10 @@ from .audit import (
 
 from .prediction import predict_sensor_values
 
+# New refactored services
+from .alert_service import alert_service
+from .notification_service import notification_service
+
 __all__ = [
     # Auth
     "verify_password",
@@ -49,7 +54,7 @@ __all__ = [
     "send_critical_alert_email",
     "send_reset_email",
     "generate_reset_token",
-    # Notifications
+    # Notifications (legacy - being replaced by notification_service)
     "should_send_notification",
     "mark_notification_sent",
     "clear_notifications_sent_for_alert",
@@ -63,5 +68,8 @@ __all__ = [
     "get_user_activity",
     "get_audit_statistics",
     # Prediction
-    "predict_sensor_values"
+    "predict_sensor_values",
+    # New Services (SOLID compliant)
+    "alert_service",
+    "notification_service"
 ]

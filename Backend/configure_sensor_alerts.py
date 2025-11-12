@@ -50,7 +50,7 @@ DEFAULT_ALERT_CONFIG = {
 }
 
 print("=" * 80)
-print("⚙️  CONFIGURACIÓN AUTOMÁTICA DE ALERTAS")
+print("CONFIGURACIÓN AUTOMÁTICA DE ALERTAS")
 print("=" * 80)
 print()
 
@@ -62,16 +62,16 @@ async def main():
     sensor_data_collection = db["Sensor_Data"]  # Nombre correcto de la colección
     
     try:
-        print("📡 Verificando sensores en el sistema...")
+        print("Verificando sensores en el sistema...")
         print()
         
         # Buscar sensores en Sensor_Data (campo SensorID)
         sensor_ids = await sensor_data_collection.distinct("SensorID")
         
         if not sensor_ids:
-            print("⚠️  No hay datos de sensores todavía")
+            print("No hay datos de sensores todavía")
             print()
-            print("ℹ️  Las alertas se configurarán automáticamente cuando:")
+            print("ℹLas alertas se configurarán automáticamente cuando:")
             print("   1. Los sensores ESP32 envíen datos")
             print("   2. El backend procese los datos")
             print("   3. Este script detecte nuevos sensores")
