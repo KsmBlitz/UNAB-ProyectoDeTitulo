@@ -83,6 +83,10 @@ AUDITORIA-ARQUITECTURA.md
 NUEVAS-CARACTERISTICAS-v2.0.md
 AUTENTICACION-DOCS.md
 CAMBIAR-CREDENCIALES.md
+PWA.md
+RATE-LIMITING.md
+TESTING.md
+WEBSOCKET.md
 
 # ============================================
 # AWS Deployment (ya está en producción)
