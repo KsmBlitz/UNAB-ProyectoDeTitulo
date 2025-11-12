@@ -19,7 +19,7 @@ DATABASE_NAME = os.getenv('DATABASE_NAME', 'SampleDatabase')
 DEFAULT_ALERT_CONFIG = {
     "enabled": True,
     "parameters": {
-        "pH": {
+        "ph": {
             "min": 4.5, 
             "max": 5.5,
             "critical_min": 4.0,
@@ -31,11 +31,17 @@ DEFAULT_ALERT_CONFIG = {
             "critical_min": 10,
             "critical_max": 30
         },
-        "conductivity": {
+        "ec": {
             "min": 0.0, 
             "max": 2.0,
             "critical_min": 0.0,
             "critical_max": 3.0
+        },
+        "water_level": {
+            "min": 20.0,
+            "max": 100.0,
+            "critical_min": 10.0,
+            "critical_max": 100.0
         }
     },
     "notification_enabled": True,
@@ -53,14 +59,14 @@ async def main():
     client = AsyncIOMotorClient(MONGODB_URI)
     db = client[DATABASE_NAME]
     sensors_collection = db["sensors"]
-    sensor_data_collection = db["sensor_data"]
+    sensor_data_collection = db["Sensor_Data"]  # Nombre correcto de la colección
     
     try:
         print("📡 Verificando sensores en el sistema...")
         print()
         
-        # Buscar sensores en sensor_data
-        sensor_ids = await sensor_data_collection.distinct("sensor_id")
+        # Buscar sensores en Sensor_Data (campo SensorID)
+        sensor_ids = await sensor_data_collection.distinct("SensorID")
         
         if not sensor_ids:
             print("⚠️  No hay datos de sensores todavía")
@@ -140,7 +146,8 @@ async def main():
             print("📋 Configuración aplicada (Arándanos):")
             print("  • pH: 4.5-5.5 (crítico: 4.0-6.0)")
             print("  • Temperatura: 15-25°C (crítico: 10-30°C)")
-            print("  • Conductividad: 0-2 dS/m (crítico: 0-3 dS/m)")
+            print("  • EC: 0-2 dS/m (crítico: 0-3 dS/m)")
+            print("  • Water Level: 20-100% (crítico: 10-100%)")
             print()
             print("🔔 Notificaciones activadas:")
             print("  • WhatsApp: ✅")
