@@ -1,6 +1,6 @@
 # Backend/models/alert_models.py
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 from enum import Enum
@@ -31,6 +31,30 @@ class ThresholdConfig(BaseModel):
     warning_max: Optional[float] = None
     critical_min: Optional[float] = None
     critical_max: Optional[float] = None
+    
+    @validator('optimal_max')
+    def optimal_max_greater_than_min(cls, v, values):
+        """Validar que optimal_max > optimal_min"""
+        if v is not None and 'optimal_min' in values and values['optimal_min'] is not None:
+            if v <= values['optimal_min']:
+                raise ValueError('optimal_max debe ser mayor que optimal_min')
+        return v
+    
+    @validator('warning_max')
+    def warning_max_greater_than_min(cls, v, values):
+        """Validar que warning_max > warning_min"""
+        if v is not None and 'warning_min' in values and values['warning_min'] is not None:
+            if v <= values['warning_min']:
+                raise ValueError('warning_max debe ser mayor que warning_min')
+        return v
+    
+    @validator('critical_max')
+    def critical_max_greater_than_min(cls, v, values):
+        """Validar que critical_max > critical_min"""
+        if v is not None and 'critical_min' in values and values['critical_min'] is not None:
+            if v <= values['critical_min']:
+                raise ValueError('critical_max debe ser mayor que critical_min')
+        return v
 
 class AlertThresholds(BaseModel):
     """Configuración completa de umbrales - Específica para Arándanos en Chile"""
@@ -120,12 +144,28 @@ class AlertConfigUpdateRequest(BaseModel):
     """Request para actualizar configuración de umbrales - Solo Admin"""
     thresholds: AlertThresholds
     updated_by: str  # Email del admin
-    reason: Optional[str] = None  # Razón del cambio
+    reason: Optional[str] = Field(None, max_length=500)
+    
+    @validator('updated_by')
+    def validate_email(cls, v):
+        """Validar formato de email"""
+        import re
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_pattern, v):
+            raise ValueError('Email inválido')
+        return v.lower()
 
 class DismissAlertRequest(BaseModel):
     """Request para cerrar una alerta - Operario o Admin"""
     alert_id: str
-    reason: Optional[str] = None  # Razón del cierre
+    reason: Optional[str] = Field(None, max_length=500)
+    
+    @validator('alert_id')
+    def validate_alert_id(cls, v):
+        """Validar que alert_id no esté vacío"""
+        if not v or not v.strip():
+            raise ValueError('alert_id no puede estar vacío')
+        return v.strip()
     # dismissed_by se obtiene automáticamente del usuario autenticado
 
 # Configuración predefinida para Arándanos en Chile

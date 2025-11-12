@@ -5,7 +5,7 @@ Sensor data and metrics endpoints
 
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, HTTPException
 from pydantic import BaseModel
 import logging
 
@@ -15,6 +15,7 @@ from app.services import predict_sensor_values
 from app.services.audit import log_audit_event
 from app.services.cache import cache_service
 from models.audit_models import AuditAction
+from models.sensor_models import PredictionRequest, TimeRangeQuery
 
 logger = logging.getLogger(__name__)
 
@@ -49,11 +50,7 @@ def normalize_sensor_reading(reading: dict) -> dict:
     }
 
 
-class PredictionConfigModel(BaseModel):
-    """Model for prediction configuration"""
-    sensor_type: str
-    days: int
-    lookback_days: int
+# Removed PredictionConfigModel - now using models.sensor_models.PredictionRequest
 
 
 @router.get("/sensors/individual")
@@ -421,7 +418,7 @@ async def get_sensor_prediction(
 
 @router.post("/sensors/prediction-config")
 async def save_prediction_config(
-    config: PredictionConfigModel,
+    config: PredictionRequest,
     request: Request,
     current_user: dict = Depends(get_current_admin_user)
 ):
@@ -429,20 +426,10 @@ async def save_prediction_config(
     Save prediction model configuration and log to audit
     
     This endpoint saves the prediction model parameters and creates an audit log entry.
+    Uses validated PredictionRequest model with built-in range checks.
     """
     try:
-        # Validate parameters
-        if config.days < 1 or config.days > 30:
-            return {
-                "success": False,
-                "message": "Los días a predecir deben estar entre 1 y 30"
-            }
-        
-        if config.lookback_days < 1 or config.lookback_days > 90:
-            return {
-                "success": False,
-                "message": "Los días históricos deben estar entre 1 y 90"
-            }
+        # Validation is automatic via PredictionRequest model
         
         # Log to audit
         await log_audit_event(
