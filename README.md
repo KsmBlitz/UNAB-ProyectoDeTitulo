@@ -482,7 +482,32 @@ Credenciales por defecto:
 
 ---
 
-### 6. Verificar Instalación
+### 6. Optimización de Base de Datos (Recomendado)
+
+Para mejorar significativamente el rendimiento, ejecuta el script de creación de índices:
+
+```bash
+# Desde el contenedor Docker
+docker exec embalses-backend python scripts/create_indexes.py
+
+# O localmente si tienes Python configurado
+cd Backend
+python scripts/create_indexes.py
+```
+
+Este script crea índices optimizados para:
+- **Sensor_Data**: Búsquedas por reservoir y tiempo (queries más frecuentes)
+- **alerts**: Alertas activas por nivel y fecha
+- **alert_history**: Historial ordenado por fecha
+- **users**: Búsqueda por email y rol
+- **audit_log**: Auditoría con TTL de 180 días
+- **notifications_sent**: Throttling de notificaciones con TTL de 7 días
+
+Los índices mejoran el rendimiento de queries hasta 100x en colecciones grandes.
+
+---
+
+### 7. Verificar Instalación
 
 ```bash
 # 1. Backend health check
