@@ -4,10 +4,11 @@ Data access layer for alerts collection
 """
 
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from app.config import alerts_collection, alert_history_collection
 from .base_repository import BaseRepository
 import logging
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -71,16 +72,15 @@ class AlertRepository(BaseRepository):
             True if successful
         """
         try:
-            # Use provided timestamp or default to now
-            resolved_time = dismissed_at or datetime.utcnow()
-            
-            # Find alert by ID or _id
-            alert = await self.find_one({
-                "$or": [
-                    {"_id": alert_id},
-                    {"id": alert_id}
-                ]
-            })
+            # Use provided timestamp or default to now (timezone-aware UTC)
+            resolved_time = dismissed_at or datetime.now(timezone.utc)
+
+            # Use find_by_id helper to correctly handle ObjectId or string id
+            # normalize to string when passing to helper
+            try:
+                alert = await self.find_by_id(str(alert_id))
+            except Exception:
+                alert = None
             
             if not alert:
                 return False
@@ -100,12 +100,15 @@ class AlertRepository(BaseRepository):
                 {"_id": alert.get("_id")},
                 update
             )
-            
+
             if success:
-                # Move to history and delete from active alerts
-                await self._move_to_history(alert, dismissed_by, reason)
-                # Delete from active alerts collection
-                await self.delete_one({"_id": alert.get("_id")})
+                # Schedule moving to history and deletion in background to keep API responsive
+                try:
+                    asyncio.create_task(self._async_move_and_delete(alert, dismissed_by, reason))
+                except Exception:
+                    # Fallback to synchronous move if scheduling fails
+                    await self._move_to_history(alert, dismissed_by, reason)
+                    await self.delete_one({"_id": alert.get("_id")})
             
             return success
             
@@ -121,7 +124,7 @@ class AlertRepository(BaseRepository):
     ) -> None:
         """Move dismissed alert to history collection"""
         try:
-            current_time = datetime.utcnow()
+            current_time = datetime.now(timezone.utc)
             alert_id_str = str(alert.get("_id"))
             
             # Calculate duration if created_at exists
@@ -129,8 +132,18 @@ class AlertRepository(BaseRepository):
             if alert.get("created_at"):
                 created_at = alert.get("created_at")
                 if isinstance(created_at, datetime):
-                    duration = current_time - created_at
-                    duration_minutes = int(duration.total_seconds() / 60)
+                    # If stored datetime is naive, assume UTC
+                    if getattr(created_at, 'tzinfo', None) is None:
+                        try:
+                            created_at = created_at.replace(tzinfo=timezone.utc)
+                        except Exception:
+                            pass
+                    try:
+                        duration = current_time - created_at
+                        duration_minutes = int(duration.total_seconds() / 60)
+                    except Exception:
+                        # If subtraction fails for any reason, leave duration as None
+                        duration_minutes = None
             
             history_doc = {
                 "alert_id": alert_id_str,
@@ -142,7 +155,8 @@ class AlertRepository(BaseRepository):
                 "threshold_info": alert.get("threshold_info", ""),
                 "location": alert.get("location", "Sistema de Riego"),
                 "sensor_id": alert.get("sensor_id"),
-                "created_at": alert.get("created_at", current_time),
+                # Ensure created_at/resolved_at are timezone-aware when possible
+                "created_at": (created_at if isinstance(created_at, datetime) else alert.get("created_at", current_time)),
                 "resolved_at": alert.get("resolved_at", current_time),
                 "dismissed_at": current_time,
                 "dismissed_by": dismissed_by,
@@ -160,6 +174,14 @@ class AlertRepository(BaseRepository):
             logger.error(f"Error moving alert to history: {e}")
             import traceback
             traceback.print_exc()
+
+    async def _async_move_and_delete(self, alert: Dict[str, Any], dismissed_by: str, reason: Optional[str]) -> None:
+        """Background helper: move to history and delete the active alert."""
+        try:
+            await self._move_to_history(alert, dismissed_by, reason)
+            await self.delete_one({"_id": alert.get("_id")})
+        except Exception as e:
+            logger.error(f"Background move/delete failed for alert {alert.get('_id')}: {e}")
     
     async def get_alerts_by_sensor(
         self, 
@@ -181,6 +203,49 @@ class AlertRepository(BaseRepository):
             limit=limit,
             sort=[("created_at", -1)]
         )
+
+    async def archive_measurement_alerts_for_sensor(self, sensor_id: str) -> int:
+        """
+        Archive (move to history) all unresolved measurement alerts for a sensor.
+
+        Returns the number of archived alerts.
+        """
+        try:
+            measurement_types = ['ph', 'temperature', 'ec', 'water_level', 'conductivity']
+            cursor = self.collection.find({
+                'sensor_id': sensor_id,
+                'type': {'$in': measurement_types},
+                'is_resolved': False
+            })
+
+            to_archive = await cursor.to_list(length=None)
+            count = 0
+            for alert in to_archive:
+                try:
+                    # Mark as resolved and move to history
+                    alert_id = alert.get('_id')
+                    now = datetime.now(timezone.utc)
+                    await self.update_one({'_id': alert_id}, {'$set': {
+                        'is_resolved': True,
+                        'status': 'auto_resolved',
+                        'resolved_at': now,
+                        'resolved_by': 'system',
+                        'dismissal_reason': 'Sensor disconnected - auto-archived'
+                    }})
+
+                    # Move to history synchronously
+                    await self._move_to_history(alert, 'system', 'Sensor disconnected - auto-archived')
+                    await self.delete_one({'_id': alert_id})
+                    count += 1
+                except Exception:
+                    logger.exception(f"Failed to archive alert {alert.get('_id')} for sensor {sensor_id}")
+                    continue
+
+            logger.info(f"Archived {count} measurement alerts for sensor {sensor_id}")
+            return count
+        except Exception as e:
+            logger.error(f"Error archiving measurement alerts for sensor {sensor_id}: {e}")
+            return 0
     
     async def get_alerts_history(
         self,
@@ -199,7 +264,7 @@ class AlertRepository(BaseRepository):
         """
         from datetime import timedelta
         
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
         
         cursor = self.history_collection.find({
             "created_at": {"$gte": cutoff_date}

@@ -231,10 +231,30 @@ class AlertService:
             
             history_list = await cursor.to_list(length=limit)
             
-            # Convert ObjectId to string
+            # Normalize history items: ensure `alert_id` exists and ObjectIds are strings
             for item in history_list:
+                # Convert Mongo _id to string for transport
                 if "_id" in item:
                     item["_id"] = str(item["_id"])
+
+                # Ensure alert_id field exists (older records may lack it)
+                if not item.get("alert_id"):
+                    # Prefer explicit alert_id field, otherwise use _id fallback
+                    item["alert_id"] = str(item.get("alert_id") or item.get("_id") or "")
+
+                # Ensure resolution_type exists (some legacy docs may have None)
+                if not item.get("resolution_type"):
+                    item["resolution_type"] = item.get("resolution") or "manual_dismiss"
+                
+                # Ensure datetime fields are timezone-aware (assume UTC for naive datetimes)
+                for dt_field in ("created_at", "dismissed_at", "resolved_at"):
+                    val = item.get(dt_field)
+                    if isinstance(val, datetime) and getattr(val, 'tzinfo', None) is None:
+                        try:
+                            item[dt_field] = val.replace(tzinfo=timezone.utc)
+                        except Exception:
+                            # leave as-is if replacement fails
+                            pass
             
             logger.info(f"Retrieved {len(history_list)} history records")
             return history_list
@@ -255,17 +275,13 @@ class AlertService:
         Returns:
             Alert document or None
         """
-        from app.config import alerts_collection
-        
-        # Try to find by either _id or id field
-        alert_doc = await alerts_collection.find_one({
-            "$or": [
-                {"_id": alert_id},
-                {"id": alert_id}
-            ]
-        })
-        
-        return alert_doc
+        # Use alert repository helper which already attempts ObjectId conversion
+        try:
+            alert_doc = await self.alert_repo.find_by_id(alert_id)
+            return alert_doc
+        except Exception as e:
+            logger.error(f"Error finding alert by id {alert_id}: {e}")
+            return None
     
     async def _clear_alert_notifications(self, alert_doc: Dict[str, Any]) -> None:
         """
@@ -279,10 +295,14 @@ class AlertService:
             sensor_id = alert_doc.get("sensor_id")
             
             if alert_type and sensor_id:
-                # Clear throttling in notification service
-                from app.services.notifications import clear_throttle_for_alert
-                await clear_throttle_for_alert(alert_type, sensor_id)
-                logger.debug(f"Cleared notification throttle for {alert_type}/{sensor_id}")
+                # Clear throttling in notification service using alert id
+                try:
+                    from app.services.notification_service import notification_service
+                    alert_id_str = alert_doc.get('id') or str(alert_doc.get('_id'))
+                    await notification_service.clear_throttle_for_alert(alert_id_str)
+                    logger.debug(f"Cleared notification throttle for alert {alert_id_str}")
+                except Exception:
+                    logger.debug("Failed to clear throttle via notification_service; continuing")
                 
         except Exception as e:
             logger.warning(f"Error clearing notification throttle: {e}")

@@ -13,6 +13,7 @@ from bson import ObjectId
 from app.config.database import db
 from app.services.alert_service import alert_service
 from app.services.sensor_service import sensor_service
+from app.repositories.alert_repository import alert_repository
 
 logger = logging.getLogger(__name__)
 
@@ -361,6 +362,12 @@ class SensorMonitor:
         sensor_config: Dict[str, Any]
     ):
         """Create alert if sensor is disconnected"""
+        # Archive any existing measurement alerts for this sensor
+        try:
+            await alert_repository.archive_measurement_alerts_for_sensor(sensor_id)
+        except Exception:
+            logger.exception("Failed to archive measurement alerts for disconnected sensor")
+
         # Check if disconnection alert already exists
         existing_alert = await self.alerts_collection.find_one({
             "sensor_id": sensor_id,
@@ -377,7 +384,7 @@ class SensorMonitor:
         
         alert_doc = {
             "type": "sensor_disconnection",
-            "level": "warning",
+            "level": "critical",
             "title": f"Sensor Desconectado",
             "message": f"El sensor {sensor_id} no ha enviado datos en los últimos 15 minutos",
             "location": location,

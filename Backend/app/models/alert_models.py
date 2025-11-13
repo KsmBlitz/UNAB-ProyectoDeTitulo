@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field, validator
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from bson import ObjectId
 
@@ -93,8 +93,8 @@ class ActiveAlert(BaseModel):
     threshold_info: str
     location: str = "Sistema de Riego"
     sensor_id: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     status: AlertStatus = AlertStatus.ACTIVE
     is_resolved: bool = False
     
@@ -138,7 +138,7 @@ class AlertSummary(BaseModel):
     warning_count: int = 0
     info_count: int = 0
     sensors_offline: int = 0
-    last_updated: datetime = Field(default_factory=datetime.utcnow)
+    last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class AlertConfigUpdateRequest(BaseModel):
     """Request para actualizar configuración de umbrales - Solo Admin"""

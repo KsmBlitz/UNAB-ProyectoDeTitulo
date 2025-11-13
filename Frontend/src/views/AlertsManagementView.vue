@@ -723,10 +723,8 @@ async function dismissAlert(alert: ActiveAlert): Promise<void> {
     // La alerta se removió automáticamente del store
     await refreshAlerts()
 
-    // Actualizar el historial si es admin
-    if (isAdmin.value) {
-      await loadHistory()
-    }
+    // Actualizar el historial para todos los usuarios
+    await loadHistory()
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Error desconocido al cerrar la alerta'
     notify.error(
@@ -743,7 +741,7 @@ function applyFilters(): void {
 }
 
 async function loadHistory(): Promise<void> {
-  if (!isAdmin.value) return
+  // Load history for all authenticated users (server will enforce auth)
 
   loadingHistory.value = true
   try {
@@ -1061,8 +1059,8 @@ function openConfigModal(): void {
 watch(
   () => alertStore.activeAlerts.length,
   (newLength, oldLength) => {
-    // Si se reduce el número de alertas (se cerró una) y somos admin, actualizar historial
-    if (newLength < oldLength && isAdmin.value) {
+    // Si se reduce el número de alertas (se cerró una), actualizar historial
+    if (newLength < oldLength) {
       loadHistory()
     }
   }
@@ -1074,9 +1072,8 @@ onMounted(() => {
 
   // Usar nextTick para asegurar que el auth store esté inicializado
   nextTick(() => {
-    if (isAdmin.value) {
-      loadHistory()
-    }
+    // Cargar historial para todos los usuarios autenticados
+    loadHistory()
   })
 })
 

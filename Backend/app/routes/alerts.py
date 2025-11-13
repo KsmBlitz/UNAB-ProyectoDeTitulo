@@ -49,6 +49,18 @@ async def get_active_alerts(current_user: dict = Depends(get_current_user)):
                 # Use either _id or id field
                 alert_id = alert.get("id", str(alert.get("_id")))
                 alert["id"] = alert_id
+
+                # Ensure created_at is timezone-aware (UTC) so JSON serialization
+                # includes the timezone offset and the frontend computes diffs correctly.
+                created_at = alert.get("created_at")
+                if created_at and getattr(created_at, 'tzinfo', None) is None:
+                    try:
+                        from datetime import timezone
+                        alert["created_at"] = created_at.replace(tzinfo=timezone.utc)
+                    except Exception:
+                        # If replacement fails, leave as-is and let Pydantic handle it
+                        pass
+
                 active_alerts.append(ActiveAlert(**alert))
             except Exception as model_error:
                 logger.error(f"Error converting alert to model: {model_error}")
