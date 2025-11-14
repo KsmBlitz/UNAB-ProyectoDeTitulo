@@ -16,6 +16,7 @@ import {
   type ChartData
 } from 'chart.js';
 import { API_BASE_URL } from '@/config/api';
+import { parseIsoToDate } from '@/utils/helpers';
 import { authStore } from '@/auth/store';
 import { notify } from '@/stores/notificationStore';
 import { evaluateMetricStatus, BLUEBERRY_THRESHOLDS, type MetricStatus } from '@/utils/metrics';
@@ -155,7 +156,10 @@ const chartOptions = {
           size: 11 // Texto más pequeño
         },
         callback: (value: any) => {
-          return `${value} ${props.unit}`;
+          // Mostrar máximo 2 decimales en el eje Y
+          const num = typeof value === 'number' ? value : Number(value);
+          const formatted = isNaN(num) ? value : num.toFixed(2).replace(/\.00$/, '');
+          return `${formatted} ${props.unit}`;
         }
       }
     }
@@ -189,20 +193,33 @@ const fetchData = async () => {
 
     // Las fechas ya vienen en hora de Chile desde el backend (sin timezone info)
     // Solo necesitamos extraer la hora (HH:MM)
-    const localLabels = (data.labels || []).map((isoString: string) => {
+    const localLabels = (data.labels || []).map((isoString: string, idx: number, arr: string[]) => {
       if (!isoString) return '';
       try {
-        const date = new Date(isoString);
-        // Verificar si la fecha es válida
-        if (isNaN(date.getTime())) {
-          return '';
-        }
-        // Extraer hora y minutos directamente (ya están en hora de Chile)
-        return date.toLocaleTimeString('es-CL', { 
-          hour: '2-digit', 
+        // Parse as UTC when timezone is missing, then render in Chile local time
+        const date = parseIsoToDate(isoString);
+        if (isNaN(date.getTime())) return '';
+        // If this label is the first of a different day than previous label, include day marker
+        let label = date.toLocaleTimeString('es-CL', {
+          hour: '2-digit',
           minute: '2-digit',
-          hour12: false
+          hour12: false,
+          timeZone: 'America/Santiago'
         });
+
+        if (idx === 0) {
+          // always prefix first label with day
+          const day = date.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', timeZone: 'America/Santiago' });
+          label = `${day} ${label}`;
+        } else {
+          const prevIso = arr[idx - 1];
+          const prevDate = parseIsoToDate(prevIso);
+          if (prevDate.getDate() !== date.getDate() || prevDate.getMonth() !== date.getMonth() || prevDate.getFullYear() !== date.getFullYear()) {
+            const day = date.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', timeZone: 'America/Santiago' });
+            label = `${day} ${label}`;
+          }
+        }
+        return label;
       } catch (e) {
         return '';
       }
@@ -311,8 +328,18 @@ const saveModelConfig = async () => {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
+      // The backend expects sensor_type in English identifiers (e.g. 'ph' or 'conductivity').
+      // Map UI sensor types to backend values to avoid validation (422) errors.
       body: JSON.stringify({
-        sensor_type: props.sensorType,
+        sensor_type: ((): string => {
+          const map: Record<string, string> = {
+            'ph': 'ph',
+            'conductividad': 'conductivity',
+            'temperatura': 'temperature',
+            'nivel': 'water_level'
+          };
+          return map[props.sensorType] || props.sensorType;
+        })(),
         days: modelConfig.value.days,
         lookback_days: modelConfig.value.lookback_days
       })
@@ -447,8 +474,8 @@ const updateChartWithPrediction = (prediction: any) => {
   
   // Add predicted values
   prediction.predictions.forEach((pred: any) => {
-    const date = new Date(pred.timestamp);
-    const label = `${date.getDate()}/${date.getMonth() + 1}`;
+    const date = parseIsoToDate(pred.timestamp);
+    const label = `${String(date.getDate()).padStart(2,'0')}/${String(date.getMonth() + 1).padStart(2,'0')}`;
     predictionLabels.push(label);
     predictionValues.push(pred.value);
   });

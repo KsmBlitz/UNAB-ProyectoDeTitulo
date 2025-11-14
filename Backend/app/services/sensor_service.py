@@ -31,6 +31,58 @@ class SensorService:
     def __init__(self, sensor_repo=None):
         """Initialize with sensor repository (dependency injection for testability)"""
         self.sensor_repo = sensor_repo or sensor_repository
+        # Cache for resolved reservoir ids: sensor_id -> reservoirId
+        self._reservoir_id_cache = {}
+
+    async def resolve_reservoir_id(self, sensor_id: str) -> Optional[str]:
+        """Resolve a deterministic reservoirId for a given sensor_id.
+
+        Strategy:
+        - Check in-memory cache.
+        - Query the `sensors` collection for a `reservoir_id`/`reservoirId` field.
+        - Fallback: query `Sensor_Data` for documents that reference the sensor_id
+          (SensorID, sensor_id, raw.SensorID) and return the most recent reservoirId.
+        """
+        if not sensor_id:
+            return None
+
+        # Check cache first
+        if sensor_id in self._reservoir_id_cache:
+            return self._reservoir_id_cache[sensor_id]
+
+        try:
+            # Try sensors collection via repository
+            sensor_doc = await self.sensor_repo.get_sensor_by_id(sensor_id)
+            if sensor_doc:
+                for key in ("reservoir_id", "reservoirId", "reservoir"):
+                    if key in sensor_doc and sensor_doc.get(key):
+                        self._reservoir_id_cache[sensor_id] = sensor_doc.get(key)
+                        return sensor_doc.get(key)
+
+            # Fallback: look into Sensor_Data for any recent document referencing this sensor_id
+            from app.config.database import db
+            sensor_data_collection = db["Sensor_Data"]
+
+            or_clauses = [
+                {"SensorID": sensor_id},
+                {"sensor_id": sensor_id},
+                {"reservoirId": sensor_id},
+                {"reservoir_id": sensor_id},
+                {"raw.SensorID": sensor_id},
+            ]
+
+            doc = await sensor_data_collection.find_one({"$or": or_clauses}, sort=[("ReadTime", -1)])
+            if doc:
+                reservoir = doc.get('reservoirId') or doc.get('reservoir_id')
+                if reservoir:
+                    self._reservoir_id_cache[sensor_id] = reservoir
+                    return reservoir
+
+        except Exception as e:
+            logger.debug(f"resolve_reservoir_id fallback failed for {sensor_id}: {e}")
+
+        # No mapping found
+        return None
     
     def normalize_sensor_reading(self, reading: dict) -> dict:
         """
@@ -540,24 +592,72 @@ class SensorService:
             sensor_data_collection = db["Sensor_Data"]
             current_time = datetime.now(timezone.utc)
             
-            # Get most recent reading for this sensor
-            latest_reading = await sensor_data_collection.find_one(
-                {"reservoirId": sensor_id},
-                sort=[("ReadTime", -1)]
-            )
-            
+            # Try a set of possible identifier variants so we match different naming conventions
+            # First try deterministic mapping from sensors collection -> reservoirId
+            reservoir = await self.resolve_reservoir_id(sensor_id)
+            possible_ids = {sensor_id}
+            if reservoir:
+                possible_ids.add(reservoir)
+            # If sensor_id contains a prefix like 'AWS_IoT_<HEX>', add the suffix
+            if "_" in sensor_id:
+                possible_ids.add(sensor_id.split("_", 1)[-1])
+            # Also add last 12 characters (common device hex) as a fallback
+            if len(sensor_id) >= 12:
+                possible_ids.add(sensor_id[-12:])
+
+            # Build a $or query combining exact matches and case-insensitive regex matches
+            or_clauses = []
+            for pid in possible_ids:
+                or_clauses.extend([
+                    {"reservoirId": pid},
+                    {"sensor_id": pid},
+                    {"reservoir_id": pid},
+                    {"reservoirId": {"$regex": pid, "$options": "i"}}
+                ])
+
+            latest_reading = await sensor_data_collection.find_one({"$or": or_clauses}, sort=[("ReadTime", -1)])
+
             if not latest_reading:
                 logger.info(f"Sensor {sensor_id} has no data - considered disconnected")
                 return False
-            
-            # Get timestamp
-            last_reading_time = latest_reading.get("ReadTime")
+
+            # Normalize the reading so we can handle multiple timestamp fields/formats
+            try:
+                normalized = self.normalize_sensor_reading(latest_reading)
+            except Exception:
+                normalized = latest_reading
+
+            # Get timestamp from normalized reading first, then fall back to common fields
+            last_reading_time = normalized.get("timestamp") or latest_reading.get("ReadTime") or latest_reading.get("created_at")
             if not last_reading_time:
+                logger.debug(f"Sensor {sensor_id} latest reading has no timestamp - considered disconnected")
                 return False
-            
-            # Ensure timezone aware
-            if last_reading_time.tzinfo is None:
-                last_reading_time = last_reading_time.replace(tzinfo=timezone.utc)
+
+            # If timestamp is a string, try to parse ISO format
+            if isinstance(last_reading_time, str):
+                try:
+                    # Handle trailing Z
+                    last_reading_time = datetime.fromisoformat(last_reading_time.replace('Z', '+00:00'))
+                except Exception:
+                    try:
+                        # Try generic parse fallback
+                        from dateutil import parser as _parser
+                        last_reading_time = _parser.parse(last_reading_time)
+                    except Exception:
+                        logger.debug(f"Unable to parse timestamp string for sensor {sensor_id}: {last_reading_time}")
+                        return False
+
+            # Ensure timezone aware. If naive, assume sensor timestamps are in Chile local time (UTC-3)
+            if getattr(last_reading_time, 'tzinfo', None) is None:
+                try:
+                    # Use datetime.timezone with CHILE_OFFSET
+                    from datetime import timezone as _timezone
+                    last_reading_time = last_reading_time.replace(tzinfo=_timezone(CHILE_OFFSET))
+                    # Convert to UTC for comparison
+                    last_reading_time = last_reading_time.astimezone(timezone.utc)
+                except Exception:
+                    # Last resort: assume UTC
+                    last_reading_time = last_reading_time.replace(tzinfo=timezone.utc)
             
             # Calculate time difference
             time_diff_minutes = (current_time - last_reading_time).total_seconds() / 60
@@ -577,3 +677,4 @@ class SensorService:
 
 # Singleton instance
 sensor_service = SensorService()
+

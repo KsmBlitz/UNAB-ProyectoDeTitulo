@@ -41,6 +41,8 @@ class SensorMonitor:
         self.sensors_collection = db["sensors"]
         self.sensor_data_collection = db["Sensor_Data"]
         self.alerts_collection = db["alerts"]
+        # Track consecutive misses per sensor to implement warning-first logic
+        self.miss_counters: Dict[str, int] = {}
     
     async def start(self):
         """Start the monitoring loop"""
@@ -100,20 +102,50 @@ class SensorMonitor:
         
         # Check if sensor is connected (required for measurement alerts)
         is_connected = await sensor_service.is_sensor_connected(sensor_id)
-        
+
         if not is_connected:
-            # Only check for disconnection alert
-            await self._check_disconnection_alert(sensor_id, sensor_config)
-            return
+            # Increment miss counter
+            count = self.miss_counters.get(sensor_id, 0) + 1
+            self.miss_counters[sensor_id] = count
+
+            # First miss -> create a warning-level disconnection alert (if not exists)
+            if count == 1:
+                await self._create_warning_disconnection(sensor_id, sensor_config)
+                return
+
+            # On second consecutive miss, consider it critical: archive measurement alerts and create critical alert
+            if count >= 2:
+                try:
+                    await alert_repository.archive_measurement_alerts_for_sensor(sensor_id)
+                except Exception:
+                    logger.exception("Failed to archive measurement alerts during critical escalation")
+
+                await self._check_disconnection_alert(sensor_id, sensor_config)
+                return
+
         
         # Sensor is connected - check measurement thresholds
-        # Get latest reading
-        latest_reading = await self.sensor_data_collection.find_one(
-            {"reservoirId": sensor_id},
-            sort=[("ReadTime", -1)]
-        )
+        # Get latest reading - be tolerant to different id formats (reservoirId, sensor_id, suffixes)
+        possible_ids = {sensor_id}
+        if "_" in sensor_id:
+            possible_ids.add(sensor_id.split("_", 1)[-1])
+        if len(sensor_id) >= 12:
+            possible_ids.add(sensor_id[-12:])
+
+        or_clauses = []
+        for pid in possible_ids:
+            or_clauses.extend([
+                {"reservoirId": pid},
+                {"sensor_id": pid},
+                {"reservoir_id": pid},
+                {"reservoirId": {"$regex": pid, "$options": "i"}}
+            ])
+
+        latest_reading = await self.sensor_data_collection.find_one({"$or": or_clauses}, sort=[("ReadTime", -1)])
         
         if not latest_reading:
+            # Reset miss counter when there is no reading found now (treat as disconnected)
+            # but we already handled connected/disconnected above; keep protective return
             return
         
         # Normalize reading
@@ -127,6 +159,40 @@ class SensorMonitor:
         await self._check_temperature_threshold(sensor_id, normalized, thresholds, sensor_config)
         await self._check_ec_threshold(sensor_id, normalized, thresholds, sensor_config)
         await self._check_water_level_threshold(sensor_id, normalized, thresholds, sensor_config)
+
+    async def _create_warning_disconnection(self, sensor_id: str, sensor_config: Dict[str, Any]):
+        """Create a warning-level disconnection alert if one does not already exist."""
+        try:
+            existing = await self.alerts_collection.find_one({
+                "sensor_id": sensor_id,
+                "type": "sensor_disconnection",
+                "is_resolved": False,
+                "level": "warning"
+            })
+            if existing:
+                logger.debug(f"Warning-level disconnection already exists for {sensor_id}")
+                return
+
+            location = sensor_config.get("location", f"Sensor {sensor_id}")
+            alert_doc = {
+                "type": "sensor_disconnection",
+                "level": "warning",
+                "title": f"Sensor sin datos",
+                "message": f"Sensor {sensor_id} sin datos en los últimos minutos",
+                "location": location,
+                "threshold_info": "Timeout: 15 minutos",
+                "sensor_id": sensor_id,
+                "created_at": datetime.now(timezone.utc),
+                "is_resolved": False,
+                "status": "active",
+                "source": "sensor_monitor"
+            }
+
+            await self.alerts_collection.insert_one(alert_doc)
+            logger.info(f"Warning disconnection alert created for sensor {sensor_id}")
+        except Exception:
+            logger.exception(f"Failed to create warning disconnection for {sensor_id}")
+
     
     async def _check_ph_threshold(
         self,
@@ -374,14 +440,26 @@ class SensorMonitor:
             "type": "sensor_disconnection",
             "is_resolved": False
         })
-        
+
         if existing_alert:
             logger.debug(f"Disconnection alert already exists for {sensor_id}")
             return
-        
+
+        # Final re-check to avoid false positives: re-query sensor connection status
+        try:
+            still_disconnected = not await sensor_service.is_sensor_connected(sensor_id)
+        except Exception:
+            # If the re-check fails for any reason, err on the side of not creating duplicate alerts
+            logger.exception("Error re-checking sensor connection status; skipping disconnection alert creation")
+            return
+
+        if not still_disconnected:
+            logger.info(f"Sensor {sensor_id} appeared connected on re-check; skipping disconnection alert")
+            return
+
         # Create disconnection alert
         location = sensor_config.get("location", f"Sensor {sensor_id}")
-        
+
         alert_doc = {
             "type": "sensor_disconnection",
             "level": "critical",
@@ -395,7 +473,7 @@ class SensorMonitor:
             "status": "active",
             "source": "sensor_monitor"
         }
-        
+
         result = await self.alerts_collection.insert_one(alert_doc)
         logger.info(f"Disconnection alert created for sensor {sensor_id}")
     

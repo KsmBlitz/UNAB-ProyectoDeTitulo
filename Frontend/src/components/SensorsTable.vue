@@ -2,6 +2,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { API_BASE_URL } from '@/config/api';
+import { parseIsoToDate } from '@/utils/helpers';
 
 defineOptions({
   name: 'SensorsTable'
@@ -88,9 +89,11 @@ const fetchSensorsStatus = async () => {
 };
 
 const formatLastReading = (isoString: string) => {
-  const date = new Date(isoString);
-  // Formatear en hora local de Chile (UTC-3)
-  return date.toLocaleDateString('es-CL', {
+  if (!isoString) return '';
+  // Ensure we parse the incoming ISO as UTC when timezone is missing
+  const d = parseIsoToDate(isoString);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleString('es-CL', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',

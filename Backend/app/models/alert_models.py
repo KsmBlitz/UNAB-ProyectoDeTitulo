@@ -85,8 +85,9 @@ class AlertThresholds(BaseModel):
 class ActiveAlert(BaseModel):
     """Alerta activa en el sistema"""
     id: str = Field(default_factory=lambda: str(ObjectId()))
-    type: AlertType
-    level: AlertLevel
+    # Use plain strings for `type` and `level` to accept legacy/varied values
+    type: str
+    level: str
     title: str
     message: str
     value: Optional[float] = None
@@ -108,8 +109,8 @@ class AlertHistory(BaseModel):
     """Historial completo de alertas para administradores"""
     id: str = Field(default_factory=lambda: str(ObjectId()))
     alert_id: str  # Referencia a la alerta original
-    type: AlertType
-    level: AlertLevel
+    type: str
+    level: str
     title: str
     message: str
     value: Optional[float] = None

@@ -85,7 +85,16 @@ async def calculate_correlation(
             data = await cursor.to_list(length=10000)
         
         if len(data) < 2:
-            raise HTTPException(status_code=400, detail="No hay suficientes datos en la base de datos para calcular correlación")
+            # No hay suficientes datos en el período; devolver respuesta informativa
+            result = {
+                "coefficient": None,
+                "p_value": None,
+                "sample_size": len(data),
+                "period": request.period,
+                "message": "No hay suficientes datos en la base de datos para calcular correlación"
+            }
+            await cache_service.set(cache_key, result, ttl=120)
+            return result
         
         # Extraer valores
         var1_values = [d.get(request.variable1) for d in data if d.get(request.variable1) is not None]
@@ -97,7 +106,16 @@ async def calculate_correlation(
         var2_values = var2_values[:min_length]
         
         if min_length < 2:
-            raise HTTPException(status_code=400, detail="No hay suficientes datos válidos")
+            # Datos insuficientes (valores faltantes). Devolver respuesta informativa
+            result = {
+                "coefficient": None,
+                "p_value": None,
+                "sample_size": min_length,
+                "period": request.period,
+                "message": "No hay suficientes datos válidos para calcular correlación"
+            }
+            await cache_service.set(cache_key, result, ttl=120)
+            return result
         
         # Verificar que haya variación en los datos
         var1_std = np.std(var1_values)

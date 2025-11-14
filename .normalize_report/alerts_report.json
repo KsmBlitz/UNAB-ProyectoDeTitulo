@@ -1,0 +1,425 @@
+{
+  "active_alerts_sample": [
+    {
+      "id": "691627e5cf777bdab8520ade",
+      "type": "sensor_disconnection",
+      "level": "critical",
+      "created_at": "2025-11-13T21:48:05.035000",
+      "sensor_id": "AWS_IoT_9451DC3C1E38",
+      "source": "sensor_monitor"
+    }
+  ],
+  "active_counts": [
+    {
+      "_id": {
+        "level": "critical",
+        "type": "sensor_disconnection"
+      },
+      "count": 1
+    }
+  ],
+  "notifications_recent": [
+    {
+      "id": "6916268fcf777bdab8520ab9",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T18:42:23.091000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "6916268dcf777bdab8520ab8",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T18:42:21.604000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "69162662cf777bdab8520ab5",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T18:41:38.972000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "69162662cf777bdab8520ab4",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T18:41:38.085000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "69162241cf777bdab8520a71",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T18:24:01.456000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "69162240cf777bdab8520a70",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T18:24:00.616000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "691620c4c55ca2c0a7699c19",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T18:17:40.063000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "691620c3c55ca2c0a7699c18",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T18:17:39.485000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "691620bfc55ca2c0a7699c17",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T18:17:35.427000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "691620bdc55ca2c0a7699c16",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T18:17:33.972000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "69161e6d5041a1ba993da7a1",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T18:07:41.797000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "69161e6c5041a1ba993da7a0",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T18:07:40.361000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "691619ca5041a1ba993da774",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T17:47:54.886000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "691619c95041a1ba993da773",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T17:47:53.453000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "691615a85041a1ba993da75a",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T17:30:16.876000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "691615a65041a1ba993da759",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T17:30:14.005000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "691611ce5041a1ba993da726",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T17:13:50.344000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "691611cd5041a1ba993da725",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T17:13:49.278000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "691611c85041a1ba993da724",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T17:13:44.509000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "691611c55041a1ba993da723",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T17:13:41.821000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "691611c35041a1ba993da722",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T17:13:39.193000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "691611c25041a1ba993da721",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T17:13:38.063000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "69160bbc5041a1ba993da6d2",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T16:47:56.789000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "69160bbb5041a1ba993da6d1",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T16:47:55.579000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "69160bb75041a1ba993da6d0",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T16:47:51.482000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "69160bb55041a1ba993da6cf",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T16:47:49.896000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "6915fc145041a1ba993da6c9",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T15:41:08.831000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "6915fc145041a1ba993da6ca",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T15:41:08.424000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "6915f87f5041a1ba993da6c5",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T15:25:51.201000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "6915f87e5041a1ba993da6c4",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T15:25:50.028000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "6915f8785041a1ba993da6c3",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T15:25:44.758000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "6915f8765041a1ba993da6c2",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T15:25:42.297000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "6915e9cc5041a1ba993da6bd",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T14:23:08.244000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "6915e9c95041a1ba993da6bc",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T14:23:05.819000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "6915e5be5041a1ba993da6b8",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T14:05:50.300000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "6915e5bd5041a1ba993da6b7",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T14:05:49.519000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "6915e17c5041a1ba993da6b3",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T13:47:40.140000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "6915e17b5041a1ba993da6b2",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T13:47:39.162000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "6915425ee430b80698870c01",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T02:28:46.998000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "6915425de430b80698870c00",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T02:28:45.573000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "691541fae430b80698870be1",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T02:27:06.844000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "691541f9e430b80698870be0",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": "2025-11-13T02:27:05.085000",
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "whatsapp:temperature:ESP32_TOKEN_TEST:68eeade442d1dc3f8d87501b",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": null,
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "temperature:ESP32_DEFINITIVO:68c1dbd3ec5c1294094dc200",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": null,
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "AlertType.PH_RANGE:AWS_IoT_9451DC3C1E38:68c1dbd3ec5c1294094dc200",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": null,
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "AlertType.PH_RANGE:AWS_IoT_9451DC3C1E38:68eeade442d1dc3f8d87501b",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": null,
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "temperature:ESP32_WHATSAPP_TEST:68c1dbd3ec5c1294094dc200",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": null,
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "temperature:ESP32_DEFINITIVO:68eeade442d1dc3f8d87501b",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": null,
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "AlertType.CONDUCTIVITY:AWS_IoT_9451DC3C1E38:68c1dbd3ec5c1294094dc200",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": null,
+      "status": null,
+      "to": null
+    },
+    {
+      "id": "AlertType.CONDUCTIVITY:AWS_IoT_9451DC3C1E38:68eeade442d1dc3f8d87501b",
+      "alert_id": null,
+      "channel": null,
+      "sent_at": null,
+      "status": null,
+      "to": null
+    }
+  ],
+  "last_alert_created_at": "2025-11-14T00:29:44.585000",
+  "last_notification_sent_at": "2025-11-13T18:42:23.091000"
+}
