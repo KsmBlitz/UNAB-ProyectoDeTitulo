@@ -75,8 +75,9 @@ class AlertThresholds(BaseModel):
     )
     water_level: ThresholdConfig = ThresholdConfig(
         optimal_min=60.0, optimal_max=90.0,
-        warning_min=40.0, warning_max=95.0,
-        critical_min=20.0, critical_max=98.0
+        # Allow lower warning/critical defaults so administrators may set values below 20%
+        warning_min=0.0, warning_max=95.0,
+        critical_min=0.0, critical_max=98.0
     )
     # Configuración para sensores desconectados (en minutos)
     sensor_timeout_warning: int = 6  # minutos sin datos = advertencia
@@ -188,8 +189,9 @@ BLUEBERRY_CHILE_THRESHOLDS = AlertThresholds(
     ),
     water_level=ThresholdConfig(
         optimal_min=60.0, optimal_max=90.0,
-        warning_min=40.0, warning_max=95.0,
-        critical_min=20.0, critical_max=98.0
+        # Default thresholds adjusted to allow very low water level settings
+        warning_min=0.0, warning_max=95.0,
+        critical_min=0.0, critical_max=98.0
     ),
     sensor_timeout_warning=6,
     sensor_timeout_critical=15

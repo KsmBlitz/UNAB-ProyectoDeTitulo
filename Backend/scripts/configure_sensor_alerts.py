@@ -38,9 +38,9 @@ DEFAULT_ALERT_CONFIG = {
             "critical_max": 3.0
         },
         "water_level": {
-            "min": 20.0,
+            "min": 0.0,
             "max": 100.0,
-            "critical_min": 10.0,
+            "critical_min": 0.0,
             "critical_max": 100.0
         }
     },
@@ -147,7 +147,7 @@ async def main():
             print("  • pH: 4.5-5.5 (crítico: 4.0-6.0)")
             print("  • Temperatura: 15-25°C (crítico: 10-30°C)")
             print("  • EC: 0-2 dS/m (crítico: 0-3 dS/m)")
-            print("  • Water Level: 20-100% (crítico: 10-100%)")
+            print("  • Water Level: 0-100% (crítico: 0-100%)")
             print()
             print("[NOTIFICATIONS] Notificaciones activadas:")
             print("  • WhatsApp: Yes")

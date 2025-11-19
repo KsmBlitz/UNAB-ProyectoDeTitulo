@@ -10,6 +10,7 @@ from app.routes.analytics import router as analytics_router
 from app.routes.health import router as health_router
 from app.routes.websocket import router as websocket_router
 from app.services import alert_change_stream_watcher
+from app.services.alert_reconciler import start_reconciler
 from app.services.sensor_monitor import sensor_monitor
 from app.services.cache import cache_service
 from app.middleware import RateLimitMiddleware
@@ -61,6 +62,10 @@ async def startup_event():
     asyncio.create_task(alert_change_stream_watcher())
     logger.info("Alert watcher iniciado")
     
+    # Iniciar reconciliador de alertas (seguridad adicional contra inserciones directas)
+    asyncio.create_task(start_reconciler(60))
+    logger.info("Alert reconciler iniciado (interval 60s)")
+
     # Iniciar el monitor de sensores en background
     asyncio.create_task(sensor_monitor.start())
     logger.info("Sensor monitor iniciado")

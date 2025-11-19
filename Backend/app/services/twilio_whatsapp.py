@@ -18,7 +18,7 @@ async def send_critical_alert_twilio_whatsapp(
     reservoir_name: str,
     alert_type: str,
     value: str
-) -> bool:
+) -> dict:
     """
     Send a critical alert via Twilio WhatsApp
     
@@ -81,22 +81,63 @@ async def send_critical_alert_twilio_whatsapp(
         from_whatsapp = f"whatsapp:{twilio_from}"
         to_whatsapp = f"whatsapp:{to_phone}"
         
+        # Optionally include a per-message status callback URL (if configured)
+        status_callback_url = getattr(settings, 'TWILIO_STATUS_CALLBACK_URL', None)
+
         # Send message
-        message = client.messages.create(
-            body=message_body,
-            from_=from_whatsapp,
-            to=to_whatsapp
-        )
-        
-        logger.info(
-            f"Twilio WhatsApp enviado a {to_phone} para {reservoir_name} "
-            f"(MessageSID: {message.sid})"
-        )
-        return True
+        if status_callback_url:
+            message = client.messages.create(
+                body=message_body,
+                from_=from_whatsapp,
+                to=to_whatsapp,
+                status_callback=status_callback_url
+            )
+        else:
+            message = client.messages.create(
+                body=message_body,
+                from_=from_whatsapp,
+                to=to_whatsapp
+            )
+
+        # Log full response details for diagnostics
+        try:
+            msg_info = {
+                'sid': getattr(message, 'sid', None),
+                'status': getattr(message, 'status', None),
+                'to': getattr(message, 'to', None),
+                'from': getattr(message, 'from_', None),
+                'date_created': getattr(message, 'date_created', None),
+                'date_sent': getattr(message, 'date_sent', None),
+                'date_updated': getattr(message, 'date_updated', None),
+            }
+            logger.info(f"Twilio WhatsApp send response: {msg_info}")
+        except Exception:
+            logger.info(f"Twilio WhatsApp sent (sid={getattr(message,'sid',None)})")
+
+        return {
+            'ok': True,
+            'sid': getattr(message, 'sid', None),
+            'status': getattr(message, 'status', None),
+            'error_code': None,
+            'error_message': None
+        }
         
     except TwilioRestException as e:
-        logger.error(f"Error Twilio API: {e.code} - {e.msg}")
-        return False
+        # Log Twilio exception details (error code/message and response body if available)
+        try:
+            logger.error(
+                f"Twilio API error: code={getattr(e,'code',None)} msg={getattr(e,'msg',None)} resp={getattr(e,'resp',None)}"
+            )
+        except Exception:
+            logger.exception("Twilio API error (exception) while logging details")
+        # Return structured error info so callers can decide to retry
+        return {
+            'ok': False,
+            'sid': None,
+            'status': None,
+            'error_code': getattr(e, 'code', None),
+            'error_message': getattr(e, 'msg', str(e))
+        }
         
     except Exception as e:
         logger.error(f"Error enviando Twilio WhatsApp a {to_phone}: {e}")

@@ -24,6 +24,7 @@ from app.utils import get_current_user, get_current_admin_user
 from app.services.alert_service import alert_service
 from app.services.audit import log_audit_event
 from app.models.audit_models import AuditAction
+from app.repositories.alert_repository import alert_repository
 
 logger = logging.getLogger(__name__)
 
@@ -368,7 +369,7 @@ async def create_sensor_alert(
         # Create the alert
         from app.config import alerts_collection
         current_time = datetime.now(timezone.utc)
-        
+
         alert_doc = {
             "type": alert_data['type'],
             "level": alert_data['level'].lower(),
@@ -381,23 +382,24 @@ async def create_sensor_alert(
             "status": "active",
             "source": alert_data.get('source', 'external')
         }
-        
+
         # Add optional fields
         if 'value' in alert_data:
             alert_doc['value'] = alert_data['value']
-        
-        result = await alerts_collection.insert_one(alert_doc)
-        alert_doc['_id'] = result.inserted_id
-        alert_doc['id'] = str(result.inserted_id)
-        
+
+        # Use repository to create alert (enforces safety checks)
+        inserted_id = await alert_repository.create_alert(alert_doc)
+        alert_doc['_id'] = inserted_id
+        alert_doc['id'] = str(inserted_id) if inserted_id else None
+
         logger.info(
             f"Sensor alert created: {alert_type} for sensor {sensor_id} "
             f"(level: {alert_data['level']})"
         )
-        
+
         return {
-            "status": "created",
-            "alert_id": str(result.inserted_id),
+            "status": "created" if inserted_id else "failed",
+            "alert_id": str(inserted_id) if inserted_id else None,
             "alert": alert_doc
         }
         

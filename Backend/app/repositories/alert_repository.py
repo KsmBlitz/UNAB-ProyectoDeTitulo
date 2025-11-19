@@ -211,7 +211,7 @@ class AlertRepository(BaseRepository):
         Returns the number of archived alerts.
         """
         try:
-            measurement_types = ['ph', 'temperature', 'ec', 'water_level', 'conductivity']
+            measurement_types = ['ph', 'ph_range', 'temperature', 'ec', 'water_level', 'conductivity']
             cursor = self.collection.find({
                 'sensor_id': sensor_id,
                 'type': {'$in': measurement_types},
@@ -271,6 +271,64 @@ class AlertRepository(BaseRepository):
         }).sort("created_at", -1).limit(limit)
         
         return await cursor.to_list(length=limit)
+
+    async def create_alert(self, alert_doc: Dict[str, Any]) -> Optional[str]:
+        """
+        Safely create an alert ensuring business rules are respected.
+
+        - Ensures a `source` field exists (defaults to 'system').
+        - For measurement alerts (ph, temperature, ec, water_level, conductivity)
+          verifies that the sensor is connected before inserting.
+
+        Returns the inserted document id as string or None if skipped/failed.
+        """
+        try:
+            # Ensure source is present and not None
+            if not alert_doc.get("source"):
+                alert_doc["source"] = "system"
+
+            # Measurement alert types require connected sensors
+            measurement_types = ['ph', 'temperature', 'ec', 'water_level', 'conductivity']
+            alert_type = (alert_doc.get('type') or '').lower()
+            sensor_id = alert_doc.get('sensor_id')
+
+            if alert_type in measurement_types:
+                # measurement alerts must reference a sensor
+                if not sensor_id:
+                    logger.info(f"Skipping insertion of measurement alert without sensor_id: {alert_type}")
+                    return None
+
+                # Import here to avoid circular imports at module import time
+                from app.services.sensor_service import sensor_service
+                try:
+                    is_connected = await sensor_service.is_sensor_connected(sensor_id)
+                except Exception:
+                    # If we cannot determine connection status, be conservative and skip
+                    logger.exception('Failed to check sensor connection; skipping alert insertion')
+                    return None
+
+                if not is_connected:
+                    logger.info(f"Skipping insertion of measurement alert for disconnected sensor {sensor_id}")
+                    return None
+
+                # Prevent duplicate unresolved measurement alerts for same sensor/type
+                try:
+                    existing = await self.collection.find_one({
+                        'sensor_id': sensor_id,
+                        'type': alert_doc.get('type'),
+                        'is_resolved': False
+                    })
+                    if existing:
+                        logger.info(f"Similar unresolved alert already exists for {sensor_id} ({alert_doc.get('type')}); skipping insert")
+                        return None
+                except Exception:
+                    logger.exception('Failed checking for existing alerts; continuing')
+
+            # Insert using base repository insert (returns string id)
+            return await self.insert_one(alert_doc)
+        except Exception as e:
+            logger.error(f"Error creating alert: {e}")
+            return None
 
 
 # Singleton instance

@@ -351,21 +351,30 @@ onMounted(() => {
           </button>
         </div>
         
-        <div class="ml-auto flex gap-2">
-          <button
-            @click="exportToPDF"
-            class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
-          >
-            <i class="pi pi-file-pdf"></i>
-            PDF
-          </button>
-          <button
-            @click="exportToExcel"
-            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
-          >
-            <i class="pi pi-file-excel"></i>
-            Excel
-          </button>
+        <div class="ml-auto flex items-center gap-4">
+            <div class="flex flex-col items-end gap-1">
+            <button
+              @click="exportToPDF"
+              title="Genera un resumen en PDF con las métricas clave del período seleccionado"
+              aria-label="Exportar resumen en PDF"
+              class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+            >
+              <i class="pi pi-file-pdf"></i>
+              Resumen (PDF)
+            </button>
+          </div>
+
+          <div class="flex flex-col items-end gap-1">
+            <button
+              @click="exportToExcel"
+              title="Descarga un archivo Excel con todos los registros: fecha, medición y sensor"
+              aria-label="Exportar datos completos en Excel"
+              class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+            >
+              <i class="pi pi-file-excel"></i>
+              Datos completos (Excel)
+            </button>
+          </div>
         </div>
       </div>
     </div>

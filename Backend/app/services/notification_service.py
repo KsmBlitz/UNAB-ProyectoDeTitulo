@@ -12,7 +12,7 @@ import logging
 from app.services.email import send_critical_alert_email
 from app.services.twilio_whatsapp import send_critical_alert_twilio_whatsapp
 from app.repositories.user_repository import user_repository
-from app.config import notifications_sent_collection
+from app.config import notifications_sent_collection, embalses_collection, users_collection
 
 logger = logging.getLogger(__name__)
 
@@ -186,18 +186,86 @@ class NotificationService:
                 logger.info(f"WhatsApp throttled for {to_phone}")
                 return False
             
-            sent = await send_critical_alert_twilio_whatsapp(
-                to_phone,
-                location,
-                alert_type,
-                value
-            )
-            
-            if sent:
-                await self._mark_notification_sent(key)
-                logger.info(f"WhatsApp sent to {to_phone} for alert {alert_type}")
-                return True
-            
+            # Attempt send with retry/backoff for transient errors
+            max_retries = 3
+            backoff = 1
+            attempt = 0
+            last_result = None
+
+            while attempt < max_retries:
+                attempt += 1
+                result = await send_critical_alert_twilio_whatsapp(
+                    to_phone,
+                    location,
+                    alert_type,
+                    value
+                )
+
+                last_result = result
+
+                # If Twilio returned structured dict
+                if isinstance(result, dict) and result.get('ok'):
+                    # Record notification and throttle key
+                    try:
+                        await notifications_sent_collection.insert_one({
+                            'key': key,
+                            'channel': 'whatsapp',
+                            'to': to_phone,
+                            'sid': result.get('sid'),
+                            'status': result.get('status'),
+                            'error_code': result.get('error_code'),
+                            'attempts': attempt,
+                            'created_at': datetime.utcnow(),
+                        })
+                    except Exception:
+                        logger.exception('Failed to record notifications_sent entry')
+
+                    await self._mark_notification_sent(key)
+                    logger.info(f"WhatsApp sent to {to_phone} for alert {alert_type} (sid={result.get('sid')})")
+                    return True
+
+                # If result is dict with error code, decide whether to retry
+                retryable_errors = {None, 'ETIMEDOUT', 500, 502, 503, 504, 63016}
+                err = None
+                if isinstance(result, dict):
+                    err = result.get('error_code') or result.get('error_message')
+                else:
+                    err = str(result)
+
+                # If this was last attempt, break
+                if attempt >= max_retries:
+                    break
+
+                # If error seems retryable, wait and retry
+                try:
+                    if err in retryable_errors or isinstance(err, int) and err >= 500:
+                        logger.info(f"Retrying WhatsApp send to {to_phone} (attempt {attempt}) due to error: {err}")
+                        await asyncio.sleep(backoff)
+                        backoff *= 2
+                        continue
+                except Exception:
+                    pass
+
+                # Non-retryable error -> stop
+                break
+
+            # After retries, record failed attempt
+            try:
+                await notifications_sent_collection.insert_one({
+                    'key': key,
+                    'channel': 'whatsapp',
+                    'to': to_phone,
+                    'sid': last_result.get('sid') if isinstance(last_result, dict) else None,
+                    'status': last_result.get('status') if isinstance(last_result, dict) else 'failed',
+                    'error_code': last_result.get('error_code') if isinstance(last_result, dict) else None,
+                    'error_message': last_result.get('error_message') if isinstance(last_result, dict) else str(last_result),
+                    'attempts': attempt,
+                    'created_at': datetime.utcnow(),
+                })
+            except Exception:
+                logger.exception('Failed to record failed notifications_sent entry')
+
+            logger.error(f"WhatsApp not sent to {to_phone} for alert {alert_type} after {attempt} attempts: {last_result}")
             return False
             
         except Exception as e:
@@ -231,9 +299,21 @@ class NotificationService:
         value = alert_data.get("value", "N/A")
         
         try:
-            # Get admin users
-            admins = await user_repository.get_admin_users()
-            
+            # Resolve embalse by sensor_id and prefer its admins when available
+            admins = []
+            try:
+                embalse = await embalses_collection.find_one({"sensors": sensor_id})
+                if embalse and embalse.get("admins"):
+                    # Fetch user docs for embalse admins
+                    admin_ids = embalse.get("admins", [])
+                    admins = await users_collection.find({"_id": {"$in": admin_ids}}).to_list(length=100)
+            except Exception:
+                logger.exception("Failed to resolve embalse admins, falling back to global admins")
+
+            # Fallback to global admins when no embalse-specific admins found
+            if not admins:
+                admins = await user_repository.get_admin_users()
+
             for admin in admins:
                 user_id = str(admin.get("_id"))
                 

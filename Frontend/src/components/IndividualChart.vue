@@ -57,14 +57,53 @@ const getStoredConfig = () => {
     try {
       return JSON.parse(stored);
     } catch {
-      return { days: 5, lookback_days: 7 };
+      // fallthrough to defaults
     }
   }
-  return { days: 5, lookback_days: 7 };
+  // Default: days=5, but ensure lookback_days meets backend recommendations (>= max(7, days*3))
+  const defaultDays = 5;
+  return { days: defaultDays, lookback_days: Math.max(7, defaultDays * 3) };
 };
 
 const modelConfig = ref(getStoredConfig());
 const isSavingConfig = ref(false);
+// Validation state for the prediction config modal
+const configValidation = computed(() => {
+  const days = Number(modelConfig.value.days) || 1;
+  const safeDays = Math.min(Math.max(days, 1), 7);
+  const minLookback = Math.max(7, safeDays * 3);
+  const lookback = Number(modelConfig.value.lookback_days) || 0;
+  const errors: string[] = [];
+  if (safeDays !== days) {
+    errors.push('Días debe estar entre 1 y 7');
+  }
+  if (lookback < minLookback) {
+    errors.push(`Se requieren al menos ${minLookback} días de histórico para ${safeDays} días de predicción`);
+  }
+  return { valid: errors.length === 0, errors, safeDays, safeLookback: Math.max(lookback, minLookback) };
+});
+
+// Auto-adjust lookback_days when user changes days to the minimum required
+watch(
+  () => modelConfig.value.days,
+  (newDays) => {
+    try {
+      const days = Number(newDays) || 1;
+      const safeDays = Math.min(Math.max(days, 1), 7);
+      const minLookback = Math.max(7, safeDays * 3);
+      if ((Number(modelConfig.value.lookback_days) || 0) < minLookback) {
+        modelConfig.value.lookback_days = minLookback;
+        // brief user feedback
+        notify.info(
+          'Ajuste automático',
+          `El valor de días históricos se ajustó a ${minLookback} para soportar ${safeDays} días de predicción.`
+        );
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+);
 
 // Authorization - Verificar que el usuario sea administrador
 const isAdmin = computed(() => {
@@ -321,6 +360,13 @@ const saveModelConfig = async () => {
   try {
     const token = localStorage.getItem('userToken');
     
+    // Ensure payload meets backend validation rules:
+    // - days <= 7 (backend rejects >7)
+    // - lookback_days >= max(7, days * 3)
+    const safeDays = Math.min(Math.max(Number(modelConfig.value.days) || 1, 1), 7);
+    const minLookback = Math.max(7, safeDays * 3);
+    const safeLookback = Math.max(Number(modelConfig.value.lookback_days) || minLookback, minLookback);
+
     // Save configuration to backend for audit logging
     const response = await fetch(`${API_BASE_URL}/api/sensors/prediction-config`, {
       method: 'POST',
@@ -340,8 +386,8 @@ const saveModelConfig = async () => {
           };
           return map[props.sensorType] || props.sensorType;
         })(),
-        days: modelConfig.value.days,
-        lookback_days: modelConfig.value.lookback_days
+        days: safeDays,
+        lookback_days: safeLookback
       })
     });
     
@@ -349,8 +395,12 @@ const saveModelConfig = async () => {
       throw new Error('Error al guardar configuración');
     }
     
-    // Save configuration to localStorage
-    localStorage.setItem(`prediction_${props.sensorType}_config`, JSON.stringify(modelConfig.value));
+    // Save configuration to localStorage (store the safe/normalized values)
+    const storedConfig = { days: safeDays, lookback_days: safeLookback };
+    localStorage.setItem(`prediction_${props.sensorType}_config`, JSON.stringify(storedConfig));
+    // Update local modelConfig so UI reflects the saved, validated values
+    modelConfig.value.days = safeDays;
+    modelConfig.value.lookback_days = safeLookback;
     
     // Show success notification
     notify.success(
@@ -385,7 +435,13 @@ const togglePrediction = async () => {
   localStorage.setItem(`prediction_${props.sensorType}_enabled`, showPrediction.value.toString());
   
   if (showPrediction.value) {
-    await loadPrediction();
+    notify.info('Predicción', 'Cargando predicción...');
+    try {
+      await loadPrediction();
+    } catch (err) {
+      console.error('Error loading prediction (toggle):', err);
+      notify.error('Error', 'No se pudo cargar la predicción. Revisa la consola.');
+    }
   } else {
     // Remove prediction dataset when hiding
     updateChartWithPrediction(null);
@@ -670,14 +726,14 @@ onMounted(fetchData);
               Días a predecir
             </label>
             <div class="relative">
-              <input
-                v-model.number="modelConfig.days"
-                type="number"
-                min="1"
-                max="30"
-                class="w-full px-4 py-3 pr-12 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-800 transition-all text-lg font-semibold"
-                placeholder="5"
-              />
+                <input
+                  v-model.number="modelConfig.days"
+                  type="number"
+                  min="1"
+                  max="30"
+                  class="w-full px-4 py-3 pr-12 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-800 transition-all text-lg font-semibold"
+                  placeholder="5"
+                />
               <span class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-medium">
                 días
               </span>
@@ -714,6 +770,12 @@ onMounted(fetchData);
               <p class="text-xs text-indigo-800">
                 Cantidad de días históricos para entrenar el modelo (1-90)
               </p>
+            </div>
+            <!-- Inline validation messages -->
+            <div v-if="configValidation.errors.length" class="mt-2">
+              <ul class="text-xs text-red-700 list-disc list-inside">
+                <li v-for="(err, idx) in configValidation.errors" :key="idx">{{ err }}</li>
+              </ul>
             </div>
           </div>
           
@@ -756,8 +818,9 @@ onMounted(fetchData);
           </button>
           <button
             @click="saveModelConfig"
-            :disabled="isSavingConfig"
+            :disabled="isSavingConfig || !configValidation.valid"
             class="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-semibold shadow-lg"
+            :title="!configValidation.valid ? configValidation.errors.join('; ') : ''"
           >
             <i v-if="isSavingConfig" class="pi pi-spin pi-spinner"></i>
             <i v-else class="pi pi-check"></i>

@@ -119,19 +119,56 @@ class SensorService:
                         normalized[standard_field] = normalized[variation]
                         break
         
-        # Ensure timestamp is present - try multiple sources
-        if 'timestamp' not in normalized:
-            if 'ReadTime' in normalized:
-                normalized['timestamp'] = normalized['ReadTime']
-            elif 'created_at' in normalized:
-                normalized['timestamp'] = normalized['created_at']
-            else:
-                normalized['timestamp'] = None
+        # Ensure timestamp is present - try multiple sources and attempt to parse malformed strings
+        if 'timestamp' not in normalized or not normalized.get('timestamp'):
+            candidate = None
+            for key in ('timestamp', 'Timestamp', 'ReadTime', 'ProcessedAt', 'created_at'):
+                if key in normalized and normalized.get(key):
+                    candidate = normalized.get(key)
+                    break
+            # Also check nested RawMessage.timestamp
+            if not candidate and isinstance(normalized.get('raw'), dict):
+                candidate = normalized['raw'].get('timestamp') or normalized['raw'].get('Timestamp')
+
+            parsed_ts = None
+            if candidate:
+                # If already a datetime, use it
+                from datetime import datetime as _dt
+                if isinstance(candidate, _dt):
+                    parsed_ts = candidate
+                else:
+                    # Try to sanitize common malformed patterns like '2025-11-14T04:M:11Z'
+                    import re
+                    s = str(candidate)
+                    s = s.strip()
+                    # Replace ':M:' with ':00:' (malformed minute marker)
+                    s = re.sub(r':M:', ':00:', s)
+                    # Remove any stray non-digit/letter characters except - : + . T Z
+                    s = re.sub(r"[^0-9Tt:\-\+\.Zz:]", '', s)
+                    try:
+                        # fromisoformat supports offsets
+                        parsed_ts = _dt.fromisoformat(s.replace('Z', '+00:00'))
+                    except Exception:
+                        try:
+                            from dateutil import parser as _parser
+                            parsed_ts = _parser.parse(s)
+                        except Exception:
+                            parsed_ts = None
+
+            normalized['timestamp'] = parsed_ts
+            # if no timestamp parsed, leave None
         
         # Set default values for missing fields
         for field in ['ph', 'temperature', 'ec', 'water_level']:
             if field not in normalized:
                 normalized[field] = 0
+        # Ensure created_at exists
+        if 'created_at' not in normalized or not normalized.get('created_at'):
+            try:
+                from datetime import datetime
+                normalized['created_at'] = datetime.utcnow()
+            except Exception:
+                normalized['created_at'] = None
         
         return normalized
     

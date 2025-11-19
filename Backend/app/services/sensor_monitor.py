@@ -41,12 +41,20 @@ class SensorMonitor:
         self.sensors_collection = db["sensors"]
         self.sensor_data_collection = db["Sensor_Data"]
         self.alerts_collection = db["alerts"]
+        # Startup grace: time after app start during which alerts won't be created
+        self.startup_grace_seconds = 120
+        self.started_at = None
         # Track consecutive misses per sensor to implement warning-first logic
         self.miss_counters: Dict[str, int] = {}
     
     async def start(self):
         """Start the monitoring loop"""
         self.running = True
+        # record start time for startup grace logic
+        try:
+            self.started_at = datetime.now(timezone.utc)
+        except Exception:
+            self.started_at = datetime.utcnow()
         logger.info(f"Sensor monitor started (check interval: {self.check_interval}s)")
         
         while self.running:
@@ -62,6 +70,16 @@ class SensorMonitor:
         """Stop the monitoring loop"""
         self.running = False
         logger.info("Sensor monitor stopped")
+
+    def _in_startup_grace(self) -> bool:
+        """Return True if we're within the startup grace period."""
+        try:
+            if not self.started_at:
+                return False
+            now = datetime.now(timezone.utc)
+            return (now - self.started_at) < timedelta(seconds=self.startup_grace_seconds)
+        except Exception:
+            return False
     
     async def _check_all_sensors(self):
         """Check all sensors for threshold violations"""
@@ -110,6 +128,11 @@ class SensorMonitor:
 
             # First miss -> create a warning-level disconnection alert (if not exists)
             if count == 1:
+                # Don't create startup alerts immediately after service start
+                if self._in_startup_grace():
+                    logger.debug(f"Skipping initial warning disconnection for {sensor_id} during startup grace")
+                    return
+
                 await self._create_warning_disconnection(sensor_id, sensor_config)
                 return
 
@@ -188,8 +211,11 @@ class SensorMonitor:
                 "source": "sensor_monitor"
             }
 
-            await self.alerts_collection.insert_one(alert_doc)
-            logger.info(f"Warning disconnection alert created for sensor {sensor_id}")
+            try:
+                await alert_repository.create_alert(alert_doc)
+                logger.info(f"Warning disconnection alert created for sensor {sensor_id}")
+            except Exception:
+                logger.exception(f"Failed to create warning disconnection for {sensor_id}")
         except Exception:
             logger.exception(f"Failed to create warning disconnection for {sensor_id}")
 
@@ -474,8 +500,11 @@ class SensorMonitor:
             "source": "sensor_monitor"
         }
 
-        result = await self.alerts_collection.insert_one(alert_doc)
-        logger.info(f"Disconnection alert created for sensor {sensor_id}")
+        try:
+            await alert_repository.create_alert(alert_doc)
+            logger.info(f"Disconnection alert created for sensor {sensor_id}")
+        except Exception:
+            logger.exception(f"Failed to create disconnection alert for {sensor_id}")
     
     async def _create_alert_if_needed(
         self,
@@ -512,6 +541,11 @@ class SensorMonitor:
             logger.debug(f"Skipping alert creation: {skip_reason}")
             return
         
+        # Don't create measurement alerts during startup grace window
+        if self._in_startup_grace():
+            logger.debug(f"Skipping creation of {alert_type} alert for {sensor_id} during startup grace")
+            return
+
         # Create the alert
         location = sensor_config.get("location", f"Sensor {sensor_id}")
         sensor_name = sensor_config.get("name", f"Sensor {sensor_id}")
@@ -538,11 +572,14 @@ class SensorMonitor:
             "source": "sensor_monitor"
         }
         
-        result = await self.alerts_collection.insert_one(alert_doc)
-        logger.info(
-            f"Alert created: {alert_type} ({level}) for {sensor_id} - "
-            f"value: {value}, id: {result.inserted_id}"
-        )
+        try:
+            inserted_id = await alert_repository.create_alert(alert_doc)
+            logger.info(
+                f"Alert created: {alert_type} ({level}) for {sensor_id} - "
+                f"value: {value}, id: {inserted_id}"
+            )
+        except Exception:
+            logger.exception(f"Failed to create alert {alert_type} for {sensor_id}")
 
 
 # Singleton instance

@@ -359,9 +359,15 @@ class AlertService:
             if value is not None:
                 alert_doc["value"] = value
             
-            result = await alerts_collection.insert_one(alert_doc)
-            alert_doc["_id"] = result.inserted_id
-            alert_doc["id"] = str(result.inserted_id)
+            # Use repository create_alert to enforce safety checks
+            try:
+                inserted_id = await self.alert_repo.create_alert(alert_doc)
+            except Exception:
+                logger.exception("Failed to insert manual alert via repository")
+                inserted_id = None
+
+            alert_doc["id"] = inserted_id
+            alert_doc["_id"] = inserted_id
             
             logger.info(f"Manual alert created by {created_by}: {title}")
             
@@ -429,7 +435,7 @@ class AlertService:
             )
             
             # Measurement alerts (pH, temp, EC, water_level) require connected sensor
-            measurement_alert_types = ['ph', 'temperature', 'ec', 'water_level', 'conductivity']
+            measurement_alert_types = ['ph', 'ph_range', 'temperature', 'ec', 'water_level', 'conductivity']
             
             if alert_type.lower() in measurement_alert_types:
                 if not is_connected:

@@ -336,8 +336,8 @@
     <!-- Modal de configuración de umbrales (solo admin) -->
     <div v-if="showConfigModal && isAdmin" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" @click="showConfigModal = false">
       <div class="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden border border-gray-200" @click.stop>
-        <div class="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-blue-500 to-blue-600">
-          <h3 class="text-2xl font-bold text-white">Configuración de Umbrales para Arándanos</h3>
+          <div class="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-blue-500 to-blue-600">
+            <h3 class="text-2xl font-bold text-white">Configuración de Umbrales de Alerta</h3>
           <button @click="showConfigModal = false" class="text-white hover:bg-white/20 transition-colors p-2 rounded-lg">
             <i class="pi pi-times text-xl"></i>
           </button>
@@ -561,7 +561,8 @@ const thresholdConfig = ref({
   ph_min: 4.5,
   ph_max: 6.5,
   conductivity_max: 1.5,
-  water_level_min: 20,
+  // Allow users to set arbitrary water level thresholds (including <20%)
+  water_level_min: 0,
   water_level_max: 85,
   temperature_min: 5,
   temperature_max: 35
@@ -894,13 +895,14 @@ async function loadThresholdConfig(): Promise<void> {
     const thresholds = data.thresholds
 
     thresholdConfig.value = {
-      ph_min: thresholds?.ph?.warning_min || 4.5,
-      ph_max: thresholds?.ph?.warning_max || 6.5,
-      conductivity_max: thresholds?.conductivity?.warning_max || 1.5,
-      water_level_min: thresholds?.water_level?.warning_min || 20,
-      water_level_max: thresholds?.water_level?.warning_max || 85,
-      temperature_min: thresholds?.temperature?.warning_min || 5,
-      temperature_max: thresholds?.temperature?.warning_max || 35
+      ph_min: thresholds?.ph?.warning_min ?? 4.5,
+      ph_max: thresholds?.ph?.warning_max ?? 6.5,
+      conductivity_max: thresholds?.conductivity?.warning_max ?? 1.5,
+      // use 0 as a safe fallback so admins can set values below 20%
+      water_level_min: thresholds?.water_level?.warning_min ?? 0,
+      water_level_max: thresholds?.water_level?.warning_max ?? 85,
+      temperature_min: thresholds?.temperature?.warning_min ?? 5,
+      temperature_max: thresholds?.temperature?.warning_max ?? 35
     }
 
   } catch (error) {
@@ -998,7 +1000,8 @@ async function saveThresholdConfig(): Promise<void> {
         water_level: {
           warning_min: thresholdConfig.value.water_level_min,
           warning_max: thresholdConfig.value.water_level_max,
-          critical_min: thresholdConfig.value.water_level_min - 10,
+          // prevent generating negative critical thresholds while allowing <20%
+          critical_min: Math.max(thresholdConfig.value.water_level_min - 10, 0),
           critical_max: thresholdConfig.value.water_level_max + 5,
           optimal_min: thresholdConfig.value.water_level_min + 10,
           optimal_max: thresholdConfig.value.water_level_max - 5
