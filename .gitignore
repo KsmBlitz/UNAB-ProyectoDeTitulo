@@ -78,6 +78,10 @@ Backend/build/
 # Documentación temporal y de desarrollo
 # ============================================
 docs/
+docs
+aws-deployment
+.normalize_report
+/home/blitz/UNAB-ProyectoDeTitulo/scripts
 
 # ============================================
 # AWS Deployment (ya está en producción)
