@@ -8,7 +8,9 @@ defineOptions({
 });
 
 // Control de filtro global para los 4 gráficos
-const globalTimeRange = ref(24); // horas por defecto
+// Cargar desde localStorage o usar 1 hora por defecto
+const savedTimeRange = localStorage.getItem('chartTimeRange');
+const globalTimeRange = ref(savedTimeRange ? parseInt(savedTimeRange) : 1);
 
 // Referencias a los 4 gráficos individuales
 const temperatureChartRef = ref<InstanceType<typeof IndividualChart> | null>(null);
@@ -16,16 +18,35 @@ const phChartRef = ref<InstanceType<typeof IndividualChart> | null>(null);
 const conductivityChartRef = ref<InstanceType<typeof IndividualChart> | null>(null);
 const waterLevelChartRef = ref<InstanceType<typeof IndividualChart> | null>(null);
 
+// Variables para debouncing
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+const isUpdating = ref(false);
+
 /**
- * Updates the time range filter for all charts
+ * Updates the time range filter for all charts with debouncing
+ * Para evitar demasiadas peticiones al hacer clics rápidos
  */
 const handleTimeRangeChange = (hours: number) => {
   globalTimeRange.value = hours;
+  // Guardar en localStorage inmediatamente para UX
+  localStorage.setItem('chartTimeRange', hours.toString());
 
-  temperatureChartRef.value?.updateTimeRange(hours);
-  phChartRef.value?.updateTimeRange(hours);
-  conductivityChartRef.value?.updateTimeRange(hours);
-  waterLevelChartRef.value?.updateTimeRange(hours);
+  // Limpiar timer anterior si existe
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+  }
+
+  // Marcar que hay una actualización pendiente
+  isUpdating.value = true;
+
+  // Esperar 300ms después del último clic antes de actualizar
+  debounceTimer = setTimeout(() => {
+    temperatureChartRef.value?.updateTimeRange(hours);
+    phChartRef.value?.updateTimeRange(hours);
+    conductivityChartRef.value?.updateTimeRange(hours);
+    waterLevelChartRef.value?.updateTimeRange(hours);
+    isUpdating.value = false;
+  }, 300);
 };
 
 /**
@@ -40,6 +61,9 @@ const refreshAllCharts = async () => {
   ]);
 };
 
+// Auto-refresh cada 30 segundos
+setInterval(refreshAllCharts, 30000);
+
 // Exponer funciones al componente padre
 defineExpose({
   refreshAllCharts
@@ -52,7 +76,20 @@ onMounted(() => {
 
 <template>
   <div class="bg-white rounded-xl p-6 shadow-md">
-    <div class="flex justify-end mb-6 pb-4 border-b-2 border-gray-100">
+    <div class="flex justify-between items-center mb-6 pb-4 border-b-2 border-gray-100">
+      <!-- Indicador de actualización -->
+      <div class="flex items-center gap-2">
+        <transition name="fade">
+          <div v-if="isUpdating" class="flex items-center gap-2 text-blue-600 text-sm">
+            <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>Actualizando gráficos...</span>
+          </div>
+        </transition>
+      </div>
+      
       <div class="flex items-center gap-4 flex-col md:flex-row">
         <label class="text-sm font-semibold text-gray-600">Período:</label>
         <div class="flex gap-2 bg-gray-100 rounded-lg p-1.5 flex-wrap">
@@ -131,3 +168,15 @@ onMounted(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>

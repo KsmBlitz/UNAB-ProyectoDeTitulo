@@ -28,32 +28,14 @@ function toggleUserMenu() {
 }
 
 // Cerrar sesión
-async function handleLogout() {
-  console.log('Cerrando sesión...');
-  
-  try {
-    const token = localStorage.getItem('userToken');
-    
-    // Llamar al endpoint de logout para registrar en auditoría
-    if (token) {
-      await fetch(`${API_BASE_URL}/api/logout`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-    }
-  } catch (error) {
-    console.error('Error al registrar logout:', error);
-    // Continuar con el logout incluso si falla el registro
-  } finally {
-    // Limpiar localStorage y redirigir
-    localStorage.removeItem('userToken');
-    authStore.user = null;
-    router.push('/login');
-  }
-}
+const logout = () => {
+  authStore.user = null;
+  localStorage.removeItem('userToken');
+  router.push('/login');
+};
+
+// Alias para handleLogout (usado en el template)
+const handleLogout = logout;
 
 // Navegar a alertas
 function navigateToAlerts() {
@@ -87,6 +69,12 @@ onUnmounted(() => {
   <header class="flex justify-between items-center px-8 py-4 bg-white border-b border-gray-200 flex-shrink-0 shadow-sm">
     <!-- Left Section -->
     <div class="flex items-center gap-6">
+      <!-- Logo -->
+      <div class="flex items-center gap-3">
+        <img src="@/assets/Logo Embalse IoT.png" alt="Logo Embalse IoT" class="h-10 w-auto" />
+        <span class="text-lg font-semibold text-gray-800">Sistema de Monitoreo</span>
+      </div>
+      
       <div class="flex items-center gap-3 border border-gray-300 px-5 py-2.5 rounded-lg cursor-pointer hover:bg-gray-50 hover:border-gray-400 transition-all group">
         <i class="pi pi-map-marker text-gray-600 group-hover:text-blue-600 transition-colors"></i>
         <span class="text-sm font-medium text-gray-700 group-hover:text-gray-900">Ubicación</span>

@@ -36,7 +36,7 @@ watch(() => themeStore.isDark, () => {
   >
       <div class="mb-10">
         <div class="flex justify-center mb-6">
-          <img src="@/assets/Logo Embalse IoT.png" alt="Embalses IoT Logo" class="h-20 w-auto object-contain drop-shadow-md">
+          <img src="@/assets/Logo Embalse IoT.png" alt="Embalses IoT Logo" class="h-32 w-auto object-contain drop-shadow-md">
         </div>
   <h2 class="my-3 text-2xl font-bold tracking-tight text-gray-800">{{ title }}</h2>
   <p v-if="subtitle" class="m-0 text-base text-gray-600">{{ subtitle }}</p>

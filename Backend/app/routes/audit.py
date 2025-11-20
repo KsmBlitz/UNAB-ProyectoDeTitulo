@@ -13,7 +13,7 @@ from app.services.audit import (
     get_user_activity,
     get_audit_statistics
 )
-from models.audit_models import AuditLogFilter, AuditLogResponse
+from app.models.audit_models import AuditLogFilter, AuditLogResponse
 
 router = APIRouter(prefix="/api/audit", tags=["audit"])
 
@@ -111,7 +111,7 @@ async def get_available_actions(
     Returns all possible action types that can be filtered.
     Only accessible by admin users.
     """
-    from models.audit_models import AuditAction
+    from app.models.audit_models import AuditAction
     
     return {
         "actions": [

@@ -48,6 +48,12 @@ const router = createRouter({
           name: 'AuditLog',
           component: () => import('../views/AuditLogView.vue'),
           meta: { requiresAuth: true, requiresRole: 'admin' }
+        },
+        {
+          path: 'analytics',
+          name: 'Analytics',
+          component: () => import('../views/AnalyticsView.vue'),
+          meta: { requiresAuth: true }
         }
       ]
     },

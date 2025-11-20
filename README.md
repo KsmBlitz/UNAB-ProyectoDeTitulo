@@ -1,206 +1,409 @@
-# Sistema IoT de Monitoreo de Calidad del Agua para Cultivos de Arándanos
+# Sistema IoT Monitoreo de Embalses para Arándanos# Sistema IoT de Monitoreo de Calidad del Agua para Cultivos de Arándanos
 
-![Vue.js](https://img.shields.io/badge/Vue.js-3.5-4FC08D?logo=vue.js&logoColor=white)
+
+
+Sistema de monitoreo en tiempo real de la calidad del agua en embalses para cultivos de arándanos utilizando IoT, desarrollado con FastAPI, MongoDB, Redis y Vue.js.![Vue.js](https://img.shields.io/badge/Vue.js-3.5-4FC08D?logo=vue.js&logoColor=white)
+
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?logo=typescript&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)
+
+## Inicio Rápido![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)
+
 ![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
-![MongoDB](https://img.shields.io/badge/MongoDB-7.0-47A248?logo=mongodb&logoColor=white)
-![AWS IoT](https://img.shields.io/badge/AWS_IoT-FF9900?logo=amazonaws&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker-24.0-2496ED?logo=docker&logoColor=white)
-![ML](https://img.shields.io/badge/ML-Scikit--learn-F7931E?logo=scikit-learn&logoColor=white)
+
+### Requisitos Previos![MongoDB](https://img.shields.io/badge/MongoDB-7.0-47A248?logo=mongodb&logoColor=white)
+
+- Docker y Docker Compose![AWS IoT](https://img.shields.io/badge/AWS_IoT-FF9900?logo=amazonaws&logoColor=white)
+
+- Node.js 20+ (solo para desarrollo frontend)![Docker](https://img.shields.io/badge/Docker-24.0-2496ED?logo=docker&logoColor=white)
+
+- Python 3.11+ (solo para desarrollo backend)![ML](https://img.shields.io/badge/ML-Scikit--learn-F7931E?logo=scikit-learn&logoColor=white)
+
 ![Status](https://img.shields.io/badge/Status-Producci%C3%B3n-success)
+
+### Instalación
 
 ## Descripción
 
-Plataforma IoT empresarial completa para el monitoreo inteligente de calidad del agua en cultivos de arándanos en Chile. Integra sensores en tiempo real con AWS IoT Core, predicción mediante Machine Learning, sistema de alertas multinivel, y auditoría completa de eventos del sistema.
+1. **Clonar el repositorio**
 
-**Especializado para arándanos chilenos:** pH óptimo 5.0-5.5, conductividad eléctrica <1.5 dS/m.
+```bashPlataforma IoT empresarial completa para el monitoreo inteligente de calidad del agua en cultivos de arándanos en Chile. Integra sensores en tiempo real con AWS IoT Core, predicción mediante Machine Learning, sistema de alertas multinivel, y auditoría completa de eventos del sistema.
+
+git clone https://github.com/KsmBlitz/UNAB-ProyectoDeTitulo.git
+
+cd UNAB-ProyectoDeTitulo**Especializado para arándanos chilenos:** pH óptimo 5.0-5.5, conductividad eléctrica <1.5 dS/m.
+
+```
 
 ### Objetivos Principales
-- Monitoreo en tiempo real de pH, conductividad eléctrica, temperatura y nivel de agua
-- Predicción inteligente con Machine Learning (regresión lineal) de valores futuros
-- Sistema de alertas proactivo con notificaciones automáticas (Email/WhatsApp)
-- Gestión de usuarios con roles (Admin/Operario) y autenticación JWT
-- Auditoría completa de todas las acciones críticas del sistema
+
+2. **Configurar variables de entorno**- Monitoreo en tiempo real de pH, conductividad eléctrica, temperatura y nivel de agua
+
+```bash- Predicción inteligente con Machine Learning (regresión lineal) de valores futuros
+
+# Backend- Sistema de alertas proactivo con notificaciones automáticas (Email/WhatsApp)
+
+cp Backend/.env.example Backend/.env- Gestión de usuarios con roles (Admin/Operario) y autenticación JWT
+
+# Editar Backend/.env con tus credenciales- Auditoría completa de todas las acciones críticas del sistema
+
 - Visualización avanzada con gráficos históricos y tendencias predictivas
 
----
+# Frontend
+
+cp Frontend/.env.example Frontend/.env---
+
+```
 
 ## Características Implementadas
 
-### Autenticación y Seguridad
-- Login/Logout JWT con tokens seguros y renovación automática
-- Recuperación de contraseña vía SMTP (Gmail/personalizado)
+3. **Levantar servicios con Docker Compose**
+
+```bash### Autenticación y Seguridad
+
+docker-compose up -d- Login/Logout JWT con tokens seguros y renovación automática
+
+```- Recuperación de contraseña vía SMTP (Gmail/personalizado)
+
 - Sistema de roles RBAC: Administrador y Operario con permisos granulares
-- Hash bcrypt para contraseñas con salt rounds configurables
-- Protección de rutas en frontend y backend con middleware
-- Validación de tokens y manejo de expiración automático
+
+4. **Acceder a la aplicación**- Hash bcrypt para contraseñas con salt rounds configurables
+
+- Frontend: http://localhost- Protección de rutas en frontend y backend con middleware
+
+- Backend API: http://localhost/api- Validación de tokens y manejo de expiración automático
+
+- Documentación API: http://localhost/api/docs
 
 ### Dashboard en Tiempo Real
-- Métricas actualizadas cada 30 segundos automáticamente
-- Cards responsivos con indicadores de estado por colores (verde/amarillo/rojo)
-- Gráficos históricos interactivos con Chart.js y zoom
+
+### Usuario por Defecto- Métricas actualizadas cada 30 segundos automáticamente
+
+- Email: admin@example.com- Cards responsivos con indicadores de estado por colores (verde/amarillo/rojo)
+
+- Password: admin123- Gráficos históricos interactivos con Chart.js y zoom
+
 - Gráficos individuales para cada métrica (pH, EC, Temperatura)
-- Selector de rangos: Últimas 24h, 7 días, 30 días, rango personalizado
+
+## Arquitectura- Selector de rangos: Últimas 24h, 7 días, 30 días, rango personalizado
+
 - Modo claro/oscuro persistente con transiciones suaves
-- Diseño responsive optimizado para desktop, tablet y móvil
 
-### Predicción con Machine Learning
-- Modelo de regresión lineal entrenado con datos históricos
-- Predicción de pH y Conductividad para los próximos N días (configurable)
-- Configuración dinámica: Días a predecir (1-30) y días históricos (1-90)
-- Visualización integrada de predicciones en gráficos con línea punteada
+El sistema sigue una arquitectura de microservicios con los siguientes componentes:- Diseño responsive optimizado para desktop, tablet y móvil
+
+
+
+- **Backend**: FastAPI + Motor (MongoDB async) + Redis### Predicción con Machine Learning
+
+- **Frontend**: Vue 3 + TypeScript + Tailwind CSS- Modelo de regresión lineal entrenado con datos históricos
+
+- **Base de Datos**: MongoDB- Predicción de pH y Conductividad para los próximos N días (configurable)
+
+- **Cache**: Redis- Configuración dinámica: Días a predecir (1-30) y días históricos (1-90)
+
+- **Proxy**: Nginx- Visualización integrada de predicciones en gráficos con línea punteada
+
 - Detección de valores críticos en predicciones futuras
-- Alertas predictivas cuando se prevén valores fuera de rango
-- Modal de configuración con validación en tiempo real
-- Registro en auditoría de cambios en parámetros del modelo
 
-### Sistema de Alertas Multinivel
-- Detección automática cada 6 minutos mediante servicio de fondo
-- Tres niveles de severidad: Info (azul), Warning (amarillo), Critical (rojo)
-- Umbrales personalizables por métrica y nivel
-- Notificaciones automáticas:
-  - Email SMTP con plantillas HTML profesionales
-  - WhatsApp Business API (preparado para integración)
-- Período de gracia: 1 hora para evitar alertas duplicadas
-- Dismissal manual con registro de quién cerró cada alerta
-- Historial completo con filtros por severidad, métrica y fecha
-- Estados: Activa, Resuelta, Auto-resuelta
-- Duración calculada automáticamente al resolver
+### Estructura del Proyecto- Alertas predictivas cuando se prevén valores fuera de rango
 
-### Auditoría y Trazabilidad
-- Registro automático de todas las acciones críticas del sistema
-- Eventos auditados:
-  - Login/Logout de usuarios
-  - Creación/Edición/Eliminación de usuarios
-  - Cambios en configuración de alertas
+```- Modal de configuración con validación en tiempo real
+
+UNAB-ProyectoDeTitulo/- Registro en auditoría de cambios en parámetros del modelo
+
+├── Backend/              # API REST con FastAPI
+
+│   ├── app/### Sistema de Alertas Multinivel
+
+│   │   ├── models/       # Modelos de datos- Detección automática cada 6 minutos mediante servicio de fondo
+
+│   │   ├── routes/       # Endpoints de la API- Tres niveles de severidad: Info (azul), Warning (amarillo), Critical (rojo)
+
+│   │   ├── services/     # Lógica de negocio- Umbrales personalizables por métrica y nivel
+
+│   │   ├── repositories/ # Capa de acceso a datos- Notificaciones automáticas:
+
+│   │   ├── middleware/   # Middlewares (rate limit, CORS, etc.)  - Email SMTP con plantillas HTML profesionales
+
+│   │   └── utils/        # Utilidades  - WhatsApp Business API (preparado para integración)
+
+│   ├── tests/            # Tests unitarios- Período de gracia: 1 hora para evitar alertas duplicadas
+
+│   └── Dockerfile- Dismissal manual con registro de quién cerró cada alerta
+
+├── Frontend/             # Dashboard Vue.js- Historial completo con filtros por severidad, métrica y fecha
+
+│   ├── src/- Estados: Activa, Resuelta, Auto-resuelta
+
+│   │   ├── components/   # Componentes reutilizables- Duración calculada automáticamente al resolver
+
+│   │   ├── views/        # Vistas/páginas
+
+│   │   ├── stores/       # Gestión de estado### Auditoría y Trazabilidad
+
+│   │   └── router/       # Rutas- Registro automático de todas las acciones críticas del sistema
+
+│   └── Dockerfile- Eventos auditados:
+
+├── docs/                 # Documentación completa  - Login/Logout de usuarios
+
+└── docker-compose.yml    # Orquestación de servicios  - Creación/Edición/Eliminación de usuarios
+
+```  - Cambios en configuración de alertas
+
   - Dismissal de alertas con usuario responsable
-  - Actualización de parámetros del modelo ML
+
+## Documentación  - Actualización de parámetros del modelo ML
+
 - Metadata completa: Usuario, timestamp, IP, detalles de la acción
-- Filtros avanzados: Por acción, usuario, rango de fechas
+
+Toda la documentación técnica se encuentra en la carpeta `/docs`:- Filtros avanzados: Por acción, usuario, rango de fechas
+
 - Interfaz visual con badges de colores por tipo de evento
-- Exportable para auditorías externas (preparado)
 
-### Gestión de Usuarios (Solo Administradores)
-- CRUD completo con interfaz moderna
+### Arquitectura y Diseño- Exportable para auditorías externas (preparado)
+
+- [Arquitectura de Microservicios](docs/ARQUITECTURA-MICROSERVICIOS.md)
+
+- [Principios SOLID](docs/PRINCIPIOS-SOLID.md)### Gestión de Usuarios (Solo Administradores)
+
+- [Auditoría de Arquitectura](docs/AUDITORIA-ARQUITECTURA.md)- CRUD completo con interfaz moderna
+
 - Validación robusta: Emails únicos, campos requeridos, formato correcto
-- Asignación de roles con permisos diferenciados
-- Deshabilitación de usuarios sin eliminación permanente
-- Tabla interactiva con búsqueda y paginación
-- Modales de creación/edición con feedback visual
-- Confirmación de acciones críticas (eliminar usuario)
 
-### Conectividad IoT
-- AWS IoT Core configurado con certificados TLS
-- Comunicación MQTT segura para sensores ESP32
-- Ingesta de datos con validación de esquema
+### Funcionalidades- Asignación de roles con permisos diferenciados
+
+- [Autenticación y Autorización](docs/AUTENTICACION-DOCS.md)- Deshabilitación de usuarios sin eliminación permanente
+
+- [Rate Limiting](docs/RATE-LIMITING.md)- Tabla interactiva con búsqueda y paginación
+
+- [WebSocket](docs/WEBSOCKET.md)- Modales de creación/edición con feedback visual
+
+- [PWA](docs/PWA.md)- Confirmación de acciones críticas (eliminar usuario)
+
+
+
+### Testing y Operaciones### Conectividad IoT
+
+- [Guía de Testing](docs/TESTING.md)- AWS IoT Core configurado con certificados TLS
+
+- [Cambiar Credenciales](docs/CAMBIAR-CREDENCIALES.md)- Comunicación MQTT segura para sensores ESP32
+
+- [Nuevas Características v2.0](docs/NUEVAS-CARACTERISTICAS-v2.0.md)- Ingesta de datos con validación de esquema
+
 - Almacenamiento optimizado en MongoDB con índices
-- APIs REST documentadas con Swagger/ReDoc
+
+## Comandos Útiles- APIs REST documentadas con Swagger/ReDoc
+
 - WebSockets preparados para streaming en tiempo real
 
-### Experiencia de Usuario
-- Interfaz limpia con Tailwind CSS y componentes reutilizables
-- Animaciones suaves en transiciones y modales
-- Iconos profesionales con PrimeIcons
-- Feedback visual inmediato en todas las acciones
-- Mensajes de error descriptivos y accionables
-- Loading states para operaciones asíncronas
-- Toast notifications para eventos importantes
-- Sidebar colapsable con navegación intuitiva
+### Docker
 
----
+```bash### Experiencia de Usuario
+
+# Iniciar servicios- Interfaz limpia con Tailwind CSS y componentes reutilizables
+
+docker-compose up -d- Animaciones suaves en transiciones y modales
+
+- Iconos profesionales con PrimeIcons
+
+# Ver logs- Feedback visual inmediato en todas las acciones
+
+docker-compose logs -f- Mensajes de error descriptivos y accionables
+
+- Loading states para operaciones asíncronas
+
+# Reiniciar un servicio- Toast notifications para eventos importantes
+
+docker-compose restart backend- Sidebar colapsable con navegación intuitiva
+
+
+
+# Rebuild sin caché---
+
+docker-compose build --no-cache
 
 ## Arquitectura del Sistema
 
-```mermaid
-graph TB
+# Detener servicios
+
+docker-compose down```mermaid
+
+```graph TB
+
     subgraph "IoT Layer"
-        ESP32[ESP32 + Sensores pH/EC/Temp]
-        AWS[AWS IoT Core<br/>MQTT + TLS]
-    end
+
+### Backend (Desarrollo)        ESP32[ESP32 + Sensores pH/EC/Temp]
+
+```bash        AWS[AWS IoT Core<br/>MQTT + TLS]
+
+cd Backend    end
+
     
-    subgraph "Backend Services"
-        API[FastAPI REST API<br/>Puerto 8000]
+
+# Instalar dependencias    subgraph "Backend Services"
+
+pip install -r requirements.txt        API[FastAPI REST API<br/>Puerto 8000]
+
         ML[Servicio ML<br/>Scikit-learn]
-        ALERT[Alert Watcher<br/>Background Task]
-        AUDIT[Audit Service<br/>Logging]
+
+# Ejecutar tests        ALERT[Alert Watcher<br/>Background Task]
+
+pytest        AUDIT[Audit Service<br/>Logging]
+
         DB[(MongoDB<br/>Motor Async)]
-    end
-    
+
+# Ejecutar tests con cobertura    end
+
+pytest --cov=app tests/    
+
     subgraph "External Services"
-        SMTP[Gmail SMTP<br/>Notificaciones Email]
-        WA[WhatsApp Business API<br/>Mensajes]
-    end
+
+# Ejecutar localmente        SMTP[Gmail SMTP<br/>Notificaciones Email]
+
+uvicorn main:app --reload --host 0.0.0.0 --port 8000        WA[WhatsApp Business API<br/>Mensajes]
+
+```    end
+
     
-    subgraph "Frontend Application"
-        WEB[Vue 3 + TypeScript<br/>Puerto 3000]
-        CHARTS[Chart.js<br/>Visualización]
+
+### Frontend (Desarrollo)    subgraph "Frontend Application"
+
+```bash        WEB[Vue 3 + TypeScript<br/>Puerto 3000]
+
+cd Frontend        CHARTS[Chart.js<br/>Visualización]
+
         AUTH[JWT Auth<br/>Store]
-    end
-    
+
+# Instalar dependencias    end
+
+npm install    
+
     ESP32 -->|MQTT Pub| AWS
-    AWS -->|HTTP Webhook| API
-    API <-->|CRUD Async| DB
+
+# Desarrollo    AWS -->|HTTP Webhook| API
+
+npm run dev    API <-->|CRUD Async| DB
+
     API --> ML
-    API --> ALERT
-    API --> AUDIT
+
+# Build producción    API --> ALERT
+
+npm run build    API --> AUDIT
+
     ALERT -->|Email| SMTP
-    ALERT -->|WhatsApp| WA
-    WEB <-->|REST API| API
-    WEB --> CHARTS
+
+# Tests    ALERT -->|WhatsApp| WA
+
+npm run test    WEB <-->|REST API| API
+
+```    WEB --> CHARTS
+
     WEB --> AUTH
-    
+
+## Características Principales    
+
     style ESP32 fill:#2196F3,stroke:#1976D2,stroke-width:2px,color:#fff
-    style AWS fill:#FF9800,stroke:#F57C00,stroke-width:2px,color:#fff
-    style API fill:#4CAF50,stroke:#388E3C,stroke-width:2px,color:#fff
-    style ML fill:#9C27B0,stroke:#7B1FA2,stroke-width:2px,color:#fff
-    style DB fill:#E91E63,stroke:#C2185B,stroke-width:2px,color:#fff
-    style SMTP fill:#F44336,stroke:#D32F2F,stroke-width:2px,color:#fff
-    style WEB fill:#00BCD4,stroke:#0097A7,stroke-width:2px,color:#fff
-```
 
-### Flujo de Datos
+- Monitoreo en tiempo real de sensores IoT (pH, conductividad, temperatura, nivel de agua)    style AWS fill:#FF9800,stroke:#F57C00,stroke-width:2px,color:#fff
 
-1. **Sensores → Cloud:** ESP32 publica datos cada 5 minutos vía MQTT a AWS IoT Core
+- Sistema de alertas configurables con notificaciones (Email, WhatsApp)    style API fill:#4CAF50,stroke:#388E3C,stroke-width:2px,color:#fff
+
+- Dashboard interactivo con gráficos históricos    style ML fill:#9C27B0,stroke:#7B1FA2,stroke-width:2px,color:#fff
+
+- Gestión de usuarios y roles (admin, operario)    style DB fill:#E91E63,stroke:#C2185B,stroke-width:2px,color:#fff
+
+- Auditoría completa de acciones    style SMTP fill:#F44336,stroke:#D32F2F,stroke-width:2px,color:#fff
+
+- Rate limiting y protección contra abusos    style WEB fill:#00BCD4,stroke:#0097A7,stroke-width:2px,color:#fff
+
+- Cache con Redis para optimización```
+
+- Health checks para monitoreo
+
+- API RESTful documentada con OpenAPI/Swagger### Flujo de Datos
+
+
+
+## Tecnologías Utilizadas1. **Sensores → Cloud:** ESP32 publica datos cada 5 minutos vía MQTT a AWS IoT Core
+
 2. **Cloud → Backend:** AWS envía datos al endpoint FastAPI mediante HTTP
-3. **Procesamiento:** FastAPI valida, procesa y almacena en MongoDB
-4. **Monitoreo:** Alert Watcher analiza valores cada 6 minutos
-5. **Notificaciones:** Si hay valores críticos, envía emails/WhatsApp automáticamente
-6. **Predicción:** Modelo ML se entrena con datos históricos bajo demanda
-7. **Visualización:** Frontend consulta APIs REST y actualiza gráficos cada 30s
-8. **Auditoría:** Todas las acciones críticas se registran automáticamente
+
+### Backend3. **Procesamiento:** FastAPI valida, procesa y almacena en MongoDB
+
+- FastAPI 0.104.14. **Monitoreo:** Alert Watcher analiza valores cada 6 minutos
+
+- Motor 3.3.2 (MongoDB async)5. **Notificaciones:** Si hay valores críticos, envía emails/WhatsApp automáticamente
+
+- Redis 7.0.16. **Predicción:** Modelo ML se entrena con datos históricos bajo demanda
+
+- Pydantic 2.5.07. **Visualización:** Frontend consulta APIs REST y actualiza gráficos cada 30s
+
+- JWT para autenticación8. **Auditoría:** Todas las acciones críticas se registran automáticamente
+
+- Pytest para testing
 
 ---
 
-## Stack Tecnológico
+### Frontend
 
-| Categoría | Tecnologías |
-|-----------|------------|
-| **Frontend** | Vue 3 (Composition API), TypeScript, Vite, Tailwind CSS |
+- Vue 3 con Composition API## Stack Tecnológico
+
+- TypeScript
+
+- Tailwind CSS| Categoría | Tecnologías |
+
+- Chart.js para gráficos|-----------|------------|
+
+- Vite como build tool| **Frontend** | Vue 3 (Composition API), TypeScript, Vite, Tailwind CSS |
+
 | **Gráficos** | Chart.js, vue-chartjs |
-| **Backend** | Python 3.11, FastAPI, Pydantic v2, Uvicorn |
-| **Base de Datos** | MongoDB 7.0, Motor (async driver) |
-| **ML/Predicción** | Scikit-learn, NumPy, Regresión Lineal |
-| **Autenticación** | JWT (python-jose), bcrypt, OAuth2 |
-| **IoT** | AWS IoT Core, MQTT, TLS/SSL Certificates |
-| **Notificaciones** | Gmail SMTP, WhatsApp Business API |
-| **DevOps** | Docker, Docker Compose, Nginx |
-| **Testing** | Pytest, Pytest-asyncio, Vitest (frontend) |
-| **Code Quality** | ESLint, Prettier, Black (Python) |
-| **Iconografía** | PrimeIcons, Lucide Icons |
 
----
+### Infraestructura| **Backend** | Python 3.11, FastAPI, Pydantic v2, Uvicorn |
+
+- Docker & Docker Compose| **Base de Datos** | MongoDB 7.0, Motor (async driver) |
+
+- Nginx como reverse proxy| **ML/Predicción** | Scikit-learn, NumPy, Regresión Lineal |
+
+- MongoDB para persistencia| **Autenticación** | JWT (python-jose), bcrypt, OAuth2 |
+
+- Redis para cache| **IoT** | AWS IoT Core, MQTT, TLS/SSL Certificates |
+
+| **Notificaciones** | Gmail SMTP, WhatsApp Business API |
+
+## Contribuir| **DevOps** | Docker, Docker Compose, Nginx |
+
+| **Testing** | Pytest, Pytest-asyncio, Vitest (frontend) |
+
+1. Fork el proyecto| **Code Quality** | ESLint, Prettier, Black (Python) |
+
+2. Crea tu Feature Branch (`git checkout -b feature/AmazingFeature`)| **Iconografía** | PrimeIcons, Lucide Icons |
+
+3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
+
+4. Push a la Branch (`git push origin feature/AmazingFeature`)---
+
+5. Abre un Pull Request
 
 ## Estructura del Proyecto
 
+## Licencia
+
 ```
-UNAB-ProyectoDeTitulo/
+
+Este proyecto es parte de un proyecto de título académico de la Universidad Nacional Andrés Bello (UNAB).UNAB-ProyectoDeTitulo/
+
 ├── Backend/                          # API FastAPI + Servicios
-│   ├── main.py                      # Punto de entrada (deprecated, ver app/)
+
+## Contacto│   ├── main.py                      # Punto de entrada (deprecated, ver app/)
+
 │   ├── requirements.txt             # Dependencias Python
-│   ├── pytest.ini                   # Configuración de tests
+
+Vicente Estay Valdivia - [@KsmBlitz](https://github.com/KsmBlitz)│   ├── pytest.ini                   # Configuración de tests
+
 │   ├── Dockerfile                   # Imagen Docker del backend
-│   │
+
+Proyecto Link: [https://github.com/KsmBlitz/UNAB-ProyectoDeTitulo](https://github.com/KsmBlitz/UNAB-ProyectoDeTitulo)│   │
+
 │   ├── app/                         # Aplicación modular FastAPI
 │   │   ├── __init__.py
 │   │   ├── config/                  # Configuración centralizada
@@ -482,7 +685,32 @@ Credenciales por defecto:
 
 ---
 
-### 6. Verificar Instalación
+### 6. Optimización de Base de Datos (Recomendado)
+
+Para mejorar significativamente el rendimiento, ejecuta el script de creación de índices:
+
+```bash
+# Desde el contenedor Docker
+docker exec embalses-backend python scripts/create_indexes.py
+
+# O localmente si tienes Python configurado
+cd Backend
+python scripts/create_indexes.py
+```
+
+Este script crea índices optimizados para:
+- **Sensor_Data**: Búsquedas por reservoir y tiempo (queries más frecuentes)
+- **alerts**: Alertas activas por nivel y fecha
+- **alert_history**: Historial ordenado por fecha
+- **users**: Búsqueda por email y rol
+- **audit_log**: Auditoría con TTL de 180 días
+- **notifications_sent**: Throttling de notificaciones con TTL de 7 días
+
+Los índices mejoran el rendimiento de queries hasta 100x en colecciones grandes.
+
+---
+
+### 7. Verificar Instalación
 
 ```bash
 # 1. Backend health check

@@ -47,6 +47,10 @@ async def should_send_notification(key: str) -> bool:
         else:
             return True
 
+        # Ensure last_dt is timezone-aware for comparison
+        if last_dt.tzinfo is None:
+            last_dt = last_dt.replace(tzinfo=timezone.utc)
+
         # Check if enough time has passed (default 60 minutes)
         throttle_minutes = getattr(settings, "ALERT_EMAIL_THROTTLE_MINUTES", 60) or 60
         time_since_last = datetime.now(timezone.utc) - last_dt
@@ -101,7 +105,7 @@ async def clear_notifications_sent_for_alert(
         )
         
         logger.info(
-            f"🧹 Throttle cleared for alert {alert_type} sensor {sensor_id} "
+            f"Throttle cleared for alert {alert_type} sensor {sensor_id} "
             f"({result.deleted_count} records)"
         )
         

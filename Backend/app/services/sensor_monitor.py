@@ -1,0 +1,692 @@
+"""
+Sensor Monitor Service
+Monitors sensor data and creates alerts when values exceed configured thresholds
+Runs as a background task checking for threshold violations
+"""
+
+import asyncio
+import logging
+from datetime import datetime, timezone, timedelta
+from typing import Dict, Any, Optional
+from bson import ObjectId
+
+from app.config.database import db
+from app.services.alert_service import alert_service
+from app.services.sensor_service import sensor_service
+from app.repositories.alert_repository import alert_repository
+
+logger = logging.getLogger(__name__)
+
+
+class SensorMonitor:
+    """
+    Background service that monitors sensor readings and creates alerts
+    
+    Responsibilities:
+    - Check sensor readings against configured thresholds
+    - Create alerts for threshold violations
+    - Only create alerts for connected sensors
+    - Prevent duplicate alerts (throttling)
+    """
+    
+    def __init__(self, check_interval_seconds: int = 60):
+        """
+        Initialize sensor monitor
+        
+        Args:
+            check_interval_seconds: How often to check sensors (default: 60s)
+        """
+        self.check_interval = check_interval_seconds
+        self.running = False
+        self.sensors_collection = db["sensors"]
+        self.sensor_data_collection = db["Sensor_Data"]
+        self.alerts_collection = db["alerts"]
+        # Startup grace: time after app start during which alerts won't be created
+        self.startup_grace_seconds = 120
+        self.started_at = None
+        # Track consecutive misses per sensor to implement warning-first logic
+        self.miss_counters: Dict[str, int] = {}
+        # Track consecutive out-of-range counts per sensor/type for measurement alerts
+        self.consecutive_counters: Dict[str, Dict[str, int]] = {}
+        # Track last reconnect time per sensor to apply a short grace period
+        self.last_reconnect_time: Dict[str, datetime] = {}
+        # Configuration: grace after reconnect (seconds) and required consecutive readings
+        self.reconnect_grace_seconds = 60
+        self.required_consecutive = 2
+    
+    async def start(self):
+        """Start the monitoring loop"""
+        self.running = True
+        # record start time for startup grace logic
+        try:
+            self.started_at = datetime.now(timezone.utc)
+        except Exception:
+            self.started_at = datetime.utcnow()
+        logger.info(f"Sensor monitor started (check interval: {self.check_interval}s)")
+        
+        while self.running:
+            try:
+                await self._check_all_sensors()
+            except Exception as e:
+                logger.error(f"Error in sensor monitor loop: {e}")
+            
+            # Wait before next check
+            await asyncio.sleep(self.check_interval)
+    
+    def stop(self):
+        """Stop the monitoring loop"""
+        self.running = False
+        logger.info("Sensor monitor stopped")
+
+    def _in_startup_grace(self) -> bool:
+        """Return True if we're within the startup grace period."""
+        try:
+            if not self.started_at:
+                return False
+            now = datetime.now(timezone.utc)
+            return (now - self.started_at) < timedelta(seconds=self.startup_grace_seconds)
+        except Exception:
+            return False
+    
+    async def _check_all_sensors(self):
+        """Check all sensors for threshold violations"""
+        try:
+            # Get all sensors with alert configuration enabled
+            sensors = await self.sensors_collection.find({
+                "alert_config.enabled": True
+            }).to_list(length=100)
+            
+            if not sensors:
+                logger.debug("No sensors with alerts enabled")
+                return
+            
+            logger.debug(f"Checking {len(sensors)} sensors for threshold violations")
+            
+            for sensor_config in sensors:
+                try:
+                    await self._check_sensor(sensor_config)
+                except Exception as e:
+                    sensor_id = sensor_config.get("sensor_id", "unknown")
+                    logger.error(f"Error checking sensor {sensor_id}: {e}")
+        
+        except Exception as e:
+            logger.error(f"Error getting sensors to check: {e}")
+    
+    async def _check_sensor(self, sensor_config: Dict[str, Any]):
+        """
+        Check a single sensor for threshold violations
+        
+        Args:
+            sensor_config: Sensor configuration document with alert_config
+        """
+        sensor_id = sensor_config.get("sensor_id")
+        alert_config = sensor_config.get("alert_config", {})
+        
+        if not alert_config.get("enabled"):
+            return
+        
+        # Check if sensor is connected (required for measurement alerts)
+        is_connected = await sensor_service.is_sensor_connected(sensor_id)
+
+        if not is_connected:
+            # Increment miss counter
+            count = self.miss_counters.get(sensor_id, 0) + 1
+            self.miss_counters[sensor_id] = count
+
+            # First miss -> create a warning-level disconnection alert (if not exists)
+            if count == 1:
+                # Don't create startup alerts immediately after service start
+                if self._in_startup_grace():
+                    logger.debug(f"Skipping initial warning disconnection for {sensor_id} during startup grace")
+                    return
+
+                await self._create_warning_disconnection(sensor_id, sensor_config)
+                return
+
+            # On second consecutive miss, consider it critical: archive measurement alerts and create critical alert
+            if count >= 2:
+                try:
+                    await alert_repository.archive_measurement_alerts_for_sensor(sensor_id)
+                except Exception:
+                    logger.exception("Failed to archive measurement alerts during critical escalation")
+
+                await self._check_disconnection_alert(sensor_id, sensor_config)
+                return
+
+        # Sensor is connected - check measurement thresholds
+
+        # If this sensor had previous misses, treat this as a reconnection event
+        try:
+            prev_misses = self.miss_counters.get(sensor_id, 0)
+            if prev_misses > 0:
+                # record reconnect time for grace logic
+                try:
+                    self.last_reconnect_time[sensor_id] = datetime.now(timezone.utc)
+                    logger.info(f"Sensor {sensor_id} reconnected at {self.last_reconnect_time[sensor_id].isoformat()}")
+                except Exception:
+                    self.last_reconnect_time[sensor_id] = datetime.utcnow()
+
+            # Reset miss counter when sensor is connected
+            if sensor_id in self.miss_counters:
+                self.miss_counters[sensor_id] = 0
+
+            # Also reset consecutive counters for measurement alerts when reconnection happens
+            if prev_misses > 0 and sensor_id in self.consecutive_counters:
+                self.consecutive_counters[sensor_id] = {}
+        except Exception:
+            logger.exception("Error handling reconnect bookkeeping")
+        
+        # Sensor is connected - check measurement thresholds
+
+            # Reset miss counter when sensor is connected and auto-resolve any
+            # existing disconnection alerts so normal measurement alerts can flow.
+            try:
+                # Reset miss counter
+                if sensor_id in self.miss_counters:
+                    self.miss_counters[sensor_id] = 0
+
+                # Find any unresolved disconnection alert for this sensor and dismiss it
+                existing_disc = await self.alerts_collection.find_one({
+                    "sensor_id": sensor_id,
+                    "type": "sensor_disconnection",
+                    "is_resolved": False
+                })
+                if existing_disc:
+                    try:
+                        # Use repository to dismiss so history is recorded
+                        await alert_repository.dismiss_alert(
+                            alert_id=str(existing_disc.get("_id")),
+                            dismissed_by="system_auto",
+                            dismissed_at=datetime.now(timezone.utc),
+                            reason="Sensor reconnected - auto-resolved"
+                        )
+                        logger.info(f"Auto-resolved disconnection alert for sensor {sensor_id}")
+                    except Exception:
+                        logger.exception(f"Failed to auto-resolve disconnection alert for {sensor_id}")
+            except Exception:
+                logger.exception("Error while attempting to auto-resolve disconnection alerts")
+
+        # Get latest reading - be tolerant to different id formats (reservoirId, sensor_id, suffixes)
+        possible_ids = {sensor_id}
+        if "_" in sensor_id:
+            possible_ids.add(sensor_id.split("_", 1)[-1])
+        if len(sensor_id) >= 12:
+            possible_ids.add(sensor_id[-12:])
+
+        or_clauses = []
+        for pid in possible_ids:
+            or_clauses.extend([
+                {"reservoirId": pid},
+                {"sensor_id": pid},
+                {"reservoir_id": pid},
+                {"reservoirId": {"$regex": pid, "$options": "i"}}
+            ])
+
+        latest_reading = await self.sensor_data_collection.find_one({"$or": or_clauses}, sort=[("ReadTime", -1)])
+        
+        if not latest_reading:
+            # Reset miss counter when there is no reading found now (treat as disconnected)
+            # but we already handled connected/disconnected above; keep protective return
+            return
+        
+        # Normalize reading
+        normalized = sensor_service.normalize_sensor_reading(latest_reading)
+        
+        # Get thresholds (support both legacy/new keys)
+        # Some sensor documents store thresholds under 'thresholds', others under 'parameters'.
+        thresholds = alert_config.get("thresholds") or alert_config.get("parameters") or {}
+        
+        # Check each parameter
+        await self._check_ph_threshold(sensor_id, normalized, thresholds, sensor_config)
+        await self._check_temperature_threshold(sensor_id, normalized, thresholds, sensor_config)
+        await self._check_ec_threshold(sensor_id, normalized, thresholds, sensor_config)
+        await self._check_water_level_threshold(sensor_id, normalized, thresholds, sensor_config)
+
+    async def _create_warning_disconnection(self, sensor_id: str, sensor_config: Dict[str, Any]):
+        """Create a warning-level disconnection alert if one does not already exist."""
+        try:
+            existing = await self.alerts_collection.find_one({
+                "sensor_id": sensor_id,
+                "type": "sensor_disconnection",
+                "is_resolved": False,
+                "level": "warning"
+            })
+            if existing:
+                logger.debug(f"Warning-level disconnection already exists for {sensor_id}")
+                return
+
+            location = sensor_config.get("location", f"Sensor {sensor_id}")
+            alert_doc = {
+                "type": "sensor_disconnection",
+                "level": "warning",
+                "title": f"Sensor sin datos",
+                "message": f"Sensor {sensor_id} sin datos en los últimos minutos",
+                "location": location,
+                "threshold_info": "Timeout: 15 minutos",
+                "sensor_id": sensor_id,
+                "created_at": datetime.now(timezone.utc),
+                "is_resolved": False,
+                "status": "active",
+                "source": "sensor_monitor"
+            }
+
+            try:
+                await alert_repository.create_alert(alert_doc)
+                logger.info(f"Warning disconnection alert created for sensor {sensor_id}")
+            except Exception:
+                logger.exception(f"Failed to create warning disconnection for {sensor_id}")
+        except Exception:
+            logger.exception(f"Failed to create warning disconnection for {sensor_id}")
+
+    
+    async def _check_ph_threshold(
+        self,
+        sensor_id: str,
+        reading: Dict[str, Any],
+        thresholds: Dict[str, Any],
+        sensor_config: Dict[str, Any]
+    ):
+        """Check pH value against thresholds"""
+        ph_value = reading.get("ph")
+        if ph_value is None or ph_value == 0:
+            return
+        
+        ph_config = thresholds.get("ph", {})
+        min_val = ph_config.get("min")
+        max_val = ph_config.get("max")
+        critical_min = ph_config.get("critical_min")
+        critical_max = ph_config.get("critical_max")
+        
+        # Check critical thresholds
+        if critical_min and ph_value < critical_min:
+            await self._create_alert_if_needed(
+                sensor_id=sensor_id,
+                alert_type="ph",
+                level="critical",
+                value=ph_value,
+                message=f"pH crítico bajo: {ph_value:.2f} (mínimo: {critical_min})",
+                sensor_config=sensor_config
+            )
+        elif critical_max and ph_value > critical_max:
+            await self._create_alert_if_needed(
+                sensor_id=sensor_id,
+                alert_type="ph",
+                level="critical",
+                value=ph_value,
+                message=f"pH crítico alto: {ph_value:.2f} (máximo: {critical_max})",
+                sensor_config=sensor_config
+            )
+        # Check warning thresholds
+        elif min_val and ph_value < min_val:
+            await self._create_alert_if_needed(
+                sensor_id=sensor_id,
+                alert_type="ph",
+                level="warning",
+                value=ph_value,
+                message=f"pH bajo: {ph_value:.2f} (óptimo: {min_val}-{max_val})",
+                sensor_config=sensor_config
+            )
+        elif max_val and ph_value > max_val:
+            await self._create_alert_if_needed(
+                sensor_id=sensor_id,
+                alert_type="ph",
+                level="warning",
+                value=ph_value,
+                message=f"pH alto: {ph_value:.2f} (óptimo: {min_val}-{max_val})",
+                sensor_config=sensor_config
+            )
+    
+    async def _check_temperature_threshold(
+        self,
+        sensor_id: str,
+        reading: Dict[str, Any],
+        thresholds: Dict[str, Any],
+        sensor_config: Dict[str, Any]
+    ):
+        """Check temperature value against thresholds"""
+        temp_value = reading.get("temperature")
+        if temp_value is None or temp_value == 0:
+            return
+        
+        temp_config = thresholds.get("temperature", {})
+        min_val = temp_config.get("min")
+        max_val = temp_config.get("max")
+        critical_min = temp_config.get("critical_min")
+        critical_max = temp_config.get("critical_max")
+        
+        # Check critical thresholds
+        if critical_min and temp_value < critical_min:
+            await self._create_alert_if_needed(
+                sensor_id=sensor_id,
+                alert_type="temperature",
+                level="critical",
+                value=temp_value,
+                message=f"Temperatura crítica baja: {temp_value:.1f}°C (mínimo: {critical_min}°C)",
+                sensor_config=sensor_config
+            )
+        elif critical_max and temp_value > critical_max:
+            await self._create_alert_if_needed(
+                sensor_id=sensor_id,
+                alert_type="temperature",
+                level="critical",
+                value=temp_value,
+                message=f"Temperatura crítica alta: {temp_value:.1f}°C (máximo: {critical_max}°C)",
+                sensor_config=sensor_config
+            )
+        # Check warning thresholds
+        elif min_val and temp_value < min_val:
+            await self._create_alert_if_needed(
+                sensor_id=sensor_id,
+                alert_type="temperature",
+                level="warning",
+                value=temp_value,
+                message=f"Temperatura baja: {temp_value:.1f}°C (óptimo: {min_val}-{max_val}°C)",
+                sensor_config=sensor_config
+            )
+        elif max_val and temp_value > max_val:
+            await self._create_alert_if_needed(
+                sensor_id=sensor_id,
+                alert_type="temperature",
+                level="warning",
+                value=temp_value,
+                message=f"Temperatura alta: {temp_value:.1f}°C (óptimo: {min_val}-{max_val}°C)",
+                sensor_config=sensor_config
+            )
+    
+    async def _check_ec_threshold(
+        self,
+        sensor_id: str,
+        reading: Dict[str, Any],
+        thresholds: Dict[str, Any],
+        sensor_config: Dict[str, Any]
+    ):
+        """Check EC (conductivity) value against thresholds"""
+        ec_value = reading.get("ec")
+        if ec_value is None:
+            return
+        
+        ec_config = thresholds.get("ec", {})
+        min_val = ec_config.get("min")
+        max_val = ec_config.get("max")
+        critical_min = ec_config.get("critical_min")
+        critical_max = ec_config.get("critical_max")
+        
+        # Check critical thresholds
+        if critical_min and ec_value < critical_min:
+            await self._create_alert_if_needed(
+                sensor_id=sensor_id,
+                alert_type="ec",
+                level="critical",
+                value=ec_value,
+                message=f"Conductividad crítica baja: {ec_value:.1f} dS/m (mínimo: {critical_min})",
+                sensor_config=sensor_config
+            )
+        elif critical_max and ec_value > critical_max:
+            await self._create_alert_if_needed(
+                sensor_id=sensor_id,
+                alert_type="ec",
+                level="critical",
+                value=ec_value,
+                message=f"Conductividad crítica alta: {ec_value:.1f} dS/m (máximo: {critical_max})",
+                sensor_config=sensor_config
+            )
+        # Check warning thresholds
+        elif min_val and ec_value < min_val:
+            await self._create_alert_if_needed(
+                sensor_id=sensor_id,
+                alert_type="ec",
+                level="warning",
+                value=ec_value,
+                message=f"Conductividad baja: {ec_value:.1f} dS/m (óptimo: {min_val}-{max_val})",
+                sensor_config=sensor_config
+            )
+        elif max_val and ec_value > max_val:
+            await self._create_alert_if_needed(
+                sensor_id=sensor_id,
+                alert_type="ec",
+                level="warning",
+                value=ec_value,
+                message=f"Conductividad alta: {ec_value:.1f} dS/m (óptimo: {min_val}-{max_val})",
+                sensor_config=sensor_config
+            )
+    
+    async def _check_water_level_threshold(
+        self,
+        sensor_id: str,
+        reading: Dict[str, Any],
+        thresholds: Dict[str, Any],
+        sensor_config: Dict[str, Any]
+    ):
+        """Check water level value against thresholds"""
+        water_level = reading.get("water_level")
+        if water_level is None:
+            return
+        
+        wl_config = thresholds.get("water_level", {})
+        min_val = wl_config.get("min")
+        max_val = wl_config.get("max")
+        critical_min = wl_config.get("critical_min")
+        critical_max = wl_config.get("critical_max")
+        
+        # Check critical thresholds
+        if critical_min and water_level < critical_min:
+            await self._create_alert_if_needed(
+                sensor_id=sensor_id,
+                alert_type="water_level",
+                level="critical",
+                value=water_level,
+                message=f"Nivel de agua crítico: {water_level:.1f}% (mínimo: {critical_min}%)",
+                sensor_config=sensor_config
+            )
+        elif critical_max and water_level > critical_max:
+            await self._create_alert_if_needed(
+                sensor_id=sensor_id,
+                alert_type="water_level",
+                level="critical",
+                value=water_level,
+                message=f"Nivel de agua crítico: {water_level:.1f}% (máximo: {critical_max}%)",
+                sensor_config=sensor_config
+            )
+        # Check warning thresholds
+        elif min_val and water_level < min_val:
+            await self._create_alert_if_needed(
+                sensor_id=sensor_id,
+                alert_type="water_level",
+                level="warning",
+                value=water_level,
+                message=f"Nivel de agua bajo: {water_level:.1f}% (óptimo: {min_val}-{max_val}%)",
+                sensor_config=sensor_config
+            )
+        elif max_val and water_level > max_val:
+            await self._create_alert_if_needed(
+                sensor_id=sensor_id,
+                alert_type="water_level",
+                level="warning",
+                value=water_level,
+                message=f"Nivel de agua alto: {water_level:.1f}% (óptimo: {min_val}-{max_val}%)",
+                sensor_config=sensor_config
+            )
+        # Water level handling temporarily disabled - see issue/decision by ops
+        return
+    
+    async def _check_disconnection_alert(
+        self,
+        sensor_id: str,
+        sensor_config: Dict[str, Any]
+    ):
+        """Create alert if sensor is disconnected"""
+        # Archive any existing measurement alerts for this sensor
+        try:
+            await alert_repository.archive_measurement_alerts_for_sensor(sensor_id)
+        except Exception:
+            logger.exception("Failed to archive measurement alerts for disconnected sensor")
+
+        # Check if disconnection alert already exists
+        existing_alert = await self.alerts_collection.find_one({
+            "sensor_id": sensor_id,
+            "type": "sensor_disconnection",
+            "is_resolved": False
+        })
+
+        if existing_alert:
+            logger.debug(f"Disconnection alert already exists for {sensor_id}")
+            return
+
+        # Final re-check to avoid false positives: re-query sensor connection status
+        try:
+            still_disconnected = not await sensor_service.is_sensor_connected(sensor_id)
+        except Exception:
+            # If the re-check fails for any reason, err on the side of not creating duplicate alerts
+            logger.exception("Error re-checking sensor connection status; skipping disconnection alert creation")
+            return
+
+        if not still_disconnected:
+            logger.info(f"Sensor {sensor_id} appeared connected on re-check; skipping disconnection alert")
+            return
+
+        # Create disconnection alert
+        location = sensor_config.get("location", f"Sensor {sensor_id}")
+
+        alert_doc = {
+            "type": "sensor_disconnection",
+            "level": "critical",
+            "title": f"Sensor Desconectado",
+            "message": f"El sensor {sensor_id} no ha enviado datos en los últimos 15 minutos",
+            "location": location,
+            "threshold_info": "Timeout crítico: 15 minutos",
+            "sensor_id": sensor_id,
+            "created_at": datetime.now(timezone.utc),
+            "is_resolved": False,
+            "status": "active",
+            "source": "sensor_monitor"
+        }
+
+        try:
+            await alert_repository.create_alert(alert_doc)
+            logger.info(f"Disconnection alert created for sensor {sensor_id}")
+        except Exception:
+            logger.exception(f"Failed to create disconnection alert for {sensor_id}")
+    
+    async def _create_alert_if_needed(
+        self,
+        sensor_id: str,
+        alert_type: str,
+        level: str,
+        value: float,
+        message: str,
+        sensor_config: Dict[str, Any]
+    ):
+        """
+        Create alert if one doesn't already exist for this sensor/type
+        
+        Prevents duplicate alerts by checking for existing unresolved alerts
+        """
+        # Check if similar alert already exists
+        existing_alert = await self.alerts_collection.find_one({
+            "sensor_id": sensor_id,
+            "type": alert_type,
+            "is_resolved": False
+        })
+        
+        if existing_alert:
+            logger.debug(f"Alert already exists: {alert_type} for {sensor_id}")
+            return
+        
+        # Validate that alert should be created (sensor must be connected for measurement alerts)
+        should_create, skip_reason = await alert_service.should_create_sensor_alert(
+            alert_type=alert_type,
+            sensor_id=sensor_id
+        )
+        
+        if not should_create:
+            logger.debug(f"Skipping alert creation: {skip_reason}")
+            return
+        
+        # Don't create measurement alerts during startup grace window
+        if self._in_startup_grace():
+            logger.debug(f"Skipping creation of {alert_type} alert for {sensor_id} during startup grace")
+            return
+
+        # Create the alert
+        location = sensor_config.get("location", f"Sensor {sensor_id}")
+        sensor_name = sensor_config.get("name", f"Sensor {sensor_id}")
+        
+        # Build threshold info string
+        threshold_info = f"Nivel {level}"
+        if level == "critical":
+            threshold_info = "Valor fuera de rango crítico"
+        elif level == "warning":
+            threshold_info = "Valor fuera de rango óptimo"
+        
+        alert_doc = {
+            "type": alert_type,
+            "level": level,
+            "title": f"{alert_type.upper()} - {sensor_name}",
+            "message": message,
+            "location": location,
+            "threshold_info": threshold_info,
+            "sensor_id": sensor_id,
+            "value": value,
+            "created_at": datetime.now(timezone.utc),
+            "is_resolved": False,
+            "status": "active",
+            "source": "sensor_monitor"
+        }
+        
+        try:
+            inserted_id = await alert_repository.create_alert(alert_doc)
+            logger.info(
+                f"Alert created: {alert_type} ({level}) for {sensor_id} - "
+                f"value: {value}, id: {inserted_id}"
+            )
+        except Exception:
+            logger.exception(f"Failed to create alert {alert_type} for {sensor_id}")
+    
+    async def _maybe_create_measurement_alert(
+        self,
+        sensor_id: str,
+        alert_type: str,
+        level: str,
+        value: float,
+        message: str,
+        sensor_config: Dict[str, Any]
+    ):
+        """
+        Require `self.required_consecutive` consecutive out-of-range readings
+        and apply a short grace period after reconnect where alerts are suppressed.
+        """
+        try:
+            # Suppress alerts during reconnect grace
+            last_reconnect = self.last_reconnect_time.get(sensor_id)
+            if last_reconnect:
+                now = datetime.now(timezone.utc)
+                if (now - last_reconnect).total_seconds() < self.reconnect_grace_seconds:
+                    logger.debug(f"Skipping creation of {alert_type} alert for {sensor_id} during reconnect grace")
+                    # Do not increment counters during grace - wait for stable readings
+                    return
+
+            # Increment consecutive counter
+            counts = self.consecutive_counters.setdefault(sensor_id, {})
+            count = counts.get(alert_type, 0) + 1
+            counts[alert_type] = count
+
+            if count < self.required_consecutive:
+                logger.debug(f"{alert_type} out-of-range count {count}/{self.required_consecutive} for {sensor_id}; waiting")
+                return
+
+            # Enough consecutive readings - reset counter and create alert
+            counts[alert_type] = 0
+            await self._create_alert_if_needed(
+                sensor_id=sensor_id,
+                alert_type=alert_type,
+                level=level,
+                value=value,
+                message=message,
+                sensor_config=sensor_config
+            )
+        except Exception:
+            logger.exception("Error in consecutive alert logic")
+
+
+# Singleton instance
+sensor_monitor = SensorMonitor()

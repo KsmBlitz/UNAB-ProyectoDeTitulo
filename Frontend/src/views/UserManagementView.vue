@@ -5,6 +5,7 @@ import UsersTable from '@/components/UsersTable.vue';
 import CreateUserModal from '@/components/CreateUserModal.vue';
 import EditUserModal from '@/components/EditUserModal.vue';
 import { API_BASE_URL } from '@/config/api';
+import { notify } from '@/stores/notificationStore';
 import type { User } from '@/types';
 
 defineOptions({
@@ -62,13 +63,17 @@ async function handleDeleteUser(user: User) {
       const errorData = await response.json();
       throw new Error(errorData.detail || 'No se pudo eliminar el usuario.');
     }
-    alert('Usuario eliminado exitosamente.');
+    
+    notify.success(
+      'Usuario eliminado',
+      `${user.full_name} ha sido eliminado exitosamente`
+    );
     refreshTable();
-  } catch (e: unknown) { // Correcto manejo de error unknown
+  } catch (e: unknown) {
     if (e instanceof Error) {
-      alert(`Error: ${e.message}`);
+      notify.error('Error al eliminar', e.message);
     } else {
-      alert(`Error desconocido: ${String(e)}`);
+      notify.error('Error al eliminar', 'Ocurrió un error desconocido');
     }
   }
 }

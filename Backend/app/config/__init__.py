@@ -10,6 +10,7 @@ from .database import (
     alert_thresholds_collection,
     reset_tokens_collection,
     notifications_sent_collection
+    ,embalses_collection
 )
 
 __all__ = [
@@ -23,4 +24,5 @@ __all__ = [
     "alert_thresholds_collection",
     "reset_tokens_collection",
     "notifications_sent_collection"
+    ,"embalses_collection"
 ]

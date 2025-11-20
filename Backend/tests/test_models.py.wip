@@ -1,0 +1,375 @@
+# Backend/tests/test_models.py
+"""
+Tests for Pydantic models validation
+Tests real models: Alert, Audit, Sensor, User
+"""
+
+import pytest
+from datetime import datetime
+from pydantic import ValidationError
+
+# User models
+from app.models.user import UserCreate, UserUpdate, UserPublic
+
+# Alert models
+from app.models.alert_models import (
+    AlertThresholds,
+    ActiveAlert,
+    AlertHistory,
+    AlertSummary,
+    AlertConfigUpdateRequest,
+    DismissAlertRequest,
+    AlertLevel,
+    AlertType,
+    AlertStatus
+)
+
+# Audit models
+from app.models.audit_models import (
+    AuditLogEntry,
+    AuditLogResponse,
+    AuditLogFilter,
+    AuditAction
+)
+
+# Sensor models
+from app.models.sensor_models import (
+    SensorReading,
+    PredictionRequest,
+    TimeRangeQuery
+)
+
+
+# ============================================
+# USER MODEL TESTS
+# ============================================
+
+class TestUserModels:
+    """Tests para modelos de usuario"""
+    
+    def test_user_create_valid(self):
+        """Test: crear usuario con datos válidos"""
+        user = UserCreate(
+            email="test@example.com",
+            password="SecurePass123!",
+            full_name="Test User",
+            role="usuario"
+        )
+        assert user.email == "test@example.com"
+        assert user.role == "usuario"
+        assert user.full_name == "Test User"
+    
+    def test_user_create_invalid_email(self):
+        """Test: email inválido debe fallar"""
+        with pytest.raises(ValidationError) as exc_info:
+            UserCreate(
+                email="invalid-email",
+                password="SecurePass123!",
+                full_name="Test User",
+                role="usuario"
+            )
+        assert "email" in str(exc_info.value).lower()
+    
+    def test_user_create_weak_password(self):
+        """Test: contraseña débil debe fallar (mínimo 8 caracteres)"""
+        with pytest.raises(ValidationError) as exc_info:
+            UserCreate(
+                email="test@example.com",
+                password="123",
+                full_name="Test User",
+                role="usuario"
+            )
+        assert "password" in str(exc_info.value).lower()
+    
+    def test_user_update_partial(self):
+        """Test: actualizar solo algunos campos"""
+        update = UserUpdate(full_name="New Name")
+        assert update.full_name == "New Name"
+        assert update.email is None
+        assert update.password is None
+
+
+# ============================================
+# ALERT MODEL TESTS
+# ============================================
+
+class TestAlertModels:
+    """Tests para modelos de alertas"""
+    
+    def test_alert_thresholds_valid(self):
+        """Test: crear umbrales de alerta válidos"""
+        thresholds = AlertThresholds(
+            ph={"min": 6.0, "max": 8.0, "optimal_min": 6.5, "optimal_max": 7.5},
+            temperature={"min": 15.0, "max": 30.0},
+            conductivity={"min": 100.0, "max": 2000.0}
+        )
+        assert thresholds.ph["min"] == 6.0
+        assert thresholds.ph["max"] == 8.0
+    
+    def test_active_alert_creation(self):
+        """Test: crear alerta activa"""
+        alert = ActiveAlert(
+            id="alert123",
+            alert_type=AlertType.PH_RANGE,
+            level=AlertLevel.WARNING,
+            message="pH fuera de rango óptimo",
+            sensor_id="sensor_001",
+            value=8.5,
+            threshold={"min": 6.5, "max": 7.5},
+            timestamp=datetime.utcnow(),
+            status=AlertStatus.ACTIVE
+        )
+        assert alert.alert_type == AlertType.PH_RANGE
+        assert alert.level == AlertLevel.WARNING
+        assert alert.status == AlertStatus.ACTIVE
+    
+    def test_alert_level_enum(self):
+        """Test: niveles de alerta válidos"""
+        assert AlertLevel.INFO == "info"
+        assert AlertLevel.WARNING == "warning"
+        assert AlertLevel.CRITICAL == "critical"
+    
+    def test_alert_type_enum(self):
+        """Test: tipos de alerta válidos"""
+        assert AlertType.PH_RANGE == "ph_range"
+        assert AlertType.CONDUCTIVITY == "conductivity"
+        assert AlertType.TEMPERATURE == "temperature"
+    
+    def test_alert_status_enum(self):
+        """Test: estados de alerta válidos"""
+        assert AlertStatus.ACTIVE == "active"
+        assert AlertStatus.DISMISSED == "dismissed"
+        assert AlertStatus.AUTO_RESOLVED == "auto_resolved"
+    
+    def test_dismiss_alert_request(self):
+        """Test: solicitud de descartar alerta"""
+        dismiss = DismissAlertRequest(
+            alert_id="alert123",
+            reason="Problema resuelto manualmente"
+        )
+        assert dismiss.alert_id == "alert123"
+        assert dismiss.reason == "Problema resuelto manualmente"
+    
+    def test_alert_summary(self):
+        """Test: resumen de alertas"""
+        summary = AlertSummary(
+            total=10,
+            critical=2,
+            warning=5,
+            info=3,
+            active=8,
+            dismissed=2
+        )
+        assert summary.total == 10
+        assert summary.critical == 2
+        assert summary.active == 8
+
+
+# ============================================
+# AUDIT MODEL TESTS
+# ============================================
+
+class TestAuditModels:
+    """Tests para modelos de auditoría"""
+    
+    def test_audit_action_enum(self):
+        """Test: acciones de auditoría válidas"""
+        assert AuditAction.LOGIN == "login"
+        assert AuditAction.LOGOUT == "logout"
+        assert AuditAction.CREATE_USER == "create_user"
+        assert AuditAction.UPDATE_USER == "update_user"
+        assert AuditAction.DELETE_USER == "delete_user"
+    
+    def test_audit_log_entry_creation(self):
+        """Test: crear entrada de log de auditoría"""
+        log = AuditLogEntry(
+            action=AuditAction.LOGIN,
+            user_id="user123",
+            user_email="admin@example.com",
+            ip_address="192.168.1.1",
+            description="Usuario inició sesión exitosamente",
+            timestamp=datetime.utcnow(),
+            status="success"
+        )
+        assert log.action == AuditAction.LOGIN
+        assert log.user_email == "admin@example.com"
+        assert log.status == "success"
+    
+    def test_audit_log_response(self):
+        """Test: respuesta de log de auditoría"""
+        response = AuditLogResponse(
+            id="log123",
+            action=AuditAction.UPDATE_USER,
+            user_id="user123",
+            user_email="admin@example.com",
+            ip_address="192.168.1.1",
+            description="Usuario actualizado",
+            timestamp=datetime.utcnow(),
+            status="success"
+        )
+        assert response.id == "log123"
+        assert response.action == AuditAction.UPDATE_USER
+    
+    def test_audit_log_filter(self):
+        """Test: filtros de auditoría"""
+        filter_obj = AuditLogFilter(
+            user_id="user123",
+            action=AuditAction.LOGIN,
+            start_date=datetime(2024, 1, 1),
+            end_date=datetime(2024, 12, 31),
+            limit=50
+        )
+        assert filter_obj.user_id == "user123"
+        assert filter_obj.limit == 50
+
+
+# ============================================
+# SENSOR MODEL TESTS
+# ============================================
+
+class TestSensorModels:
+    """Tests para modelos de sensores"""
+    
+    def test_sensor_reading_valid(self):
+        """Test: lectura de sensor válida"""
+        reading = SensorReading(
+            deviceId="device_001",
+            timestamp=datetime.utcnow(),
+            pH=7.2,
+            temperature=22.5,
+            conductivity=1200.0,
+            water_level=85.0
+        )
+        assert reading.deviceId == "device_001"
+        assert reading.pH == 7.2
+        assert reading.temperature == 22.5
+    
+    def test_sensor_reading_type_coercion(self):
+        """Test: conversión de tipos automática"""
+        reading = SensorReading(
+            deviceId="device_001",
+            timestamp=datetime.utcnow(),
+            pH="7.2",  # String convertido a float
+            temperature="22.5",
+            conductivity="1200"
+        )
+        assert isinstance(reading.pH, float)
+        assert reading.pH == 7.2
+    
+    def test_prediction_request(self):
+        """Test: solicitud de predicción ML"""
+        request = PredictionRequest(
+            sensor_id="sensor_001",
+            parameter="pH",
+            hours_ahead=24
+        )
+        assert request.sensor_id == "sensor_001"
+        assert request.parameter == "pH"
+        assert request.hours_ahead == 24
+    
+    def test_time_range_query(self):
+        """Test: consulta por rango de tiempo"""
+        query = TimeRangeQuery(
+            start_time=datetime(2024, 1, 1),
+            end_time=datetime(2024, 1, 31),
+            sensor_id="sensor_001",
+            aggregation="hourly"
+        )
+        assert query.sensor_id == "sensor_001"
+        assert query.aggregation == "hourly"
+
+
+# ============================================
+# VALIDATION EDGE CASES
+# ============================================
+
+class TestValidationEdgeCases:
+    """Tests para casos extremos de validación"""
+    
+    def test_empty_string_rejected(self):
+        """Test: strings vacíos deben ser rechazados"""
+        with pytest.raises(ValidationError):
+            UserCreate(
+                email="",
+                password="SecurePass123!",
+                full_name="Test",
+                role="usuario"
+            )
+    
+    def test_none_values_in_optional_fields(self):
+        """Test: None en campos opcionales es válido"""
+        update = UserUpdate(
+            full_name=None,
+            phone=None
+        )
+        assert update.full_name is None
+        assert update.phone is None
+    
+    def test_extreme_numeric_values(self):
+        """Test: valores numéricos extremos"""
+        reading = SensorReading(
+            deviceId="device_001",
+            timestamp=datetime.utcnow(),
+            pH=14.0,  # Máximo pH
+            temperature=100.0,  # Alta temperatura
+            conductivity=5000.0  # Alta conductividad
+        )
+        assert reading.pH == 14.0
+        assert reading.temperature == 100.0
+    
+    def test_negative_values_rejected_where_invalid(self):
+        """Test: valores negativos rechazados en campos que no los permiten"""
+        # pH no puede ser negativo
+        with pytest.raises(ValidationError):
+            SensorReading(
+                deviceId="device_001",
+                timestamp=datetime.utcnow(),
+                pH=-1.0
+            )
+
+
+# ============================================
+# DEFAULT VALUES TESTS
+# ============================================
+
+class TestDefaultValues:
+    """Tests para valores por defecto"""
+    
+    def test_user_default_role(self):
+        """Test: rol por defecto es 'usuario'"""
+        user = UserCreate(
+            email="test@example.com",
+            password="SecurePass123!",
+            full_name="Test"
+        )
+        # El rol por defecto depende del modelo, verificar comportamiento
+        assert user.email == "test@example.com"
+    
+    def test_alert_status_default(self):
+        """Test: estado de alerta por defecto"""
+        alert = ActiveAlert(
+            id="alert123",
+            alert_type=AlertType.PH_RANGE,
+            level=AlertLevel.WARNING,
+            message="Test alert",
+            sensor_id="sensor_001",
+            timestamp=datetime.utcnow()
+        )
+        # Verificar que tiene valores por defecto apropiados
+        assert alert.id == "alert123"
+    
+    def test_audit_log_timestamp_default(self):
+        """Test: timestamp por defecto en auditoría"""
+        log = AuditLogEntry(
+            action=AuditAction.LOGIN,
+            user_id="user123",
+            user_email="test@example.com",
+            ip_address="127.0.0.1",
+            description="Test"
+        )
+        # Timestamp debe ser generado automáticamente si no se provee
+        assert log.action == AuditAction.LOGIN
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

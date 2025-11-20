@@ -5,123 +5,156 @@ MongoDB change stream monitoring for real-time alert notifications
 
 import asyncio
 import logging
+import socket
+import traceback
 from typing import Dict, Any
+from datetime import datetime, timezone
 
-from app.config import alerts_collection, users_collection
-from app.services import (
-    send_critical_alert_email,
-    send_critical_alert_whatsapp,
-    should_send_notification,
-    mark_notification_sent,
-    build_notification_key
-)
-from app.services.twilio_whatsapp import send_critical_alert_twilio_whatsapp
+from app.repositories.alert_repository import alert_repository
 
 logger = logging.getLogger(__name__)
 
 
 async def alert_change_stream_watcher():
-    """
-    Watch for new alerts inserted into MongoDB and notify admins immediately
-    
-    Uses MongoDB change stream on the alerts collection to detect inserts in real-time.
-    Sends notifications via email and WhatsApp to all admins with notifications enabled.
-    Includes retry/backoff logic for resilience.
-    """
+    """Watch for new alerts inserted into MongoDB and notify admins immediately."""
+    from app.config import alerts_collection
+
     backoff = 1
-    
+
     while True:
         try:
-            # Watch only insert operations on alerts collection
-            async with alerts_collection.watch([{"$match": {"operationType": "insert"}}]) as stream:
+            async with alerts_collection.watch([
+                {"$match": {"operationType": "insert"}}
+            ]) as stream:
                 logger.info("Alert change-stream watcher started")
-                
+
                 async for change in stream:
                     try:
                         full_document = change.get("fullDocument")
                         if not full_document:
                             continue
-                        
-                        # Process only critical alerts
+
+                        # Safety guard for measurement alerts inserted externally
+                        alert_type = (full_document.get("type") or "").lower()
+                        sensor_id = full_document.get("sensor_id")
+                        measurement_types = [
+                            "ph",
+                            "ph_range",
+                            "temperature",
+                            "ec",
+                            "water_level",
+                            "conductivity",
+                        ]
+
+                        if alert_type in measurement_types and sensor_id:
+                            try:
+                                from app.services.sensor_service import sensor_service
+                                from app.services.alert_service import alert_service
+
+                                is_connected = await sensor_service.is_sensor_connected(sensor_id)
+                                if not is_connected:
+                                    alert_id = str(full_document.get("_id"))
+                                    logger.info(
+                                        f"Auto-archiving measurement alert {alert_id} for disconnected sensor {sensor_id}"
+                                    )
+
+                                    try:
+                                        from app.config.database import db
+
+                                        audit_coll = db.get_collection("alert_audit")
+                                        task = asyncio.current_task()
+                                        task_name = getattr(task, "get_name", lambda: None)()
+                                        stack_frag = "".join(traceback.format_stack(limit=6))
+
+                                        audit_doc = {
+                                            "alert_id": alert_id,
+                                            "detected_at": datetime.now(timezone.utc),
+                                            "sensor_id": sensor_id,
+                                            "alert_type": alert_type,
+                                            "full_document": full_document,
+                                            "is_connected": False,
+                                            "action": "auto_dismiss_attempt",
+                                            "hostname": socket.gethostname(),
+                                            "task_name": task_name,
+                                            "stack_fragment": stack_frag,
+                                            "origin_source": full_document.get("source")
+                                            if isinstance(full_document, dict)
+                                            else None,
+                                        }
+
+                                        await audit_coll.insert_one(audit_doc)
+                                    except Exception:
+                                        logger.exception("Failed to write alert audit record")
+
+                                    try:
+                                        await alert_service.dismiss_alert(
+                                            alert_id=alert_id,
+                                            user_email="system@auto",
+                                            user_role="system",
+                                            reason=(
+                                                "Auto-archived: sensor disconnected (change-stream safeguard)"
+                                            ),
+                                        )
+
+                                        try:
+                                            await audit_coll.update_one(
+                                                {"alert_id": alert_id},
+                                                {
+                                                    "$set": {
+                                                        "action": "auto_dismissed",
+                                                        "action_at": datetime.now(timezone.utc),
+                                                    }
+                                                },
+                                            )
+                                        except Exception:
+                                            logger.exception(
+                                                "Failed to update audit record after dismiss"
+                                            )
+                                    except Exception:
+                                        logger.exception(f"Failed to auto-dismiss alert {alert_id}")
+
+                                    continue
+                            except Exception:
+                                logger.exception("Error running change-stream safety guard")
+
                         level = (full_document.get("level") or "").lower()
                         if level not in ("critical", "crítica", "crítico"):
                             continue
-                        
-                        # Notify all admins with notifications enabled
+
                         await notify_admins_of_alert(full_document)
-                        
+
                     except Exception as process_error:
                         logger.error(f"Error procesando cambio de alerta: {process_error}")
-            
-            # If stream exits normally, reset backoff
+
             backoff = 1
-            
+
         except Exception as watcher_error:
             logger.error(f"Error en alert_change_stream_watcher: {watcher_error}")
             await asyncio.sleep(backoff)
-            backoff = min(backoff * 2, 60)  # Exponential backoff, max 60 seconds
+            backoff = min(backoff * 2, 60)
 
 
 async def notify_admins_of_alert(alert_doc: Dict[str, Any]) -> None:
-    """
-    Send notifications to all admins for a critical alert
-    
-    Respects user notification preferences and throttling rules.
-    Sends via email and WhatsApp (if configured).
-    
-    Args:
-        alert_doc: Alert document from MongoDB
-    """
+    """Send notifications to all admins for a critical alert."""
     try:
-        # Get all active admins
-        admins = await users_collection.find({
-            "role": "admin",
-            "disabled": {"$ne": True}
-        }).to_list(1000)
-        
         alert_location = alert_doc.get("location") or alert_doc.get("sensor_id") or "Embalse"
         alert_title = alert_doc.get("title") or alert_doc.get("type")
         alert_value = str(alert_doc.get("value", "N/A"))
         alert_type = alert_doc.get("type")
         sensor_id = alert_doc.get("sensor_id")
-        
-        for admin in admins:
-            email = admin.get("email")
-            if not email:
-                continue
-            
-            # Check if notifications are enabled for this user
-            if admin.get("notifications_enabled", True) is False:
-                continue
-            
-            user_id = str(admin.get("_id"))
-            
-            # Send EMAIL notification
-            await send_email_notification(
-                email=email,
-                user_id=user_id,
-                alert_type=alert_type,
-                sensor_id=sensor_id,
-                location=alert_location,
-                title=alert_title,
-                value=alert_value
-            )
-            
-            # Send WhatsApp notification (if configured)
-            phone = admin.get("phone")
-            whatsapp_enabled = admin.get("whatsapp_notifications_enabled", False)
-            
-            if phone and whatsapp_enabled:
-                await send_whatsapp_notification(
-                    phone=phone,
-                    user_id=user_id,
-                    alert_type=alert_type,
-                    sensor_id=sensor_id,
-                    location=alert_location,
-                    title=alert_title,
-                    value=alert_value
-                )
-                
+
+        from app.services.notification_service import notification_service
+
+        alert_payload = {
+            "type": alert_type or "unknown",
+            "sensor_id": sensor_id or "unknown",
+            "location": alert_location,
+            "title": alert_title,
+            "value": alert_value,
+        }
+
+        await notification_service.notify_admins(alert_payload)
+
     except Exception as notify_error:
         logger.error(f"Error notificando admins: {notify_error}")
 
@@ -158,18 +191,12 @@ async def send_whatsapp_notification(
     title: str,
     value: str
 ) -> None:
-    """Send WhatsApp notification with throttling (tries Twilio first, then Meta)"""
+    """Send WhatsApp notification with throttling"""
     try:
         notification_key = build_notification_key("whatsapp", alert_type, sensor_id, user_id)
         
         if await should_send_notification(notification_key):
-            # Try Twilio first
-            sent = await send_critical_alert_twilio_whatsapp(phone, location, alert_type, value)
-            
-            # If Twilio fails, try Meta WhatsApp as fallback
-            if not sent:
-                sent = await send_critical_alert_whatsapp(phone, location, alert_type, value)
-            
+            sent = await send_critical_alert_whatsapp(phone, location, alert_type, value)
             if sent:
                 await mark_notification_sent(notification_key)
                 logger.info(f"WhatsApp enviado a {phone} para alerta {alert_type}")

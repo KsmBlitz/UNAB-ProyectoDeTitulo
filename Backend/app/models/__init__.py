@@ -16,7 +16,34 @@ from .user import (
     ChangePasswordRequest
 )
 
+from .alert_models import (
+    AlertLevel,
+    AlertType,
+    AlertStatus,
+    AlertThresholds,
+    ActiveAlert,
+    AlertHistory,
+    AlertSummary,
+    AlertConfigUpdateRequest,
+    DismissAlertRequest
+)
+
+from .audit_models import (
+    AuditAction,
+    AuditLogEntry,
+    AuditLogResponse,
+    AuditLogFilter
+)
+
+from .sensor_models import (
+    SensorReading,
+    PredictionRequest,
+    SensorConfigUpdate,
+    TimeRangeQuery
+)
+
 __all__ = [
+    # User models
     "PyObjectId",
     "TokenData",
     "Token",
@@ -26,5 +53,26 @@ __all__ = [
     "UserPublic",
     "ForgotPasswordRequest",
     "ResetPasswordRequest",
-    "ChangePasswordRequest"
+    "ChangePasswordRequest",
+    # Alert models
+    "AlertLevel",
+    "AlertType",
+    "AlertStatus",
+    "AlertThresholds",
+    "ActiveAlert",
+    "AlertHistory",
+    "AlertSummary",
+    "AlertConfigUpdateRequest",
+    "DismissAlertRequest",
+    # Audit models
+    "AuditAction",
+    "AuditLogEntry",
+    "AuditLogResponse",
+    "AuditLogFilter",
+    # Sensor models
+    "SensorReading",
+    "PredictionRequest",
+    "SensorConfigUpdate",
+    "TimeRangeQuery"
 ]
+

@@ -9,7 +9,7 @@ export function useApi<T = unknown>() {
   const error = ref<string | null>(null);
   const isLoading = ref(false);
 
-  async function fetchData(endpoint: string, options: RequestInit = {}) {
+  async function fetchData(endpoint: string, options: RequestInit = {}, responseType: 'json' | 'blob' = 'json') {
     isLoading.value = true;
     error.value = null;
 
@@ -20,22 +20,38 @@ export function useApi<T = unknown>() {
         ...options,
         headers: {
           'Authorization': token ? `Bearer ${token}` : '',
-          'Content-Type': 'application/json',
+          ...(responseType === 'json' && { 'Content-Type': 'application/json' }),
           ...options.headers,
         },
       });
 
       if (!response.ok) {
+        // Intentar obtener el mensaje de error del backend
+        let errorMessage = `Error del servidor (${response.status})`;
+        
+        try {
+          const errorData = await response.json();
+          if (errorData.detail) {
+            errorMessage = errorData.detail;
+          }
+        } catch {
+          // Si no se puede parsear el JSON, usar el mensaje genérico
+        }
+        
         if (response.status === 401) {
           throw new Error('Sesión expirada. Por favor, inicia sesión nuevamente.');
         } else if (response.status === 404) {
           throw new Error('Recurso no encontrado.');
         } else {
-          throw new Error(`Error del servidor (${response.status})`);
+          throw new Error(errorMessage);
         }
       }
 
-      data.value = await response.json();
+      if (responseType === 'blob') {
+        data.value = await response.blob() as T;
+      } else {
+        data.value = await response.json();
+      }
       return data.value;
     } catch (e) {
       console.error('Error en petición:', e);
@@ -50,5 +66,28 @@ export function useApi<T = unknown>() {
     }
   }
 
-  return { data, error, isLoading, fetchData };
+  async function get(endpoint: string, options: { params?: Record<string, any>, responseType?: 'json' | 'blob' } = {}) {
+    const { params, responseType = 'json', ...restOptions } = options;
+    let url = endpoint;
+    
+    if (params) {
+      const queryString = new URLSearchParams(params).toString();
+      url = `${endpoint}?${queryString}`;
+    }
+    
+    return fetchData(url, {
+      method: 'GET',
+      ...restOptions as RequestInit
+    }, responseType);
+  }
+
+  async function post(endpoint: string, body: any, options: RequestInit = {}) {
+    return fetchData(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(body),
+      ...options
+    });
+  }
+
+  return { data, error, isLoading, fetchData, get, post };
 }

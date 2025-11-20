@@ -39,10 +39,11 @@ class Settings(BaseSettings):
     AWS_SECRET_ACCESS_KEY: Optional[str] = None
     AWS_SNS_REGION: Optional[str] = None
     
-    # WhatsApp Notifications (Meta Cloud API)
-    WHATSAPP_ENABLED: bool = False
-    WHATSAPP_ACCESS_TOKEN: Optional[str] = None
-    WHATSAPP_PHONE_NUMBER_ID: Optional[str] = None
+    # Twilio WhatsApp Notifications
+    TWILIO_WHATSAPP_ENABLED: bool = False
+    TWILIO_ACCOUNT_SID: Optional[str] = None
+    TWILIO_AUTH_TOKEN: Optional[str] = None
+    TWILIO_WHATSAPP_FROM: Optional[str] = None
     
     # Twilio WhatsApp Notifications
     TWILIO_WHATSAPP_ENABLED: bool = False

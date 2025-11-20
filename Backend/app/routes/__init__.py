@@ -8,6 +8,7 @@ from .users import router as users_router
 from .sensors import router as sensors_router
 from .alerts import router as alerts_router
 from .audit import router as audit_router
+from .notifications import router as notifications_router
 
 __all__ = [
     "auth_router",
@@ -15,4 +16,5 @@ __all__ = [
     "sensors_router",
     "alerts_router",
     "audit_router"
+    ,"notifications_router"
 ]

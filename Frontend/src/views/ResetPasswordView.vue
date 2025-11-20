@@ -3,6 +3,7 @@
 import { ref, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import AuthLayout from '@/components/AuthLayout.vue';
+import { notify } from '@/stores/notificationStore';
 
 defineOptions({
   name: 'ResetPasswordView'
@@ -129,8 +130,14 @@ const handleSubmit = async () => {
     }
 
     const data = await response.json();
-    alert(`${data.message}\n\n🔐 Tu contraseña ha sido actualizada con éxito.`);
-    router.push('/login');
+    notify.success(
+      '¡Contraseña actualizada!',
+      'Tu contraseña ha sido cambiada exitosamente. Ahora puedes iniciar sesión.'
+    );
+    
+    setTimeout(() => {
+      router.push('/login');
+    }, 1500);
 
   } catch (err: unknown) {
     if (err instanceof Error) {

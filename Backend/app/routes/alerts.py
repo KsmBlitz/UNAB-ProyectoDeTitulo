@@ -1,6 +1,7 @@
 """
 Alerts routes  
 Alert management, configuration, and history endpoints
+Refactored to follow SOLID principles - delegates business logic to AlertService
 """
 
 from datetime import datetime, timezone
@@ -9,23 +10,21 @@ from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 import logging
 
-# Import alert models from existing models directory
-import sys
-sys.path.append('/app')
-from models.alert_models import (
+# Import alert models
+from app.models.alert_models import (
     AlertThresholds, ActiveAlert, AlertHistory, AlertSummary,
     AlertConfigUpdateRequest, DismissAlertRequest, AlertStatus
 )
 
 from app.config import (
-    alerts_collection,
     alert_history_collection,
     alert_thresholds_collection
 )
 from app.utils import get_current_user, get_current_admin_user
-from app.services import clear_notifications_sent_for_alert
+from app.services.alert_service import alert_service
 from app.services.audit import log_audit_event
-from models.audit_models import AuditAction
+from app.models.audit_models import AuditAction
+from app.repositories.alert_repository import alert_repository
 
 logger = logging.getLogger(__name__)
 
@@ -41,11 +40,8 @@ async def get_active_alerts(current_user: dict = Depends(get_current_user)):
         List of active alerts sorted by creation time (newest first)
     """
     try:
-        # Query for unresolved alerts
-        cursor = alerts_collection.find({"is_resolved": False})
-        cursor = cursor.sort("created_at", -1)
-        
-        alerts_list = await cursor.to_list(length=100)
+        # Delegate to alert service
+        alerts_list = await alert_service.get_active_alerts(limit=100)
         
         # Convert to ActiveAlert models
         active_alerts = []
@@ -54,16 +50,28 @@ async def get_active_alerts(current_user: dict = Depends(get_current_user)):
                 # Use either _id or id field
                 alert_id = alert.get("id", str(alert.get("_id")))
                 alert["id"] = alert_id
+
+                # Ensure created_at is timezone-aware (UTC) so JSON serialization
+                # includes the timezone offset and the frontend computes diffs correctly.
+                created_at = alert.get("created_at")
+                if created_at and getattr(created_at, 'tzinfo', None) is None:
+                    try:
+                        from datetime import timezone
+                        alert["created_at"] = created_at.replace(tzinfo=timezone.utc)
+                    except Exception:
+                        # If replacement fails, leave as-is and let Pydantic handle it
+                        pass
+
                 active_alerts.append(ActiveAlert(**alert))
             except Exception as model_error:
                 logger.error(f"Error converting alert to model: {model_error}")
                 continue
         
-        logger.info(f"Retornando {len(active_alerts)} alertas activas")
+        logger.info(f"Returning {len(active_alerts)} active alerts")
         return active_alerts
         
     except Exception as e:
-        logger.error(f"Error obteniendo alertas activas: {e}")
+        logger.error(f"Error getting active alerts: {e}")
         return []
 
 
@@ -84,144 +92,61 @@ async def dismiss_alert(
     
     try:
         logger.info(
-            f"Intentando cerrar alerta con ID: {request.alert_id} "
-            f"(tipo: {type(request.alert_id).__name__})"
+            f"Attempting to dismiss alert ID: {request.alert_id} "
+            f"by user: {user_email}"
         )
         
-        # Alerts may have ID in different fields:
-        # - System alerts: "id" field
-        # - Manual alerts: only "_id" field
-        # Search by both fields
-        alert_doc = await alerts_collection.find_one({
-            "$or": [
-                {"_id": request.alert_id},
-                {"id": request.alert_id}
-            ]
-        })
-        
-        if not alert_doc:
-            # Debug: show example IDs
-            all_alerts = await alerts_collection.find(
-                {"is_resolved": False}
-            ).limit(5).to_list(length=5)
-            logger.warning(
-                f"Alerta no encontrada. Ejemplos de IDs en BD: "
-                f"{[str(a.get('_id', a.get('id', 'sin-id'))) for a in all_alerts]}"
-            )
-            raise HTTPException(
-                status_code=404,
-                detail=f"Alerta no encontrada con ID: {request.alert_id}"
-            )
-        
-        # Check if already resolved
-        if alert_doc.get("is_resolved", False):
-            raise HTTPException(
-                status_code=400,
-                detail="La alerta ya está resuelta"
-            )
-        
-        current_time = datetime.now(timezone.utc)
-        
-        # Mark as resolved using real _id from document
-        alert_identifier = alert_doc.get("_id")
-        update_result = await alerts_collection.update_one(
-            {"_id": alert_identifier},
-            {
-                "$set": {
-                    "is_resolved": True,
-                    "status": AlertStatus.DISMISSED,
-                    "dismissed_by": user_email,
-                    "dismissed_at": current_time,
-                    "resolution_type": "manual_dismiss"
-                }
-            }
-        )
-        
-        if update_result.modified_count == 0:
-            raise HTTPException(
-                status_code=400,
-                detail="No se pudo cerrar la alerta"
-            )
-        
-        # Ensure created_at is timezone-aware for calculations
-        created_at = alert_doc["created_at"]
-        
-        # If created_at is a string (manual alerts), convert to datetime
-        if isinstance(created_at, str):
-            try:
-                created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
-            except ValueError:
-                created_at = datetime.strptime(created_at, "%Y-%m-%dT%H:%M:%S.%f")
-                created_at = created_at.replace(tzinfo=timezone.utc)
-        elif hasattr(created_at, 'tzinfo') and created_at.tzinfo is None:
-            created_at = created_at.replace(tzinfo=timezone.utc)
-        
-        # Add to history
-        try:
-            history_dict = {
-                "alert_id": request.alert_id,
-                "type": alert_doc["type"],
-                "level": alert_doc["level"],
-                "title": alert_doc["title"],
-                "message": alert_doc["message"],
-                "value": alert_doc.get("value"),
-                "threshold_info": alert_doc["threshold_info"],
-                "location": alert_doc["location"],
-                "sensor_id": alert_doc.get("sensor_id"),
-                "created_at": created_at,
-                "dismissed_at": current_time,
-                "dismissed_by": user_email,
-                "dismissed_by_role": user_role,
-                "resolution_type": "manual_dismiss",
-                "duration_minutes": int((current_time - created_at).total_seconds() / 60)
-            }
-            
-            await alert_history_collection.insert_one(history_dict)
-            
-        except Exception as history_error:
-            logger.error(f"Error insertando en historial: {history_error}")
-            # Don't fail dismiss due to history error
-        
-        # TODO: Clear notification throttling for this alert if needed
-        # await clear_notifications_for_alert(request.alert_id)
-        
-        logger.info(f"Alerta {request.alert_id} cerrada por {user_email} ({user_role})")
-        
-        # Registrar en auditoría
+        # Get client IP and user agent for audit
         client_ip = fastapi_request.client.host if fastapi_request.client else None
         user_agent = fastapi_request.headers.get("user-agent", None)
         
+        # Delegate to alert service (contains all business logic)
+        result = await alert_service.dismiss_alert(
+            alert_id=request.alert_id,
+            user_email=user_email,
+            user_role=user_role,
+            reason=getattr(request, 'reason', None),
+            ip_address=client_ip
+        )
+        
+        # Log audit event
         await log_audit_event(
             action=AuditAction.ALERT_DISMISSED,
-            description=f"Alerta cerrada: {alert_doc.get('title', 'Sin título')}",
+            description=f"Alert dismissed: {request.alert_id}",
             user_email=user_email,
             user_id=str(current_user.get('_id')) if current_user.get('_id') else None,
             resource_type="alert",
             resource_id=str(request.alert_id),
             details={
-                "alert_type": alert_doc.get('type'),
-                "alert_level": alert_doc.get('level'),
-                "alert_title": alert_doc.get('title'),
-                "alert_message": alert_doc.get('message')
+                "alert_id": str(request.alert_id)
             },
             ip_address=client_ip,
             user_agent=user_agent,
             success=True
         )
         
-        return {
-            "message": "Alerta cerrada exitosamente",
-            "dismissed_at": current_time.isoformat(),
-            "dismissed_by": user_email
-        }
+        logger.info(f"Alert {request.alert_id} dismissed by {user_email} ({user_role})")
+        return result
         
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error cerrando alerta: {e}")
+    except ValueError as ve:
+        # Business validation errors (alert not found, already resolved)
+        logger.warning(f"Validation error: {ve}")
+        raise HTTPException(
+            status_code=400 if "already resolved" in str(ve) else 404,
+            detail=str(ve)
+        )
+    except RuntimeError as re:
+        # Service errors (database failures, etc)
+        logger.error(f"Runtime error dismissing alert: {re}")
         raise HTTPException(
             status_code=500,
-            detail="Error interno del servidor"
+            detail="Failed to dismiss alert"
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error dismissing alert: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error"
         )
 
 
@@ -237,16 +162,13 @@ async def get_alert_history(
         limit: Maximum number of records to return (1-200)
     """
     try:
-        cursor = alert_history_collection.find().sort("dismissed_at", -1).limit(limit)
-        history_list = await cursor.to_list(length=limit)
+        # Delegate to alert service
+        history_list = await alert_service.get_alert_history(limit=limit)
         
         # Convert to AlertHistory models
         history_items = []
         for item in history_list:
             try:
-                # Convert ObjectId to string if present
-                if "_id" in item:
-                    item["_id"] = str(item["_id"])
                 history_items.append(AlertHistory(**item))
             except Exception as model_error:
                 logger.error(f"Error converting history item: {model_error}")
@@ -255,7 +177,7 @@ async def get_alert_history(
         return history_items
         
     except Exception as e:
-        logger.error(f"Error obteniendo historial: {e}")
+        logger.error(f"Error getting history: {e}")
         return []
 
 
@@ -267,10 +189,8 @@ async def clear_alert_history(admin_user: dict = Depends(get_current_admin_user)
     Permanently deletes all records from alert history.
     """
     try:
+        # Eliminar todos los registros del historial
         result = await alert_history_collection.delete_many({})
-        
-        # Eliminar registros del historial
-        result = await alerts_collection.delete_many(query)
         
         logger.info(f"Historial limpiado: {result.deleted_count} registros eliminados")
         
@@ -295,42 +215,12 @@ async def get_alert_summary(current_user: dict = Depends(get_current_user)):
     Returns counts of active alerts by level and type.
     """
     try:
-        # Count active alerts by level
-        pipeline = [
-            {"$match": {"is_resolved": False}},
-            {"$group": {
-                "_id": "$level",
-                "count": {"$sum": 1}
-            }}
-        ]
-        
-        level_counts = await alerts_collection.aggregate(pipeline).to_list(length=None)
-        
-        # Count by type
-        pipeline_type = [
-            {"$match": {"is_resolved": False}},
-            {"$group": {
-                "_id": "$type",
-                "count": {"$sum": 1}
-            }}
-        ]
-        
-        type_counts = await alerts_collection.aggregate(pipeline_type).to_list(length=None)
-        
-        # Format results
-        by_level = {item["_id"]: item["count"] for item in level_counts}
-        by_type = {item["_id"]: item["count"] for item in type_counts}
-        
-        total = sum(by_level.values())
-        
-        return {
-            "total_active": total,
-            "by_level": by_level,
-            "by_type": by_type
-        }
+        # Delegate to alert service
+        summary = await alert_service.get_alert_statistics()
+        return summary
         
     except Exception as e:
-        logger.error(f"Error obteniendo resumen de alertas: {e}")
+        logger.error(f"Error getting alert summary: {e}")
         return {
             "total_active": 0,
             "by_level": {},
@@ -418,4 +308,106 @@ async def update_alert_config(
         raise HTTPException(
             status_code=500,
             detail="Error interno del servidor"
+        )
+
+
+@router.post("/create")
+async def create_sensor_alert(
+    alert_data: dict,
+    request: Request
+):
+    """
+    Create a sensor alert with automatic validation
+    
+    Validates that measurement alerts (pH, temp, EC, water_level) are only created
+    for connected sensors. This endpoint is typically called by external systems
+    (ESP32, monitoring scripts, etc).
+    
+    Required fields in alert_data:
+    - type: Alert type (ph, temperature, ec, water_level, sensor_disconnected, etc)
+    - sensor_id: Sensor identifier
+    - level: Severity level (info, warning, critical)
+    - title: Alert title
+    - message: Alert message
+    - location: Sensor location
+    - value: (optional) Sensor reading value
+    
+    Returns:
+        201: Alert created successfully
+        400: Alert creation skipped (sensor disconnected for measurement alerts)
+        422: Invalid request data
+    """
+    try:
+        # Validate required fields
+        required_fields = ['type', 'sensor_id', 'level', 'title', 'message', 'location']
+        missing_fields = [f for f in required_fields if f not in alert_data]
+        
+        if missing_fields:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Missing required fields: {', '.join(missing_fields)}"
+            )
+        
+        alert_type = alert_data['type']
+        sensor_id = alert_data['sensor_id']
+        
+        # Check if alert should be created based on sensor status
+        should_create, skip_reason = await alert_service.should_create_sensor_alert(
+            alert_type=alert_type,
+            sensor_id=sensor_id
+        )
+        
+        if not should_create:
+            logger.info(f"Skipping alert creation: {skip_reason}")
+            return {
+                "status": "skipped",
+                "reason": skip_reason,
+                "alert_type": alert_type,
+                "sensor_id": sensor_id
+            }
+        
+        # Create the alert
+        from app.config import alerts_collection
+        current_time = datetime.now(timezone.utc)
+
+        alert_doc = {
+            "type": alert_data['type'],
+            "level": alert_data['level'].lower(),
+            "title": alert_data['title'],
+            "message": alert_data['message'],
+            "location": alert_data['location'],
+            "sensor_id": sensor_id,
+            "created_at": current_time,
+            "is_resolved": False,
+            "status": "active",
+            "source": alert_data.get('source', 'external')
+        }
+
+        # Add optional fields
+        if 'value' in alert_data:
+            alert_doc['value'] = alert_data['value']
+
+        # Use repository to create alert (enforces safety checks)
+        inserted_id = await alert_repository.create_alert(alert_doc)
+        alert_doc['_id'] = inserted_id
+        alert_doc['id'] = str(inserted_id) if inserted_id else None
+
+        logger.info(
+            f"Sensor alert created: {alert_type} for sensor {sensor_id} "
+            f"(level: {alert_data['level']})"
+        )
+
+        return {
+            "status": "created" if inserted_id else "failed",
+            "alert_id": str(inserted_id) if inserted_id else None,
+            "alert": alert_doc
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating sensor alert: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error creating alert: {str(e)}"
         )

@@ -1,30 +1,29 @@
 """
 Sensors routes
 Sensor data and metrics endpoints
+Refactored to use SensorService for business logic
 """
 
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, HTTPException
 from pydantic import BaseModel
 import logging
 
-from app.config import sensor_collection
-from app.utils import get_current_user
-from app.services import predict_sensor_values
+from app.utils import get_current_user, get_current_admin_user
+from app.services.sensor_service import sensor_service
 from app.services.audit import log_audit_event
-from models.audit_models import AuditAction
+from app.services.cache import cache_service
+from app.models.audit_models import AuditAction
+from app.models.sensor_models import PredictionRequest, TimeRangeQuery
+from app.models.alert_models import UpdateSensorAlertConfigRequest
 
 logger = logging.getLogger(__name__)
 
+# Timezone offset for Chile (UTC-3)
+CHILE_OFFSET = timedelta(hours=-3)
+
 router = APIRouter(prefix="/api", tags=["Datos de Sensores"])
-
-
-class PredictionConfigModel(BaseModel):
-    """Model for prediction configuration"""
-    sensor_type: str
-    days: int
-    lookback_days: int
 
 
 @router.get("/sensors/individual")
@@ -38,57 +37,7 @@ async def get_individual_sensors_status(current_user: dict = Depends(get_current
     - offline: > 30 minutes
     """
     try:
-        current_time = datetime.now(timezone.utc)
-        
-        # Find unique sensors and their latest readings
-        pipeline = [
-            {"$sort": {"ReadTime": -1}},
-            {"$group": {
-                "_id": "$reservoirId",
-                "lastReading": {"$first": "$$ROOT"}
-            }},
-            {"$limit": 20}
-        ]
-        
-        db_sensors = await sensor_collection.aggregate(pipeline).to_list(length=None)
-        sensors = []
-        
-        for sensor_group in db_sensors:
-            reservoir_id = sensor_group["_id"]
-            latest_reading = sensor_group["lastReading"]
-            
-            # Ensure timezone aware datetime
-            last_reading_time = latest_reading["ReadTime"]
-            if last_reading_time.tzinfo is None:
-                last_reading_time = last_reading_time.replace(tzinfo=timezone.utc)
-            
-            # Calculate time difference
-            time_diff = (current_time - last_reading_time).total_seconds()
-            minutes_diff = time_diff / 60
-            
-            # Determine status
-            if minutes_diff < 15:
-                status = "online"
-            elif minutes_diff < 30:
-                status = "warning"
-            else:
-                status = "offline"
-            
-            sensor_data = {
-                "uid": reservoir_id,
-                "last_value": {
-                    "value": round(latest_reading.get("Temperature", 0), 1),
-                    "unit": "°C",
-                    "type": "Temperatura"
-                },
-                "status": status,
-                "location": f"Embalse {reservoir_id}",
-                "last_reading": last_reading_time.isoformat(),
-                "minutes_since_reading": int(minutes_diff)
-            }
-            
-            sensors.append(sensor_data)
-        
+        sensors = await sensor_service.get_sensor_status()
         return sensors
         
     except Exception as e:
@@ -108,34 +57,8 @@ async def get_latest_metrics(
         reservoir_id: Optional filter by reservoir ID
     """
     try:
-        query = {}
-        if reservoir_id:
-            query["reservoirId"] = reservoir_id
-        
-        # Get latest reading
-        latest_reading = await sensor_collection.find_one(
-            query,
-            sort=[("ReadTime", -1)]
-        )
-        
-        if not latest_reading:
-            return {
-                "temperature": 0,
-                "ph": 0,
-                "conductivity": 0,
-                "water_level": 0,
-                "timestamp": None,
-                "reservoir_id": reservoir_id
-            }
-        
-        return {
-            "temperature": latest_reading.get("Temperature", 0),
-            "ph": latest_reading.get("pH_Value", 0),
-            "conductivity": latest_reading.get("EC", 0),
-            "water_level": latest_reading.get("Water_Level", 0),
-            "timestamp": latest_reading.get("ReadTime"),
-            "reservoir_id": latest_reading.get("reservoirId")
-        }
+        result = await sensor_service.get_latest_metrics()
+        return result
         
     except Exception as e:
         logger.error(f"Error obteniendo métricas: {e}")
@@ -163,49 +86,18 @@ async def get_historical_data(
         hours: Number of hours to retrieve (0 = all data, max 8760 = 1 year)
     """
     try:
-        query: Dict[str, Any] = {}
-        if reservoir_id:
-            query["reservoirId"] = reservoir_id
-        
-        # Get data from last N hours (0 = all data)
+        # Calculate start_time based on hours
+        start_time = None
         if hours > 0:
             start_time = datetime.now(timezone.utc) - timedelta(hours=hours)
-            query["ReadTime"] = {"$gte": start_time}
         
-        # Fetch data
-        cursor = sensor_collection.find(query).sort("ReadTime", 1).limit(1000)
-        readings = await cursor.to_list(length=1000)
-        
-        # Format data for charts - separate arrays for each sensor type
-        labels = []
-        temperatura_data = []
-        ph_data = []
-        conductividad_data = []
-        nivel_agua_data = []
-        
-        for reading in readings:
-            # Format timestamp
-            timestamp = reading.get("ReadTime")
-            if timestamp:
-                labels.append(timestamp.strftime("%H:%M") if hasattr(timestamp, 'strftime') else str(timestamp))
-            else:
-                labels.append("")
-            
-            # Extract values using correct field names
-            temperatura_data.append(reading.get("Temperature", 0))
-            ph_data.append(reading.get("pH_Value", 0))
-            conductividad_data.append(reading.get("EC", 0))
-            nivel_agua_data.append(reading.get("Water_Level", 0))
-        
-        return {
-            "labels": labels,
-            "temperatura": temperatura_data,
-            "ph": ph_data,
-            "conductividad": conductividad_data,
-            "nivel_agua": nivel_agua_data,
-            "count": len(readings),
-            "period_hours": hours
-        }
+        # Call service with sensor_ids parameter
+        sensor_ids = [reservoir_id] if reservoir_id else None
+        result = await sensor_service.get_historical_data(
+            sensor_ids=sensor_ids,
+            start_time=start_time
+        )
+        return result
         
     except Exception as e:
         logger.error(f"Error obteniendo datos históricos: {e}")
@@ -228,38 +120,13 @@ async def get_sensors_status(current_user: dict = Depends(get_current_user)):
     Returns summary of online/offline sensors
     """
     try:
-        current_time = datetime.now(timezone.utc)
+        # Use sensor_service to get all sensor statuses
+        sensors = await sensor_service.get_sensor_status()
         
-        # Get unique sensors
-        pipeline = [
-            {"$sort": {"ReadTime": -1}},
-            {"$group": {
-                "_id": "$reservoirId",
-                "lastReading": {"$first": "$$ROOT"}
-            }}
-        ]
-        
-        db_sensors = await sensor_collection.aggregate(pipeline).to_list(length=None)
-        
-        online_count = 0
-        offline_count = 0
-        warning_count = 0
-        
-        for sensor_group in db_sensors:
-            latest_reading = sensor_group["lastReading"]
-            last_reading_time = latest_reading["ReadTime"]
-            
-            if last_reading_time.tzinfo is None:
-                last_reading_time = last_reading_time.replace(tzinfo=timezone.utc)
-            
-            minutes_diff = (current_time - last_reading_time).total_seconds() / 60
-            
-            if minutes_diff < 15:
-                online_count += 1
-            elif minutes_diff < 30:
-                warning_count += 1
-            else:
-                offline_count += 1
+        # Count statuses
+        online_count = sum(1 for s in sensors if s.get("status") == "online")
+        warning_count = sum(1 for s in sensors if s.get("status") == "warning")
+        offline_count = sum(1 for s in sensors if s.get("status") == "offline")
         
         return {
             "online": online_count,
@@ -327,9 +194,8 @@ async def get_sensor_prediction(
                 "predictions": []
             }
         
-        # Get predictions
-        result = await predict_sensor_values(
-            sensor_collection=sensor_collection,
+        # Get predictions using sensor_service
+        result = await sensor_service.predict_sensor_value(
             sensor_type=sensor_type,
             days_to_predict=days,
             lookback_days=lookback_days
@@ -348,28 +214,18 @@ async def get_sensor_prediction(
 
 @router.post("/sensors/prediction-config")
 async def save_prediction_config(
-    config: PredictionConfigModel,
+    config: PredictionRequest,
     request: Request,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_admin_user)
 ):
     """
     Save prediction model configuration and log to audit
     
     This endpoint saves the prediction model parameters and creates an audit log entry.
+    Uses validated PredictionRequest model with built-in range checks.
     """
     try:
-        # Validate parameters
-        if config.days < 1 or config.days > 30:
-            return {
-                "success": False,
-                "message": "Los días a predecir deben estar entre 1 y 30"
-            }
-        
-        if config.lookback_days < 1 or config.lookback_days > 90:
-            return {
-                "success": False,
-                "message": "Los días históricos deben estar entre 1 y 90"
-            }
+        # Validation is automatic via PredictionRequest model
         
         # Log to audit
         await log_audit_event(
@@ -409,3 +265,143 @@ async def save_prediction_config(
             "success": False,
             "message": f"Error al guardar configuración: {str(e)}"
         }
+
+
+@router.get("/sensors/list")
+async def get_sensors_list(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Obtener lista de sensores con su configuración de alertas
+    """
+    try:
+        from app.config import db
+        sensors_collection = db["sensors"]
+        
+        # Obtener todos los sensores
+        sensors_cursor = sensors_collection.find({})
+        sensors = await sensors_cursor.to_list(length=100)
+        
+        # Formatear respuesta
+        sensors_list = []
+        for sensor in sensors:
+            sensor_data = {
+                "sensor_id": sensor.get("sensor_id"),
+                "name": sensor.get("name", sensor.get("sensor_id")),
+                "location": sensor.get("location", "N/A"),
+                "type": sensor.get("type", "IoT_Monitoring"),
+                "status": sensor.get("status", "active"),
+                "alert_config": sensor.get("alert_config", {
+                    "enabled": False,
+                    "parameters": {},
+                    "notification_enabled": False,
+                    "whatsapp_enabled": False,
+                    "email_enabled": False
+                })
+            }
+            sensors_list.append(sensor_data)
+        
+        return {
+            "success": True,
+            "sensors": sensors_list,
+            "total": len(sensors_list)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting sensors list: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/sensors/alert-config")
+async def update_sensor_alert_config(
+    request: Request,
+    config_request: UpdateSensorAlertConfigRequest,
+    admin_user: dict = Depends(get_current_admin_user)
+):
+    """
+    Update alert configuration for a specific sensor (admin only)
+    """
+    try:
+        sensor_id = config_request.sensor_id
+        alert_config = config_request.alert_config.model_dump()
+        
+        # Delegate to sensor service
+        updated_sensor = await sensor_service.update_sensor_alert_config(
+            sensor_id=sensor_id,
+            alert_config=alert_config,
+            updated_by=admin_user.get('email')
+        )
+        
+        # Log audit event
+        await log_audit_event(
+            action=AuditAction.ALERT_CONFIG_UPDATE,
+            description=f"Alert configuration updated for sensor {sensor_id}",
+            user_email=admin_user.get('email'),
+            user_id=str(admin_user.get('_id')) if admin_user.get('_id') else None,
+            resource_type="sensor_alert_config",
+            resource_id=sensor_id,
+            details=alert_config,
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            success=True
+        )
+        
+        logger.info(
+            f"Alert configuration updated by {admin_user.get('email')} "
+            f"for sensor {sensor_id}"
+        )
+        
+        return {
+            "success": True,
+            "message": f"Alert configuration updated for {sensor_id}",
+            "sensor_id": sensor_id,
+            "alert_config": alert_config
+        }
+        
+    except ValueError as ve:
+        logger.warning(f"Validation error: {ve}")
+        raise HTTPException(status_code=404, detail=str(ve))
+    except RuntimeError as re:
+        logger.error(f"Runtime error: {re}")
+        raise HTTPException(status_code=500, detail=str(re))
+    except Exception as e:
+        logger.error(f"Error updating sensor alert config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/sensors/{sensor_id}/alert-config")
+async def get_sensor_alert_config(
+    sensor_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get alert configuration for a specific sensor
+    """
+    try:
+        # Delegate to sensor service
+        config_data = await sensor_service.get_sensor_alert_config(sensor_id)
+        
+        return {
+            "sensor_id": sensor_id,
+            "alert_config": config_data["alert_config"]
+        }
+        
+    except ValueError as ve:
+        logger.warning(f"Validation error: {ve}")
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        logger.error(f"Error getting sensor alert config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+        
+        return {
+            "success": True,
+            "sensor_id": sensor_id,
+            "name": sensor.get("name", sensor_id),
+            "alert_config": alert_config
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting sensor alert config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

@@ -270,7 +270,7 @@
             </tr>
           </thead>
           <tbody class="bg-white divide-y divide-gray-200">
-            <tr v-for="historyItem in alertHistory" :key="historyItem.id" class="hover:bg-gray-50 transition-colors duration-150">
+            <tr v-for="historyItem in paginatedHistory" :key="historyItem.id" class="hover:bg-gray-50 transition-colors duration-150">
               <td class="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">{{ formatHistoryDate(historyItem.created_at) }}</td>
               <td class="px-6 py-4 text-sm text-gray-700">{{ getTypeLabel(historyItem.type) }}</td>
               <td class="px-6 py-4 text-sm">
@@ -290,13 +290,54 @@
           </tbody>
         </table>
       </div>
+
+      <!-- Paginación del historial -->
+      <div v-if="!loadingHistory && alertHistory.length > 0" class="bg-gray-50 px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <div class="text-sm text-gray-700">
+            Página <span class="font-semibold">{{ historyPagination.page }}</span> de <span class="font-semibold">{{ totalHistoryPages }}</span>
+            ({{ alertHistory.length }} registros)
+          </div>
+          <div class="flex items-center gap-2">
+            <label for="historyPageSize" class="text-sm text-gray-700">Items por página:</label>
+            <select
+              id="historyPageSize"
+              v-model.number="historyPagination.page_size"
+              @change="changeHistoryPageSize"
+              class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+            >
+              <option :value="10">10</option>
+              <option :value="20">20</option>
+              <option :value="50">50</option>
+            </select>
+          </div>
+        </div>
+        <div class="flex gap-2">
+          <button
+            @click="previousHistoryPage"
+            :disabled="historyPagination.page === 1"
+            class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
+          >
+            <i class="pi pi-chevron-left"></i>
+            Anterior
+          </button>
+          <button
+            @click="nextHistoryPage"
+            :disabled="historyPagination.page >= totalHistoryPages"
+            class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
+          >
+            Siguiente
+            <i class="pi pi-chevron-right"></i>
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Modal de configuración de umbrales (solo admin) -->
     <div v-if="showConfigModal && isAdmin" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" @click="showConfigModal = false">
       <div class="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden border border-gray-200" @click.stop>
-        <div class="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-blue-500 to-blue-600">
-          <h3 class="text-2xl font-bold text-white">Configuración de Umbrales para Arándanos</h3>
+          <div class="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-blue-500 to-blue-600">
+            <h3 class="text-2xl font-bold text-white">Configuración de Umbrales de Alerta</h3>
           <button @click="showConfigModal = false" class="text-white hover:bg-white/20 transition-colors p-2 rounded-lg">
             <i class="pi pi-times text-xl"></i>
           </button>
@@ -468,6 +509,7 @@ import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { alertStore, type ActiveAlert } from '@/stores/alertStore'
 import { authStore } from '@/auth/store'
 import { API_BASE_URL } from '@/config/api'
+import { notify } from '@/stores/notificationStore'
 
 defineOptions({
   name: 'AlertsManagementView'
@@ -508,12 +550,19 @@ const savingConfig = ref(false)
 const dismissingAlerts = ref(new Set<string>())
 const alertHistory = ref<AlertHistoryItem[]>([])
 
+// Paginación del historial
+const historyPagination = ref({
+  page: 1,
+  page_size: 10
+})
+
 // Configuración de umbrales
 const thresholdConfig = ref({
   ph_min: 4.5,
   ph_max: 6.5,
   conductivity_max: 1.5,
-  water_level_min: 20,
+  // Allow users to set arbitrary water level thresholds (including <20%)
+  water_level_min: 0,
   water_level_max: 85,
   temperature_min: 5,
   temperature_max: 35
@@ -558,6 +607,17 @@ const filteredActiveAlerts = computed(() => {
   })
 })
 
+// Historial paginado
+const paginatedHistory = computed(() => {
+  const start = (historyPagination.value.page - 1) * historyPagination.value.page_size
+  const end = start + historyPagination.value.page_size
+  return alertHistory.value.slice(start, end)
+})
+
+const totalHistoryPages = computed(() => {
+  return Math.ceil(alertHistory.value.length / historyPagination.value.page_size)
+})
+
 // Funciones
 function getAlertIcon(level: string): string {
   switch (level) {
@@ -575,10 +635,7 @@ function getAlertIcon(level: string): string {
 function formatAlertTime(dateString: string): string {
   try {
     const date = new Date(dateString)
-
-    // Obtener hora actual en zona horaria de Chile
-    const nowInChile = new Date().toLocaleString('sv-SE', { timeZone: 'America/Santiago' })
-    const now = new Date(nowInChile)
+    const now = new Date()
 
     const diffMs = now.getTime() - date.getTime()
     const diffMinutes = Math.floor(diffMs / 60000)
@@ -658,30 +715,26 @@ async function dismissAlert(alert: ActiveAlert): Promise<void> {
       `Cerrada desde gestión de alertas por ${authStore.user?.email}`
     )
 
-    // Mostrar mensaje de éxito
-    showSuccessMessage(`Alerta "${alert.title}" cerrada exitosamente`)
+    // Mostrar notificación de éxito
+    notify.success(
+      'Alerta cerrada',
+      `"${alert.title}" ha sido cerrada exitosamente`
+    );
 
     // La alerta se removió automáticamente del store
     await refreshAlerts()
 
-    // Actualizar el historial si es admin
-    if (isAdmin.value) {
-      await loadHistory()
-    }
+    // Actualizar el historial para todos los usuarios
+    await loadHistory()
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Error desconocido al cerrar la alerta'
-    showErrorMessage(`No se pudo cerrar la alerta: ${errorMsg}`)
+    notify.error(
+      'Error al cerrar alerta',
+      errorMsg
+    );
   } finally {
     dismissingAlerts.value.delete(alert.id)
   }
-}
-
-function showSuccessMessage(message: string): void {
-  alert(message)
-}
-
-function showErrorMessage(message: string): void {
-  alert(message)
 }
 
 function applyFilters(): void {
@@ -689,7 +742,7 @@ function applyFilters(): void {
 }
 
 async function loadHistory(): Promise<void> {
-  if (!isAdmin.value) return
+  // Load history for all authenticated users (server will enforce auth)
 
   loadingHistory.value = true
   try {
@@ -733,12 +786,32 @@ async function loadHistory(): Promise<void> {
       dismissed_by: item.dismissed_by
     }))
 
+    // Resetear a la primera página
+    historyPagination.value.page = 1
+
   } catch (error) {
     console.error('Error cargando historial:', error)
     alertHistory.value = []
   } finally {
     loadingHistory.value = false
   }
+}
+
+function nextHistoryPage() {
+  if (historyPagination.value.page < totalHistoryPages.value) {
+    historyPagination.value.page++
+  }
+}
+
+function previousHistoryPage() {
+  if (historyPagination.value.page > 1) {
+    historyPagination.value.page--
+  }
+}
+
+function changeHistoryPageSize() {
+  // Reset a la primera página cuando se cambia el tamaño de página
+  historyPagination.value.page = 1
 }
 
 async function clearHistory(): Promise<void> {
@@ -769,10 +842,18 @@ async function clearHistory(): Promise<void> {
 
     // Limpiar el historial local
     alertHistory.value = []
+    
+    notify.success(
+      'Historial borrado',
+      'Todo el historial de alertas ha sido eliminado'
+    );
 
   } catch (error) {
     console.error('Error borrando historial:', error)
-    alert('Error al borrar el historial. Por favor, inténtalo de nuevo.')
+    notify.error(
+      'Error al borrar historial',
+      'No se pudo borrar el historial. Intenta nuevamente.'
+    );
   } finally {
     clearingHistory.value = false
   }
@@ -814,13 +895,14 @@ async function loadThresholdConfig(): Promise<void> {
     const thresholds = data.thresholds
 
     thresholdConfig.value = {
-      ph_min: thresholds?.ph?.warning_min || 4.5,
-      ph_max: thresholds?.ph?.warning_max || 6.5,
-      conductivity_max: thresholds?.conductivity?.warning_max || 1.5,
-      water_level_min: thresholds?.water_level?.warning_min || 20,
-      water_level_max: thresholds?.water_level?.warning_max || 85,
-      temperature_min: thresholds?.temperature?.warning_min || 5,
-      temperature_max: thresholds?.temperature?.warning_max || 35
+      ph_min: thresholds?.ph?.warning_min ?? 4.5,
+      ph_max: thresholds?.ph?.warning_max ?? 6.5,
+      conductivity_max: thresholds?.conductivity?.warning_max ?? 1.5,
+      // use 0 as a safe fallback so admins can set values below 20%
+      water_level_min: thresholds?.water_level?.warning_min ?? 0,
+      water_level_max: thresholds?.water_level?.warning_max ?? 85,
+      temperature_min: thresholds?.temperature?.warning_min ?? 5,
+      temperature_max: thresholds?.temperature?.warning_max ?? 35
     }
 
   } catch (error) {
@@ -918,7 +1000,8 @@ async function saveThresholdConfig(): Promise<void> {
         water_level: {
           warning_min: thresholdConfig.value.water_level_min,
           warning_max: thresholdConfig.value.water_level_max,
-          critical_min: thresholdConfig.value.water_level_min - 10,
+          // prevent generating negative critical thresholds while allowing <20%
+          critical_min: Math.max(thresholdConfig.value.water_level_min - 10, 0),
           critical_max: thresholdConfig.value.water_level_max + 5,
           optimal_min: thresholdConfig.value.water_level_min + 10,
           optimal_max: thresholdConfig.value.water_level_max - 5
@@ -979,8 +1062,8 @@ function openConfigModal(): void {
 watch(
   () => alertStore.activeAlerts.length,
   (newLength, oldLength) => {
-    // Si se reduce el número de alertas (se cerró una) y somos admin, actualizar historial
-    if (newLength < oldLength && isAdmin.value) {
+    // Si se reduce el número de alertas (se cerró una), actualizar historial
+    if (newLength < oldLength) {
       loadHistory()
     }
   }
@@ -992,9 +1075,8 @@ onMounted(() => {
 
   // Usar nextTick para asegurar que el auth store esté inicializado
   nextTick(() => {
-    if (isAdmin.value) {
-      loadHistory()
-    }
+    // Cargar historial para todos los usuarios autenticados
+    loadHistory()
   })
 })
 

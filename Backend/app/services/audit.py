@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any, List
 from fastapi import Request
 
 from app.config.database import audit_log_collection
-from models.audit_models import AuditAction, AuditLogEntry, AuditLogFilter, AuditLogResponse
+from app.models.audit_models import AuditAction, AuditLogEntry, AuditLogFilter, AuditLogResponse
 
 logger = logging.getLogger(__name__)
 

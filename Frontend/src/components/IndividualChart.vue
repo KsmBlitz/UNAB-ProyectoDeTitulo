@@ -16,6 +16,9 @@ import {
   type ChartData
 } from 'chart.js';
 import { API_BASE_URL } from '@/config/api';
+import { parseIsoToDate } from '@/utils/helpers';
+import { authStore } from '@/auth/store';
+import { notify } from '@/stores/notificationStore';
 import { evaluateMetricStatus, BLUEBERRY_THRESHOLDS, type MetricStatus } from '@/utils/metrics';
 
 defineOptions({
@@ -37,17 +40,78 @@ const chartData = ref<ChartData<'line'>>({ labels: [], datasets: [] });
 const isLoading = ref(true);
 const error = ref<string | null>(null);
 const currentTimeRange = ref(props.timeRange);
-const showPrediction = ref(false);
+// Disable rendering/fetching for water level charts (sensorType 'nivel')
+const isDisabledForWaterLevel = props.sensorType === 'nivel';
+
+// Cargar estado de predicción desde localStorage
+const savedPredictionState = localStorage.getItem(`prediction_${props.sensorType}_enabled`);
+const showPrediction = ref(savedPredictionState === 'true');
 const isPredictionLoading = ref(false);
 const predictionData = ref<any>(null);
 
 // Modal de configuración del modelo
 const showConfigModal = ref(false);
-const modelConfig = ref({
-  days: 5,
-  lookback_days: 7
-});
+
+// Cargar configuración del modelo desde localStorage o usar defaults
+const getStoredConfig = () => {
+  const stored = localStorage.getItem(`prediction_${props.sensorType}_config`);
+  if (stored) {
+    try {
+      return JSON.parse(stored);
+    } catch {
+      // fallthrough to defaults
+    }
+  }
+  // Default: days=5, but ensure lookback_days meets backend recommendations (>= max(7, days*3))
+  const defaultDays = 5;
+  return { days: defaultDays, lookback_days: Math.max(7, defaultDays * 3) };
+};
+
+const modelConfig = ref(getStoredConfig());
 const isSavingConfig = ref(false);
+// Validation state for the prediction config modal
+const configValidation = computed(() => {
+  const days = Number(modelConfig.value.days) || 1;
+  const safeDays = Math.min(Math.max(days, 1), 7);
+  const minLookback = Math.max(7, safeDays * 3);
+  const lookback = Number(modelConfig.value.lookback_days) || 0;
+  const errors: string[] = [];
+  if (safeDays !== days) {
+    errors.push('Días debe estar entre 1 y 7');
+  }
+  if (lookback < minLookback) {
+    errors.push(`Se requieren al menos ${minLookback} días de histórico para ${safeDays} días de predicción`);
+  }
+  return { valid: errors.length === 0, errors, safeDays, safeLookback: Math.max(lookback, minLookback) };
+});
+
+// Auto-adjust lookback_days when user changes days to the minimum required
+watch(
+  () => modelConfig.value.days,
+  (newDays) => {
+    try {
+      const days = Number(newDays) || 1;
+      const safeDays = Math.min(Math.max(days, 1), 7);
+      const minLookback = Math.max(7, safeDays * 3);
+      if ((Number(modelConfig.value.lookback_days) || 0) < minLookback) {
+        modelConfig.value.lookback_days = minLookback;
+        // brief user feedback
+        notify.info(
+          'Ajuste automático',
+          `El valor de días históricos se ajustó a ${minLookback} para soportar ${safeDays} días de predicción.`
+        );
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+);
+
+// Authorization - Verificar que el usuario sea administrador
+const isAdmin = computed(() => {
+  const userRole = authStore.user?.role;
+  return userRole === 'admin';
+});
 
 // Computed property to check for critical predictions
 const criticalPredictions = computed(() => {
@@ -133,7 +197,10 @@ const chartOptions = {
           size: 11 // Texto más pequeño
         },
         callback: (value: any) => {
-          return `${value} ${props.unit}`;
+          // Mostrar máximo 2 decimales en el eje Y
+          const num = typeof value === 'number' ? value : Number(value);
+          const formatted = isNaN(num) ? value : num.toFixed(2).replace(/\.00$/, '');
+          return `${formatted} ${props.unit}`;
         }
       }
     }
@@ -141,7 +208,18 @@ const chartOptions = {
 };
 
 const fetchData = async () => {
-  isLoading.value = true;
+  // If this chart is for water level, we intentionally do not fetch data
+  // and will render a 'Próximamente' placeholder instead.
+  if (isDisabledForWaterLevel) {
+    isLoading.value = false;
+    chartData.value = { labels: [], datasets: [] };
+    return;
+  }
+  // Solo mostrar loading en la primera carga
+  if (!chartData.value || chartData.value.labels?.length === 0) {
+    isLoading.value = true;
+  }
+  
   error.value = null;
 
   const token = localStorage.getItem('userToken');
@@ -160,6 +238,40 @@ const fetchData = async () => {
     }
 
     const data = await response.json();
+
+    // Las fechas ya vienen en hora de Chile desde el backend (sin timezone info)
+    // Solo necesitamos extraer la hora (HH:MM)
+    const localLabels = (data.labels || []).map((isoString: string, idx: number, arr: string[]) => {
+      if (!isoString) return '';
+      try {
+        // Parse as UTC when timezone is missing, then render in Chile local time
+        const date = parseIsoToDate(isoString);
+        if (isNaN(date.getTime())) return '';
+        // If this label is the first of a different day than previous label, include day marker
+        let label = date.toLocaleTimeString('es-CL', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+          timeZone: 'America/Santiago'
+        });
+
+        if (idx === 0) {
+          // always prefix first label with day
+          const day = date.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', timeZone: 'America/Santiago' });
+          label = `${day} ${label}`;
+        } else {
+          const prevIso = arr[idx - 1];
+          const prevDate = parseIsoToDate(prevIso);
+          if (prevDate.getDate() !== date.getDate() || prevDate.getMonth() !== date.getMonth() || prevDate.getFullYear() !== date.getFullYear()) {
+            const day = date.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', timeZone: 'America/Santiago' });
+            label = `${day} ${label}`;
+          }
+        }
+        return label;
+      } catch (e) {
+        return '';
+      }
+    });
 
     // Crear dataset según el tipo de sensor
     let datasetData = [];
@@ -185,7 +297,7 @@ const fetchData = async () => {
     }
 
     chartData.value = {
-      labels: data.labels || [],
+      labels: localLabels,
       datasets: [
         {
           label: datasetLabel,
@@ -227,11 +339,21 @@ const fetchData = async () => {
 
 // Funciones expuestas para control externo
 const updateTimeRange = (hours: number) => {
+  // Evitar actualizar si ya está cargando (throttling)
+  if (isLoading.value) {
+    return;
+  }
+  
   currentTimeRange.value = hours;
   fetchData();
 };
 
 const refreshData = async () => {
+  // Evitar refresh si ya está cargando
+  if (isLoading.value) {
+    return;
+  }
+  
   await fetchData();
 };
 
@@ -247,6 +369,13 @@ const saveModelConfig = async () => {
   try {
     const token = localStorage.getItem('userToken');
     
+    // Ensure payload meets backend validation rules:
+    // - days <= 7 (backend rejects >7)
+    // - lookback_days >= max(7, days * 3)
+    const safeDays = Math.min(Math.max(Number(modelConfig.value.days) || 1, 1), 7);
+    const minLookback = Math.max(7, safeDays * 3);
+    const safeLookback = Math.max(Number(modelConfig.value.lookback_days) || minLookback, minLookback);
+
     // Save configuration to backend for audit logging
     const response = await fetch(`${API_BASE_URL}/api/sensors/prediction-config`, {
       method: 'POST',
@@ -254,16 +383,39 @@ const saveModelConfig = async () => {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
+      // The backend expects sensor_type in English identifiers (e.g. 'ph' or 'conductivity').
+      // Map UI sensor types to backend values to avoid validation (422) errors.
       body: JSON.stringify({
-        sensor_type: props.sensorType,
-        days: modelConfig.value.days,
-        lookback_days: modelConfig.value.lookback_days
+        sensor_type: ((): string => {
+          const map: Record<string, string> = {
+            'ph': 'ph',
+            'conductividad': 'conductivity',
+            'temperatura': 'temperature',
+            'nivel': 'water_level'
+          };
+          return map[props.sensorType] || props.sensorType;
+        })(),
+        days: safeDays,
+        lookback_days: safeLookback
       })
     });
     
     if (!response.ok) {
       throw new Error('Error al guardar configuración');
     }
+    
+    // Save configuration to localStorage (store the safe/normalized values)
+    const storedConfig = { days: safeDays, lookback_days: safeLookback };
+    localStorage.setItem(`prediction_${props.sensorType}_config`, JSON.stringify(storedConfig));
+    // Update local modelConfig so UI reflects the saved, validated values
+    modelConfig.value.days = safeDays;
+    modelConfig.value.lookback_days = safeLookback;
+    
+    // Show success notification
+    notify.success(
+      'Configuración guardada',
+      `Predicción: ${modelConfig.value.days} días con ${modelConfig.value.lookback_days} días de histórico`
+    );
     
     // Close modal
     showConfigModal.value = false;
@@ -275,7 +427,10 @@ const saveModelConfig = async () => {
     
   } catch (err) {
     console.error('Error saving model config:', err);
-    alert('Error al guardar la configuración del modelo');
+    notify.error(
+      'Error al guardar',
+      'No se pudo guardar la configuración del modelo. Intenta nuevamente.'
+    );
   } finally {
     isSavingConfig.value = false;
   }
@@ -285,8 +440,17 @@ const saveModelConfig = async () => {
 const togglePrediction = async () => {
   showPrediction.value = !showPrediction.value;
   
+  // Save prediction state to localStorage
+  localStorage.setItem(`prediction_${props.sensorType}_enabled`, showPrediction.value.toString());
+  
   if (showPrediction.value) {
-    await loadPrediction();
+    notify.info('Predicción', 'Cargando predicción...');
+    try {
+      await loadPrediction();
+    } catch (err) {
+      console.error('Error loading prediction (toggle):', err);
+      notify.error('Error', 'No se pudo cargar la predicción. Revisa la consola.');
+    }
   } else {
     // Remove prediction dataset when hiding
     updateChartWithPrediction(null);
@@ -375,8 +539,8 @@ const updateChartWithPrediction = (prediction: any) => {
   
   // Add predicted values
   prediction.predictions.forEach((pred: any) => {
-    const date = new Date(pred.timestamp);
-    const label = `${date.getDate()}/${date.getMonth() + 1}`;
+    const date = parseIsoToDate(pred.timestamp);
+    const label = `${String(date.getDate()).padStart(2,'0')}/${String(date.getMonth() + 1).padStart(2,'0')}`;
     predictionLabels.push(label);
     predictionValues.push(pred.value);
   });
@@ -476,7 +640,7 @@ onMounted(fetchData);
           <span>Advertencia</span>
         </div>
         
-        <!-- Prediction toggle button (only for pH and conductivity) -->
+        <!-- Prediction toggle button (for pH and conductivity - all users) -->
         <button
           v-if="sensorType === 'ph' || sensorType === 'conductividad'"
           @click="togglePrediction"
@@ -490,25 +654,15 @@ onMounted(fetchData);
           <span>{{ showPrediction ? 'Ocultar' : 'Predicción' }}</span>
         </button>
         
-        <!-- Config button for prediction model -->
+        <!-- Config button for prediction model (only admin) -->
         <button
-          v-if="sensorType === 'ph' || sensorType === 'conductividad'"
+          v-if="(sensorType === 'ph' || sensorType === 'conductividad') && isAdmin"
           @click="openConfigModal"
           class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center gap-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200"
           title="Configurar modelo de predicción"
         >
           <i class="pi pi-cog"></i>
         </button>
-        
-        <span v-if="isLoading" class="text-primary-500">
-          <i class="pi pi-spin pi-spinner"></i>
-        </span>
-        <span v-else-if="error" class="text-danger-500">
-          <i class="pi pi-exclamation-triangle"></i>
-        </span>
-        <span v-else class="text-success-500">
-          <i class="pi pi-check-circle"></i>
-        </span>
       </div>
     </div>
 
@@ -531,7 +685,16 @@ onMounted(fetchData);
       </div>
 
       <div v-else class="relative h-full w-full min-h-[200px] max-h-[280px] md:min-h-[180px] md:max-h-[250px]">
-        <Line :data="chartData" :options="chartOptions" />
+        <div v-if="isDisabledForWaterLevel" class="flex items-center justify-center h-full w-full bg-gray-50 border border-gray-200 rounded-lg">
+          <div class="text-center text-gray-500">
+            <i class="pi pi-lock text-3xl mb-2"></i>
+            <div class="text-lg font-semibold">Próximamente</div>
+            <div class="text-xs">El módulo de nivel de agua está deshabilitado temporalmente</div>
+          </div>
+        </div>
+        <div v-else class="relative h-full w-full min-h-[200px] max-h-[280px] md:min-h-[180px] md:max-h-[250px]">
+          <Line :data="chartData" :options="chartOptions" />
+        </div>
       </div>
     </div>
   </div>
@@ -581,14 +744,14 @@ onMounted(fetchData);
               Días a predecir
             </label>
             <div class="relative">
-              <input
-                v-model.number="modelConfig.days"
-                type="number"
-                min="1"
-                max="30"
-                class="w-full px-4 py-3 pr-12 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-800 transition-all text-lg font-semibold"
-                placeholder="5"
-              />
+                <input
+                  v-model.number="modelConfig.days"
+                  type="number"
+                  min="1"
+                  max="30"
+                  class="w-full px-4 py-3 pr-12 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-800 transition-all text-lg font-semibold"
+                  placeholder="5"
+                />
               <span class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-medium">
                 días
               </span>
@@ -626,6 +789,12 @@ onMounted(fetchData);
                 Cantidad de días históricos para entrenar el modelo (1-90)
               </p>
             </div>
+            <!-- Inline validation messages -->
+            <div v-if="configValidation.errors.length" class="mt-2">
+              <ul class="text-xs text-red-700 list-disc list-inside">
+                <li v-for="(err, idx) in configValidation.errors" :key="idx">{{ err }}</li>
+              </ul>
+            </div>
           </div>
           
           <!-- Recomendaciones -->
@@ -636,7 +805,7 @@ onMounted(fetchData);
               </div>
               <div class="flex-1">
                 <p class="font-semibold text-amber-900 text-sm mb-2">
-                  💡 Recomendaciones
+                  Recomendaciones
                 </p>
                 <ul class="space-y-1.5 text-xs text-amber-800">
                   <li class="flex items-start gap-2">
@@ -667,8 +836,9 @@ onMounted(fetchData);
           </button>
           <button
             @click="saveModelConfig"
-            :disabled="isSavingConfig"
+            :disabled="isSavingConfig || !configValidation.valid"
             class="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-semibold shadow-lg"
+            :title="!configValidation.valid ? configValidation.errors.join('; ') : ''"
           >
             <i v-if="isSavingConfig" class="pi pi-spin pi-spinner"></i>
             <i v-else class="pi pi-check"></i>

@@ -335,6 +335,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { API_BASE_URL } from '@/config/api';
+import { parseIsoToDate } from '@/utils/helpers';
 
 interface AuditLog {
   user_id?: string;
@@ -510,7 +511,8 @@ function openDetailsModal(log: AuditLog) {
 }
 
 function formatDate(timestamp: string): string {
-  const date = new Date(timestamp);
+  const date = parseIsoToDate(timestamp);
+  if (isNaN(date.getTime())) return '';
   return date.toLocaleString('es-CL', {
     year: 'numeric',
     month: '2-digit',
@@ -518,7 +520,8 @@ function formatDate(timestamp: string): string {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
-    hour12: true
+    hour12: false,
+    timeZone: 'America/Santiago'
   });
 }
 
