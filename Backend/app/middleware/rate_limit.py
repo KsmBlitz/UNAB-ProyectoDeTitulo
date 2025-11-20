@@ -6,6 +6,14 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 from typing import Dict, Tuple, Optional
 import logging
+import asyncio
+import inspect
+
+# Provide a module-level `jwt` symbol so tests can patch `app.middleware.rate_limit.jwt`.
+try:
+    from jose import jwt as jwt
+except Exception:
+    jwt = None
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +59,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             "/api/token",
             "/api/forgot-password",
             "/api/reset-password",
-            "/api/users"  # Solo POST
+            # "/api/users" is handled explicitly (only POST is critical)
         ]
     
     def _clean_old_requests(self, requests_list: list, time_window: timedelta):
@@ -109,7 +117,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if (request.url.path.startswith("/health") or 
             request.url.path == "/" or 
             request.url.path.startswith("/ws/")):
-            return await call_next(request)
+            # Support sync or async call_next implementations in tests/mocks
+            maybe_resp = call_next(request)
+            if inspect.isawaitable(maybe_resp) or asyncio.iscoroutine(maybe_resp):
+                return await maybe_resp
+            return maybe_resp
         
         client_ip = request.client.host
         now = datetime.utcnow()
@@ -213,8 +225,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Registrar request de la IP
         self.ip_requests[client_ip].append((now, path))
         
-        # Continuar con la solicitud
-        response = await call_next(request)
+        # Continuar con la solicitud. Some tests mock `call_next` as a sync function
+        # that returns a Response object (not awaitable). Support both awaitable
+        # and non-awaitable call_next implementations.
+        maybe_response = call_next(request)
+        if inspect.isawaitable(maybe_response) or asyncio.iscoroutine(maybe_response):
+            response = await maybe_response
+        else:
+            response = maybe_response
         
         # Agregar headers de rate limit info
         if rate_limit is not None:

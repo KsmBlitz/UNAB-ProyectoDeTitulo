@@ -46,6 +46,13 @@ class SensorMonitor:
         self.started_at = None
         # Track consecutive misses per sensor to implement warning-first logic
         self.miss_counters: Dict[str, int] = {}
+        # Track consecutive out-of-range counts per sensor/type for measurement alerts
+        self.consecutive_counters: Dict[str, Dict[str, int]] = {}
+        # Track last reconnect time per sensor to apply a short grace period
+        self.last_reconnect_time: Dict[str, datetime] = {}
+        # Configuration: grace after reconnect (seconds) and required consecutive readings
+        self.reconnect_grace_seconds = 60
+        self.required_consecutive = 2
     
     async def start(self):
         """Start the monitoring loop"""
@@ -146,8 +153,59 @@ class SensorMonitor:
                 await self._check_disconnection_alert(sensor_id, sensor_config)
                 return
 
+        # Sensor is connected - check measurement thresholds
+
+        # If this sensor had previous misses, treat this as a reconnection event
+        try:
+            prev_misses = self.miss_counters.get(sensor_id, 0)
+            if prev_misses > 0:
+                # record reconnect time for grace logic
+                try:
+                    self.last_reconnect_time[sensor_id] = datetime.now(timezone.utc)
+                    logger.info(f"Sensor {sensor_id} reconnected at {self.last_reconnect_time[sensor_id].isoformat()}")
+                except Exception:
+                    self.last_reconnect_time[sensor_id] = datetime.utcnow()
+
+            # Reset miss counter when sensor is connected
+            if sensor_id in self.miss_counters:
+                self.miss_counters[sensor_id] = 0
+
+            # Also reset consecutive counters for measurement alerts when reconnection happens
+            if prev_misses > 0 and sensor_id in self.consecutive_counters:
+                self.consecutive_counters[sensor_id] = {}
+        except Exception:
+            logger.exception("Error handling reconnect bookkeeping")
         
         # Sensor is connected - check measurement thresholds
+
+            # Reset miss counter when sensor is connected and auto-resolve any
+            # existing disconnection alerts so normal measurement alerts can flow.
+            try:
+                # Reset miss counter
+                if sensor_id in self.miss_counters:
+                    self.miss_counters[sensor_id] = 0
+
+                # Find any unresolved disconnection alert for this sensor and dismiss it
+                existing_disc = await self.alerts_collection.find_one({
+                    "sensor_id": sensor_id,
+                    "type": "sensor_disconnection",
+                    "is_resolved": False
+                })
+                if existing_disc:
+                    try:
+                        # Use repository to dismiss so history is recorded
+                        await alert_repository.dismiss_alert(
+                            alert_id=str(existing_disc.get("_id")),
+                            dismissed_by="system_auto",
+                            dismissed_at=datetime.now(timezone.utc),
+                            reason="Sensor reconnected - auto-resolved"
+                        )
+                        logger.info(f"Auto-resolved disconnection alert for sensor {sensor_id}")
+                    except Exception:
+                        logger.exception(f"Failed to auto-resolve disconnection alert for {sensor_id}")
+            except Exception:
+                logger.exception("Error while attempting to auto-resolve disconnection alerts")
+
         # Get latest reading - be tolerant to different id formats (reservoirId, sensor_id, suffixes)
         possible_ids = {sensor_id}
         if "_" in sensor_id:
@@ -174,8 +232,9 @@ class SensorMonitor:
         # Normalize reading
         normalized = sensor_service.normalize_sensor_reading(latest_reading)
         
-        # Get thresholds
-        thresholds = alert_config.get("thresholds", {})
+        # Get thresholds (support both legacy/new keys)
+        # Some sensor documents store thresholds under 'thresholds', others under 'parameters'.
+        thresholds = alert_config.get("thresholds") or alert_config.get("parameters") or {}
         
         # Check each parameter
         await self._check_ph_threshold(sensor_id, normalized, thresholds, sensor_config)
@@ -447,6 +506,8 @@ class SensorMonitor:
                 message=f"Nivel de agua alto: {water_level:.1f}% (óptimo: {min_val}-{max_val}%)",
                 sensor_config=sensor_config
             )
+        # Water level handling temporarily disabled - see issue/decision by ops
+        return
     
     async def _check_disconnection_alert(
         self,
@@ -580,6 +641,51 @@ class SensorMonitor:
             )
         except Exception:
             logger.exception(f"Failed to create alert {alert_type} for {sensor_id}")
+    
+    async def _maybe_create_measurement_alert(
+        self,
+        sensor_id: str,
+        alert_type: str,
+        level: str,
+        value: float,
+        message: str,
+        sensor_config: Dict[str, Any]
+    ):
+        """
+        Require `self.required_consecutive` consecutive out-of-range readings
+        and apply a short grace period after reconnect where alerts are suppressed.
+        """
+        try:
+            # Suppress alerts during reconnect grace
+            last_reconnect = self.last_reconnect_time.get(sensor_id)
+            if last_reconnect:
+                now = datetime.now(timezone.utc)
+                if (now - last_reconnect).total_seconds() < self.reconnect_grace_seconds:
+                    logger.debug(f"Skipping creation of {alert_type} alert for {sensor_id} during reconnect grace")
+                    # Do not increment counters during grace - wait for stable readings
+                    return
+
+            # Increment consecutive counter
+            counts = self.consecutive_counters.setdefault(sensor_id, {})
+            count = counts.get(alert_type, 0) + 1
+            counts[alert_type] = count
+
+            if count < self.required_consecutive:
+                logger.debug(f"{alert_type} out-of-range count {count}/{self.required_consecutive} for {sensor_id}; waiting")
+                return
+
+            # Enough consecutive readings - reset counter and create alert
+            counts[alert_type] = 0
+            await self._create_alert_if_needed(
+                sensor_id=sensor_id,
+                alert_type=alert_type,
+                level=level,
+                value=value,
+                message=message,
+                sensor_config=sensor_config
+            )
+        except Exception:
+            logger.exception("Error in consecutive alert logic")
 
 
 # Singleton instance

@@ -228,15 +228,18 @@ async function fetchMetrics() {
         />
 
 
-        <MetricCard
-          title="Nivel del Agua"
-          :value="metrics.nivel_agua?.value ? metrics.nivel_agua.value.toFixed(1) : 'N/A'"
-          :unit="metrics.nivel_agua?.unit ?? 'cm'"
-          :changeText="metrics.nivel_agua?.changeText ?? 'Sin datos'"
-          :isPositive="metrics.nivel_agua?.isPositive ?? false"
-          :status="metrics.nivel_agua?.status ?? 'critical'"
-          icon="pi pi-chart-bar"
-        />
+        <!-- Nivel del Agua: mostrar como no disponible / Próximamente y en gris -->
+        <div class="opacity-80 bg-gray-50 rounded-xl p-0 border border-gray-200">
+          <MetricCard
+            title="Nivel del Agua"
+            :value="'Próximamente'"
+            :unit="''"
+            :changeText="'Próximamente'"
+            :isPositive="false"
+            :status="undefined"
+            icon="pi pi-chart-bar"
+          />
+        </div>
       </div>
 
       <div v-else class="flex items-start gap-4 p-6 bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-300 rounded-xl text-blue-800 shadow-md">

@@ -40,6 +40,8 @@ const chartData = ref<ChartData<'line'>>({ labels: [], datasets: [] });
 const isLoading = ref(true);
 const error = ref<string | null>(null);
 const currentTimeRange = ref(props.timeRange);
+// Disable rendering/fetching for water level charts (sensorType 'nivel')
+const isDisabledForWaterLevel = props.sensorType === 'nivel';
 
 // Cargar estado de predicción desde localStorage
 const savedPredictionState = localStorage.getItem(`prediction_${props.sensorType}_enabled`);
@@ -206,6 +208,13 @@ const chartOptions = {
 };
 
 const fetchData = async () => {
+  // If this chart is for water level, we intentionally do not fetch data
+  // and will render a 'Próximamente' placeholder instead.
+  if (isDisabledForWaterLevel) {
+    isLoading.value = false;
+    chartData.value = { labels: [], datasets: [] };
+    return;
+  }
   // Solo mostrar loading en la primera carga
   if (!chartData.value || chartData.value.labels?.length === 0) {
     isLoading.value = true;
@@ -676,7 +685,16 @@ onMounted(fetchData);
       </div>
 
       <div v-else class="relative h-full w-full min-h-[200px] max-h-[280px] md:min-h-[180px] md:max-h-[250px]">
-        <Line :data="chartData" :options="chartOptions" />
+        <div v-if="isDisabledForWaterLevel" class="flex items-center justify-center h-full w-full bg-gray-50 border border-gray-200 rounded-lg">
+          <div class="text-center text-gray-500">
+            <i class="pi pi-lock text-3xl mb-2"></i>
+            <div class="text-lg font-semibold">Próximamente</div>
+            <div class="text-xs">El módulo de nivel de agua está deshabilitado temporalmente</div>
+          </div>
+        </div>
+        <div v-else class="relative h-full w-full min-h-[200px] max-h-[280px] md:min-h-[180px] md:max-h-[250px]">
+          <Line :data="chartData" :options="chartOptions" />
+        </div>
       </div>
     </div>
   </div>

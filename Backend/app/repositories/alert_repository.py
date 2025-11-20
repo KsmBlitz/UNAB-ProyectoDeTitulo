@@ -102,10 +102,23 @@ class AlertRepository(BaseRepository):
             )
 
             if success:
-                # Schedule moving to history and deletion in background to keep API responsive
+                # Schedule moving to history and deletion in background to keep API responsive.
+                # Build the coroutine first and pass it to create_task; if scheduling fails
+                # the created coroutine must be closed to avoid "coroutine was never awaited" warnings.
+                coro = None
                 try:
-                    asyncio.create_task(self._async_move_and_delete(alert, dismissed_by, reason))
+                    coro = self._async_move_and_delete(alert, dismissed_by, reason)
+                    asyncio.create_task(coro)
                 except Exception:
+                    # If scheduling the background task failed, make sure to close the
+                    # coroutine object to avoid resource warnings, then perform the
+                    # move/delete synchronously as a fallback.
+                    try:
+                        if coro is not None:
+                            coro.close()
+                    except Exception:
+                        logger.exception("Failed closing coroutine after create_task failure")
+
                     # Fallback to synchronous move if scheduling fails
                     await self._move_to_history(alert, dismissed_by, reason)
                     await self.delete_one({"_id": alert.get("_id")})
@@ -211,7 +224,8 @@ class AlertRepository(BaseRepository):
         Returns the number of archived alerts.
         """
         try:
-            measurement_types = ['ph', 'ph_range', 'temperature', 'ec', 'water_level', 'conductivity']
+            # Temporarily remove 'water_level' from measurement types while feature is disabled
+            measurement_types = ['ph', 'ph_range', 'temperature', 'ec', 'conductivity']
             cursor = self.collection.find({
                 'sensor_id': sensor_id,
                 'type': {'$in': measurement_types},
