@@ -171,8 +171,8 @@ docker exec embalses-frontend npm run test
 
 ## Autor
 
-Vicente Jara Estay Valdivia
-Ingeniería en Informática - Universidad Andrés Bello
+Vicente Estay Valdivia
+Ingeniería en Computación e Informática - Universidad Andrés Bello
 Email: vjestayvaldivia@gmail.com
 GitHub: [@KsmBlitz](https://github.com/KsmBlitz)
 
