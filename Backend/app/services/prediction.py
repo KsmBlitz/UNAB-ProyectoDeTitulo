@@ -69,8 +69,11 @@ class WaterQualityPredictor:
             y: Target values
         """
         self.model.fit(X, y)
-        # Store the last X value for future predictions
+        # Store the last values for future predictions
         self.last_X_value = float(X[-1][0])
+        self.last_y_value = float(y[-1])  # Store last actual value
+        # Store the slope for trend-based predictions
+        self.slope = float(self.model.coef_[0])
         
     def predict_next_days(
         self,
@@ -80,6 +83,9 @@ class WaterQualityPredictor:
         """
         Predict values for next N days
         
+        Uses the slope from linear regression but starts from the last actual value
+        to avoid discontinuity in the graph.
+        
         Args:
             last_timestamp: Last recorded timestamp
             days: Number of days to predict (default: 5)
@@ -87,22 +93,23 @@ class WaterQualityPredictor:
         Returns:
             List of predictions with timestamp and predicted value
         """
-        if not hasattr(self, 'last_X_value'):
+        if not hasattr(self, 'last_y_value'):
             raise ValueError("Model must be trained before making predictions")
         
         predictions = []
+        
+        # Start from the last actual value
+        current_value = self.last_y_value
+        
+        # Calculate daily change based on the slope (slope is per hour)
+        daily_change = self.slope * 24
         
         # Generate future timestamps (one prediction per day)
         for day in range(1, days + 1):
             future_time = last_timestamp + timedelta(days=day)
             
-            # Calculate hours from the reference point (used in training)
-            # Continue from the last training X value
-            hours_from_reference = self.last_X_value + (day * 24)
-            
-            # Predict
-            X_future = np.array([[hours_from_reference]])
-            predicted_value = self.model.predict(X_future)[0]
+            # Apply trend from last actual value
+            predicted_value = current_value + (daily_change * day)
             
             predictions.append({
                 'timestamp': future_time,
@@ -131,10 +138,11 @@ async def predict_sensor_values(
         Dictionary with predictions and metadata
     """
     try:
-        # Map sensor type to field name (must match actual MongoDB field names in lowercase)
+        # Map sensor type to field name (must match actual MongoDB field names)
+        # Note: MongoDB fields use 'pH' and 'EC' with specific casing
         field_mapping = {
-            'ph': 'ph',
-            'conductivity': 'ec'
+            'ph': 'pH',
+            'conductivity': 'EC'
         }
         
         if sensor_type not in field_mapping:

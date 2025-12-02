@@ -18,25 +18,27 @@ const predictions = ref<any>(null);
 const currentPeriodStats = ref<any>(null);
 const previousPeriodStats = ref<any>(null);
 
-// Configuración de correlación
+// Configuración de correlación - use correct field names
 const correlationVars = ref({
-  var1: 'pH_Value',
-  var2: 'Temperature'
+  var1: 'pH',
+  var2: 'temperature'
 });
 
-// Opciones de variables
+// Opciones de variables - use correct field names matching backend
 const availableVars = [
-  { label: 'pH', value: 'pH_Value' },
-  { label: 'Temperatura', value: 'Temperature' },
+  { label: 'pH', value: 'pH' },
+  { label: 'Temperatura', value: 'temperature' },
   { label: 'Electroconductividad', value: 'EC' }
 ];
 
 // Mapeo de nombres técnicos a español
 const getVariableLabel = (varName: string): string => {
   const labels: Record<string, string> = {
-    'pH_Value': 'pH',
+    'pH': 'pH',
+    'temperature': 'Temperatura',
     'Temperature': 'Temperatura',
-    'EC': 'Electroconductividad'
+    'EC': 'Electroconductividad',
+    'pH_Value': 'pH'
   };
   return labels[varName] || varName;
 };
@@ -109,16 +111,8 @@ const calculateCorrelation = async () => {
     correlationData.value = response;
   } catch (error: any) {
     console.error('Error calculating correlation:', error);
-    // Datos mockeados para demo
-    correlationData.value = {
-      coefficient: 0.72,
-      p_value: 0.001,
-      sample_size: 1250,
-      var1_mean: 7.2,
-      var2_mean: 22.5,
-      var1_std: 0.5,
-      var2_std: 2.1
-    };
+    correlationData.value = null;
+    notify.error('Error al calcular correlación');
   }
 };
 
@@ -131,27 +125,8 @@ const detectAnomalies = async () => {
     anomalies.value = response.anomalies || [];
   } catch (error: any) {
     console.error('Error detecting anomalies:', error);
-    // Datos mockeados para demo
-    anomalies.value = [
-      {
-        timestamp: new Date().toISOString(),
-        sensor_type: 'pH',
-        value: 9.2,
-        expected_range: '6.5 - 8.5',
-        z_score: 3.2,
-        severity: 'Alta',
-        description: 'pH fuera del rango normal detectado'
-      },
-      {
-        timestamp: new Date(Date.now() - 3600000).toISOString(),
-        sensor_type: 'temperature',
-        value: 28.5,
-        expected_range: '18 - 25',
-        z_score: 2.8,
-        severity: 'Media',
-        description: 'Temperatura elevada detectada'
-      }
-    ];
+    anomalies.value = [];
+    notify.error('Error al detectar anomalías');
   }
 };
 
@@ -164,27 +139,7 @@ const fetchPredictions = async () => {
     predictions.value = response;
   } catch (error: any) {
     console.error('Error fetching predictions:', error);
-    // Datos mockeados para demo
-    predictions.value = {
-      pH: {
-        predicted_value: 7.3,
-        current_value: 7.2,
-        trend: 'Ascendente',
-        confidence: '85%'
-      },
-      temperature: {
-        predicted_value: 21.8,
-        current_value: 22.5,
-        trend: 'Descendente',
-        confidence: '82%'
-      },
-      electroconductivity: {
-        predicted_value: 455,
-        current_value: 450,
-        trend: 'Estable',
-        confidence: '88%'
-      }
-    };
+    predictions.value = null;
   }
 };
 
@@ -198,19 +153,9 @@ const fetchHistoricalComparison = async () => {
     previousPeriodStats.value = response.previous;
   } catch (error: any) {
     console.error('Error fetching historical comparison:', error);
-    // Datos mockeados para demo
-    currentPeriodStats.value = {
-      avgPH: 7.2,
-      avgTemp: 22.5,
-      avgEC: 450,
-      totalReadings: 1250
-    };
-    previousPeriodStats.value = {
-      avgPH: 7.0,
-      avgTemp: 23.1,
-      avgEC: 445,
-      totalReadings: 1180
-    };
+    currentPeriodStats.value = null;
+    previousPeriodStats.value = null;
+    notify.error('Error al cargar comparativa histórica');
   }
 };
 

@@ -49,6 +49,15 @@ PERIOD_DAYS = {
     "quarter": 90
 }
 
+# Field mapping - map frontend names to actual MongoDB field names
+FIELD_MAPPING = {
+    'pH_Value': 'pH',
+    'pH': 'pH',
+    'Temperature': 'temperature',
+    'temperature': 'temperature',
+    'EC': 'EC'
+}
+
 @router.post("/correlation")
 async def calculate_correlation(
     request: CorrelationRequest,
@@ -57,8 +66,12 @@ async def calculate_correlation(
     """
     Calcula la correlación de Pearson entre dos variables
     """
+    # Map frontend field names to actual MongoDB field names
+    db_var1 = FIELD_MAPPING.get(request.variable1, request.variable1)
+    db_var2 = FIELD_MAPPING.get(request.variable2, request.variable2)
+    
     # Intentar obtener desde caché
-    cache_key = f"correlation_{request.variable1}_{request.variable2}_{request.period}"
+    cache_key = f"correlation_{db_var1}_{db_var2}_{request.period}"
     cached_data = await cache_service.get(cache_key)
     if cached_data:
         return cached_data
@@ -66,11 +79,13 @@ async def calculate_correlation(
     try:
         days = PERIOD_DAYS.get(request.period, 30)
         start_date = datetime.now(timezone.utc) - timedelta(days=days)
+        # Remove timezone for naive datetime comparison
+        start_date_naive = start_date.replace(tzinfo=None)
         
         # Obtener datos desde MongoDB
         cursor = sensor_collection.find(
-            {"ReadTime": {"$gte": start_date}},
-            {"ReadTime": 1, request.variable1: 1, request.variable2: 1, "_id": 0}
+            {"ReadTime": {"$gte": start_date_naive}},
+            {"ReadTime": 1, db_var1: 1, db_var2: 1, "_id": 0}
         ).sort("ReadTime", 1)
         
         data = await cursor.to_list(length=10000)
@@ -80,7 +95,7 @@ async def calculate_correlation(
             logger.info(f"Insuficientes datos en período {request.period}, usando todos los datos disponibles")
             cursor = sensor_collection.find(
                 {},
-                {"ReadTime": 1, request.variable1: 1, request.variable2: 1, "_id": 0}
+                {"ReadTime": 1, db_var1: 1, db_var2: 1, "_id": 0}
             ).sort("ReadTime", 1)
             data = await cursor.to_list(length=10000)
         
@@ -96,9 +111,9 @@ async def calculate_correlation(
             await cache_service.set(cache_key, result, ttl=120)
             return result
         
-        # Extraer valores
-        var1_values = [d.get(request.variable1) for d in data if d.get(request.variable1) is not None]
-        var2_values = [d.get(request.variable2) for d in data if d.get(request.variable2) is not None]
+        # Extraer valores using mapped field names
+        var1_values = [d.get(db_var1) for d in data if d.get(db_var1) is not None]
+        var2_values = [d.get(db_var2) for d in data if d.get(db_var2) is not None]
         
         # Asegurar que tengan la misma longitud
         min_length = min(len(var1_values), len(var2_values))
@@ -187,11 +202,12 @@ async def detect_anomalies(
     try:
         days = PERIOD_DAYS.get(period, 30)
         start_date = datetime.now(timezone.utc) - timedelta(days=days)
+        start_date_naive = start_date.replace(tzinfo=None)
         
-        # Obtener datos
+        # Obtener datos - using correct field names from database
         cursor = sensor_collection.find(
-            {"ReadTime": {"$gte": start_date}},
-            {"ReadTime": 1, "pH_Value": 1, "Temperature": 1, "EC": 1, "reservoirId": 1, "_id": 0}
+            {"ReadTime": {"$gte": start_date_naive}},
+            {"ReadTime": 1, "pH": 1, "temperature": 1, "EC": 1, "reservoirId": 1, "_id": 0}
         ).sort("ReadTime", 1)
         
         data = await cursor.to_list(length=10000)
@@ -201,7 +217,7 @@ async def detect_anomalies(
             logger.info(f"Insuficientes datos en período {period} para anomalías, usando todos los datos disponibles")
             cursor = sensor_collection.find(
                 {},
-                {"ReadTime": 1, "pH_Value": 1, "Temperature": 1, "EC": 1, "reservoirId": 1, "_id": 0}
+                {"ReadTime": 1, "pH": 1, "temperature": 1, "EC": 1, "reservoirId": 1, "_id": 0}
             ).sort("ReadTime", 1)
             data = await cursor.to_list(length=10000)
         
@@ -210,8 +226,15 @@ async def detect_anomalies(
         
         anomalies = []
         
-        # Analizar cada variable
-        for variable in ["pH_Value", "Temperature", "EC"]:
+        # Variable mapping for display names
+        variable_labels = {
+            "pH": "pH",
+            "temperature": "Temperatura",
+            "EC": "Electroconductividad"
+        }
+        
+        # Analizar cada variable - using correct field names
+        for variable in ["pH", "temperature", "EC"]:
             values = [d.get(variable) for d in data if d.get(variable) is not None]
             
             if len(values) < 10:
@@ -231,7 +254,7 @@ async def detect_anomalies(
                 if z_score > threshold:
                     anomalies.append({
                         "timestamp": d.get("ReadTime").isoformat() if d.get("ReadTime") else None,
-                        "sensor_type": variable,
+                        "sensor_type": variable_labels.get(variable, variable),
                         "sensor_id": d.get("reservoirId", "unknown"),
                         "value": float(value),
                         "expected_range": f"{mean - 2*std:.2f} - {mean + 2*std:.2f}",
@@ -274,10 +297,11 @@ async def get_predictions(
     try:
         # Intentar obtener datos de las últimas 7 días
         start_date = datetime.now(timezone.utc) - timedelta(days=7)
+        start_date_naive = start_date.replace(tzinfo=None)
         
         cursor = sensor_collection.find(
-            {"ReadTime": {"$gte": start_date}},
-            {"ReadTime": 1, "pH_Value": 1, "Temperature": 1, "EC": 1, "_id": 0}
+            {"ReadTime": {"$gte": start_date_naive}},
+            {"ReadTime": 1, "pH": 1, "temperature": 1, "EC": 1, "_id": 0}
         ).sort("ReadTime", 1)
         
         data = await cursor.to_list(length=10000)
@@ -286,7 +310,7 @@ async def get_predictions(
         if len(data) < 10:
             cursor = sensor_collection.find(
                 {},
-                {"ReadTime": 1, "pH_Value": 1, "Temperature": 1, "EC": 1, "_id": 0}
+                {"ReadTime": 1, "pH": 1, "temperature": 1, "EC": 1, "_id": 0}
             ).sort("ReadTime", -1).limit(1000)
             
             data = await cursor.to_list(length=1000)
@@ -296,7 +320,14 @@ async def get_predictions(
         
         predictions = {}
         
-        for variable in ["pH_Value", "Temperature", "EC"]:
+        # Map DB fields to output keys for frontend compatibility
+        variable_output_map = {
+            "pH": "pH",
+            "temperature": "temperature",
+            "EC": "electroconductivity"
+        }
+        
+        for variable in ["pH", "temperature", "EC"]:
             values = [d.get(variable) for d in data if d.get(variable) is not None]
             
             if len(values) < 10:
@@ -308,7 +339,8 @@ async def get_predictions(
             # Verificar si hay variación en los datos
             if np.std(values) == 0:
                 # Valores constantes, no hay tendencia
-                predictions[variable] = {
+                output_key = variable_output_map.get(variable, variable)
+                predictions[output_key] = {
                     "predicted_value": float(values[-1]),
                     "current_value": float(values[-1]),
                     "trend": "Estable",
@@ -344,7 +376,8 @@ async def get_predictions(
             # Calcular confianza basada en R²
             confidence = min(100, max(0, r_value ** 2 * 100))
             
-            predictions[variable] = {
+            output_key = variable_output_map.get(variable, variable)
+            predictions[output_key] = {
                 "predicted_value": float(predicted_value),
                 "current_value": float(values[-1]),
                 "trend": trend,
@@ -375,19 +408,19 @@ async def get_historical_comparison(
     try:
         days = PERIOD_DAYS.get(period, 30)
         
-        # Período actual
-        current_start = datetime.now(timezone.utc) - timedelta(days=days)
-        current_end = datetime.now(timezone.utc)
+        # Período actual - use naive datetimes for MongoDB
+        current_start = (datetime.now(timezone.utc) - timedelta(days=days)).replace(tzinfo=None)
+        current_end = datetime.now(timezone.utc).replace(tzinfo=None)
         
         # Período anterior
         previous_start = current_start - timedelta(days=days)
         previous_end = current_start
         
-        # Función para obtener estadísticas
+        # Función para obtener estadísticas - using correct field names
         async def get_stats(start, end):
             cursor = sensor_collection.find(
                 {"ReadTime": {"$gte": start, "$lt": end}},
-                {"pH_Value": 1, "Temperature": 1, "EC": 1, "_id": 0}
+                {"pH": 1, "temperature": 1, "EC": 1, "_id": 0}
             )
             
             data = await cursor.to_list(length=10000)
@@ -395,8 +428,8 @@ async def get_historical_comparison(
             if not data:
                 return None
             
-            ph_values = [d.get("pH_Value") for d in data if d.get("pH_Value") is not None]
-            temp_values = [d.get("Temperature") for d in data if d.get("Temperature") is not None]
+            ph_values = [d.get("pH") for d in data if d.get("pH") is not None]
+            temp_values = [d.get("temperature") for d in data if d.get("temperature") is not None]
             ec_values = [d.get("EC") for d in data if d.get("EC") is not None]
             
             return {
@@ -417,7 +450,7 @@ async def get_historical_comparison(
             # Obtener todos los datos y dividirlos en dos mitades
             cursor = sensor_collection.find(
                 {},
-                {"ReadTime": 1, "pH_Value": 1, "Temperature": 1, "EC": 1, "_id": 0}
+                {"ReadTime": 1, "pH": 1, "temperature": 1, "EC": 1, "_id": 0}
             ).sort("ReadTime", 1)
             
             all_data = await cursor.to_list(length=10000)
@@ -439,8 +472,8 @@ async def get_historical_comparison(
             def calc_stats_from_list(data_list):
                 if not data_list:
                     return None
-                ph_values = [d.get("pH_Value") for d in data_list if d.get("pH_Value") is not None]
-                temp_values = [d.get("Temperature") for d in data_list if d.get("Temperature") is not None]
+                ph_values = [d.get("pH") for d in data_list if d.get("pH") is not None]
+                temp_values = [d.get("temperature") for d in data_list if d.get("temperature") is not None]
                 ec_values = [d.get("EC") for d in data_list if d.get("EC") is not None]
                 
                 return {
@@ -481,9 +514,11 @@ async def export_excel(
         start_date = datetime.now(timezone.utc) - timedelta(days=days)
         
         # Obtener datos
+        start_date_naive = start_date.replace(tzinfo=None)
+        
         cursor = sensor_collection.find(
-            {"ReadTime": {"$gte": start_date}},
-            {"ReadTime": 1, "pH_Value": 1, "Temperature": 1, "EC": 1, "reservoirId": 1, "_id": 0}
+            {"ReadTime": {"$gte": start_date_naive}},
+            {"ReadTime": 1, "pH": 1, "temperature": 1, "EC": 1, "reservoirId": 1, "_id": 0}
         ).sort("ReadTime", -1)
         
         data = await cursor.to_list(length=10000)
@@ -493,7 +528,7 @@ async def export_excel(
             logger.info(f"No hay datos en período {period} para Excel, usando todos los datos disponibles")
             cursor = sensor_collection.find(
                 {},
-                {"ReadTime": 1, "pH_Value": 1, "Temperature": 1, "EC": 1, "reservoirId": 1, "_id": 0}
+                {"ReadTime": 1, "pH": 1, "temperature": 1, "EC": 1, "reservoirId": 1, "_id": 0}
             ).sort("ReadTime", -1)
             data = await cursor.to_list(length=10000)
         
@@ -523,8 +558,8 @@ async def export_excel(
             ws.append([
                 item.get("ReadTime").strftime("%Y-%m-%d %H:%M:%S") if item.get("ReadTime") else "",
                 item.get("reservoirId", ""),
-                item.get("pH_Value", ""),
-                item.get("Temperature", ""),
+                item.get("pH", ""),
+                item.get("temperature", ""),
                 item.get("EC", "")
             ])
         
@@ -565,10 +600,12 @@ async def export_pdf(
         days = PERIOD_DAYS.get(period, 30)
         start_date = datetime.now(timezone.utc) - timedelta(days=days)
         
+        start_date_naive = start_date.replace(tzinfo=None)
+        
         # Obtener estadísticas resumidas
         cursor = sensor_collection.find(
-            {"ReadTime": {"$gte": start_date}},
-            {"pH_Value": 1, "Temperature": 1, "EC": 1, "_id": 0}
+            {"ReadTime": {"$gte": start_date_naive}},
+            {"pH": 1, "temperature": 1, "EC": 1, "_id": 0}
         )
         
         data = await cursor.to_list(length=10000)
@@ -578,7 +615,7 @@ async def export_pdf(
             logger.info(f"No hay datos en período {period} para PDF, usando todos los datos disponibles")
             cursor = sensor_collection.find(
                 {},
-                {"pH_Value": 1, "Temperature": 1, "EC": 1, "_id": 0}
+                {"pH": 1, "temperature": 1, "EC": 1, "_id": 0}
             )
             data = await cursor.to_list(length=10000)
         
@@ -586,8 +623,8 @@ async def export_pdf(
             raise HTTPException(status_code=404, detail="No hay datos disponibles para exportar")
         
         # Calcular estadísticas
-        ph_values = [d.get("pH_Value") for d in data if d.get("pH_Value") is not None]
-        temp_values = [d.get("Temperature") for d in data if d.get("Temperature") is not None]
+        ph_values = [d.get("pH") for d in data if d.get("pH") is not None]
+        temp_values = [d.get("temperature") for d in data if d.get("temperature") is not None]
         ec_values = [d.get("EC") for d in data if d.get("EC") is not None]
         
         # Crear PDF en memoria

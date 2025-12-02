@@ -1,6 +1,7 @@
 """
 Alert Repository
 Data access layer for alerts collection
+Implements IAlertRepository interface
 """
 
 from typing import List, Optional, Dict, Any
@@ -14,7 +15,10 @@ logger = logging.getLogger(__name__)
 
 
 class AlertRepository(BaseRepository):
-    """Repository for alert operations"""
+    """
+    Repository for alert operations
+    Implements the IAlertRepository interface
+    """
     
     def __init__(self):
         super().__init__(alerts_collection)

@@ -350,16 +350,18 @@ class SensorService:
         sensor_ids: Optional[List[str]] = None,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
-        limit: int = 1000
+        limit: int = 1000,
+        max_points: int = 300
     ) -> Dict[str, Any]:
         """
-        Get historical data formatted for charts
+        Get historical data formatted for charts with automatic downsampling
         
         Args:
             sensor_ids: List of reservoir IDs (None = all sensors)
             start_time: Start of time range
             end_time: End of time range
-            limit: Maximum readings
+            limit: Maximum readings to fetch from DB
+            max_points: Maximum data points to return (for performance)
             
         Returns:
             Dictionary with labels and data arrays for charts
@@ -368,21 +370,56 @@ class SensorService:
             from app.config.database import db
             sensor_data_collection = db["Sensor_Data"]
             
-            # Build query
+            # Build query - ensure naive datetimes for MongoDB comparison
             query = {}
             if sensor_ids:
                 query["reservoirId"] = {"$in": sensor_ids}
             if start_time:
-                query["ReadTime"] = {"$gte": start_time}
+                # Remove timezone for comparison with naive datetimes in DB
+                start_time_naive = start_time.replace(tzinfo=None) if start_time.tzinfo else start_time
+                query["ReadTime"] = {"$gte": start_time_naive}
             if end_time:
+                end_time_naive = end_time.replace(tzinfo=None) if end_time.tzinfo else end_time
                 if "ReadTime" in query:
-                    query["ReadTime"]["$lte"] = end_time
+                    query["ReadTime"]["$lte"] = end_time_naive
                 else:
-                    query["ReadTime"] = {"$lte": end_time}
+                    query["ReadTime"] = {"$lte": end_time_naive}
             
-            # Fetch data
-            cursor = sensor_data_collection.find(query).sort("ReadTime", 1).limit(limit)
-            readings = await cursor.to_list(length=limit)
+            # First, count total documents to determine sampling rate
+            total_count = await sensor_data_collection.count_documents(query)
+            
+            # If data is small enough, fetch all
+            if total_count <= max_points:
+                cursor = sensor_data_collection.find(query).sort("ReadTime", 1)
+                readings = await cursor.to_list(length=total_count)
+            else:
+                # Calculate sampling: use MongoDB aggregation for efficient downsampling
+                # Sample every Nth document to get approximately max_points
+                sample_rate = max(1, total_count // max_points)
+                
+                pipeline = [
+                    {"$match": query},
+                    {"$sort": {"ReadTime": 1}},
+                    # Add index for sampling
+                    {"$group": {
+                        "_id": None,
+                        "docs": {"$push": "$$ROOT"}
+                    }},
+                    {"$unwind": {"path": "$docs", "includeArrayIndex": "index"}},
+                    # Sample every Nth document, always include first and last
+                    {"$match": {
+                        "$or": [
+                            {"$expr": {"$eq": [{"$mod": ["$index", sample_rate]}, 0]}},
+                            {"$expr": {"$eq": ["$index", {"$subtract": [total_count, 1]}]}}
+                        ]
+                    }},
+                    {"$replaceRoot": {"newRoot": "$docs"}},
+                    {"$limit": max_points + 10}  # Buffer for edge cases
+                ]
+                
+                readings = await sensor_data_collection.aggregate(pipeline).to_list(length=max_points + 10)
+                
+            logger.info(f"Historical data: {total_count} total docs, returning {len(readings)} points (downsampled: {total_count > max_points})")
             
             # Format data for charts
             labels = []
@@ -443,63 +480,34 @@ class SensorService:
     async def predict_sensor_value(
         self,
         sensor_type: str,
-        sensor_id: Optional[str] = None,
-        hours_ahead: int = 6
+        days_to_predict: int = 5,
+        lookback_days: int = 15
     ) -> Dict[str, Any]:
         """
         Generate predictions for sensor values
         
         Args:
-            sensor_type: Type of sensor (ph, temperature, ec, water_level)
-            sensor_id: Optional specific sensor ID
-            hours_ahead: Hours to predict ahead
+            sensor_type: Type of sensor (ph, conductivity)
+            days_to_predict: Number of days to predict ahead
+            lookback_days: Number of days of historical data to use
             
         Returns:
-            Dictionary with predictions and confidence intervals
+            Dictionary with predictions and metadata
         """
         try:
-            # Get historical data for prediction
-            if sensor_id:
-                historical = await self.get_individual_sensor_data(
-                    sensor_id=sensor_id,
-                    hours=168,  # 7 days
-                    limit=500
-                )
-            else:
-                # Use all sensors
-                historical_dict = await self.get_historical_data(
-                    start_time=datetime.now(timezone.utc) - timedelta(days=7),
-                    limit=500
-                )
-                historical = []
-                for readings in historical_dict.values():
-                    historical.extend(readings)
+            from app.config.database import db
+            sensor_data_collection = db["Sensor_Data"]
             
-            # Extract values for the sensor type
-            values = []
-            timestamps = []
-            
-            for reading in historical:
-                if sensor_type in reading and reading[sensor_type] is not None:
-                    values.append(float(reading[sensor_type]))
-                    timestamp = reading.get("timestamp") or reading.get("created_at")
-                    if isinstance(timestamp, str):
-                        timestamp = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
-                    timestamps.append(timestamp)
-            
-            if len(values) < 10:
-                raise ValueError(f"Insufficient data for prediction: only {len(values)} readings")
-            
-            # Call prediction service
-            predictions = await predict_sensor_values(
+            # Call prediction service with the collection
+            result = await predict_sensor_values(
+                sensor_collection=sensor_data_collection,
                 sensor_type=sensor_type,
-                historical_values=values,
-                timestamps=timestamps,
-                hours_ahead=hours_ahead
+                days_to_predict=days_to_predict,
+                lookback_days=lookback_days
             )
             
-            logger.info(f"Generated predictions for {sensor_type}")
-            return predictions
+            logger.info(f"Generated predictions for {sensor_type}: {len(result.get('predictions', []))} points")
+            return result
             
         except Exception as e:
             logger.error(f"Error predicting sensor value for {sensor_type}: {e}")

@@ -1,6 +1,7 @@
 import logging
 import asyncio
 import os
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -16,16 +17,67 @@ from app.services.cache import cache_service
 from app.middleware import RateLimitMiddleware
 from app.middleware.request_id import RequestIDMiddleware
 from app.utils.dependencies import get_current_user
+from app.core import register_exception_handlers, get_container, configure_container
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Application lifespan manager
+    Handles startup and shutdown events in a modern way
+    """
+    # Startup
+    logger.info("Iniciando aplicación...")
+    
+    # Configure dependency injection container
+    container = get_container()
+    configure_container(container)
+    logger.info("Contenedor de dependencias configurado")
+    
+    logger.info(f"Conectado a base de datos: {settings.DATABASE_NAME}")
+    
+    # Conectar Redis cache
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+    await cache_service.connect(redis_url)
+    
+    # Iniciar el watcher de alertas en background
+    asyncio.create_task(alert_change_stream_watcher())
+    logger.info("Alert watcher iniciado")
+    
+    # Iniciar reconciliador de alertas
+    asyncio.create_task(start_reconciler(60))
+    logger.info("Alert reconciler iniciado (interval 60s)")
+
+    # Iniciar el monitor de sensores en background
+    asyncio.create_task(sensor_monitor.start())
+    logger.info("Sensor monitor iniciado")
+    
+    logger.info("Aplicación lista")
+    
+    yield  # Application is running
+    
+    # Shutdown
+    logger.info("Cerrando aplicación...")
+    sensor_monitor.stop()
+    await cache_service.disconnect()
+    await Database.close()
+    logger.info("Aplicación cerrada correctamente")
+
+
 app = FastAPI(
     title="Sistema de Monitoreo de Embalses IoT",
     description="API para monitoreo en tiempo real de sensores IoT en embalses",
-    version="2.0.0"
+    version="2.1.0",
+    lifespan=lifespan
 )
 
+# Register exception handlers
+register_exception_handlers(app)
+
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -38,47 +90,7 @@ app.add_middleware(
 app.add_middleware(RequestIDMiddleware)
 
 # Rate limiting middleware
-rate_limit_middleware = None
-for middleware in app.user_middleware:
-    if middleware.cls == RateLimitMiddleware:
-        rate_limit_middleware = middleware
-        break
-
-# Si no se encontró, agregarlo
-if not rate_limit_middleware:
-    app.add_middleware(RateLimitMiddleware)
-
-@app.on_event("startup")
-async def startup_event():
-    """Evento de inicio de la aplicación"""
-    logger.info("Iniciando aplicación...")
-    logger.info(f"Conectado a base de datos: {settings.DATABASE_NAME}")
-    
-    # Conectar Redis cache
-    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
-    await cache_service.connect(redis_url)
-    
-    # Iniciar el watcher de alertas en background
-    asyncio.create_task(alert_change_stream_watcher())
-    logger.info("Alert watcher iniciado")
-    
-    # Iniciar reconciliador de alertas (seguridad adicional contra inserciones directas)
-    asyncio.create_task(start_reconciler(60))
-    logger.info("Alert reconciler iniciado (interval 60s)")
-
-    # Iniciar el monitor de sensores en background
-    asyncio.create_task(sensor_monitor.start())
-    logger.info("Sensor monitor iniciado")
-    
-    logger.info("Aplicación lista")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    logger.info("Cerrando aplicación...")
-    sensor_monitor.stop()
-    await cache_service.disconnect()
-    await Database.close()
-    logger.info("Aplicación cerrada correctamente")
+app.add_middleware(RateLimitMiddleware)
 
 @app.get("/", tags=["Health"])
 async def root():
