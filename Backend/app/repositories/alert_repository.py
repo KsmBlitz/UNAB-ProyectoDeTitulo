@@ -308,9 +308,14 @@ class AlertRepository(BaseRepository):
             if not alert_doc.get("source"):
                 alert_doc["source"] = "system"
 
-            # Measurement alert types require connected sensors
-            measurement_types = ['ph', 'temperature', 'ec', 'water_level', 'conductivity']
+            # DISABLED: water_level alerts are not currently used
             alert_type = (alert_doc.get('type') or '').lower()
+            if alert_type == 'water_level':
+                logger.info("Skipping water_level alert - feature disabled")
+                return None
+
+            # Measurement alert types require connected sensors
+            measurement_types = ['ph', 'temperature', 'ec', 'conductivity']
             sensor_id = alert_doc.get('sensor_id')
 
             if alert_type in measurement_types:

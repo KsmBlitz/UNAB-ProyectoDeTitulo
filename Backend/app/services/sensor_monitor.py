@@ -337,10 +337,11 @@ class SensorMonitor:
                      sensor_config.get("alert_config", {}).get("parameters") or {}
         
         # Check each metric and auto-resolve if in range
+        # NOTE: water_level alerts disabled for now
         await self._check_ph(sensor_id, normalized, thresholds, sensor_config)
         await self._check_temperature(sensor_id, normalized, thresholds, sensor_config)
         await self._check_ec(sensor_id, normalized, thresholds, sensor_config)
-        await self._check_water_level(sensor_id, normalized, thresholds, sensor_config)
+        # await self._check_water_level(sensor_id, normalized, thresholds, sensor_config)
     
     async def _auto_resolve_disconnection_alert(self, sensor_id: str):
         """Auto-resolve disconnection alert when sensor reconnects"""
@@ -590,46 +591,9 @@ class SensorMonitor:
         thresholds: Dict[str, Any],
         sensor_config: Dict[str, Any]
     ):
-        """Check water level value and create/resolve alerts"""
-        value = reading.get("water_level")
-        if value is None:
-            return
-        
-        config = thresholds.get("water_level", {})
-        min_val = config.get("min")
-        max_val = config.get("max")
-        critical_min = config.get("critical_min")
-        critical_max = config.get("critical_max")
-        
-        out_of_range = False
-        level = None
-        message = None
-        
-        if critical_min is not None and value < critical_min:
-            out_of_range = True
-            level = "critical"
-            message = f"Nivel de agua crítico: {value:.1f}% (mínimo: {critical_min}%)"
-        elif critical_max is not None and value > critical_max:
-            out_of_range = True
-            level = "critical"
-            message = f"Nivel de agua crítico: {value:.1f}% (máximo: {critical_max}%)"
-        elif min_val is not None and value < min_val:
-            out_of_range = True
-            level = "warning"
-            message = f"Nivel de agua bajo: {value:.1f}% (rango óptimo: {min_val}-{max_val}%)"
-        elif max_val is not None and value > max_val:
-            out_of_range = True
-            level = "warning"
-            message = f"Nivel de agua alto: {value:.1f}% (rango óptimo: {min_val}-{max_val}%)"
-        
-        if out_of_range:
-            # Only create alert if we have consecutive violations
-            if self._record_violation(sensor_id, "water_level", value, level, message):
-                await self._create_measurement_alert(sensor_id, "water_level", level, value, message, sensor_config)
-        else:
-            # Value is in range - clear violation counter and auto-resolve any existing alert
-            self._clear_violation(sensor_id, "water_level")
-            await self._auto_resolve_measurement_alert(sensor_id, "water_level")
+        """Check water level value - DISABLED"""
+        # Feature disabled - do nothing
+        return
     
     async def _create_measurement_alert(
         self,
@@ -663,10 +627,19 @@ class SensorMonitor:
         location = sensor_config.get("location", f"Sensor {sensor_id}")
         sensor_name = sensor_config.get("name", f"Sensor {sensor_id}")
         
+        # Spanish names for alert types
+        type_names = {
+            "ph": "pH",
+            "temperature": "Temperatura",
+            "ec": "Conductividad",
+            "water_level": "Nivel de Agua"
+        }
+        type_display = type_names.get(alert_type, alert_type)
+        
         alert_doc = {
             "type": alert_type,
             "level": level,
-            "title": f"{alert_type.upper()} - {sensor_name}",
+            "title": f"{type_display} - {sensor_name}",
             "message": message,
             "location": location,
             "threshold_info": "Valor fuera de rango crítico" if level == "critical" else "Valor fuera de rango óptimo",

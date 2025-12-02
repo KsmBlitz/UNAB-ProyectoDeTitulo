@@ -91,7 +91,7 @@ class ActiveAlert(BaseModel):
     level: str
     title: str
     message: str
-    value: Optional[float] = None
+    value: Optional[Any] = None  # Can be float (measurements) or str (disconnect duration)
     threshold_info: str
     location: str = "Sistema de Riego"
     sensor_id: Optional[str] = None
@@ -114,7 +114,7 @@ class AlertHistory(BaseModel):
     level: str
     title: str
     message: str
-    value: Optional[float] = None
+    value: Optional[Any] = None  # Can be float (measurements) or str (disconnect duration)
     threshold_info: str
     location: str
     sensor_id: Optional[str] = None
