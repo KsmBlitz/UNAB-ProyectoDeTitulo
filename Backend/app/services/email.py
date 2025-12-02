@@ -146,7 +146,7 @@ async def send_critical_alert_email(
                             <tr>
                                 <td style="background: linear-gradient(135deg, #1a365d 0%, #2d3748 100%); padding: 30px; text-align: center;">
                                     <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">
-                                        💧 AquaStat
+                                        AquaStat
                                     </h1>
                                     <p style="color: #a0aec0; margin: 8px 0 0 0; font-size: 14px;">
                                         Sistema de Monitoreo Inteligente
@@ -157,9 +157,8 @@ async def send_critical_alert_email(
                             <!-- Alert Banner -->
                             <tr>
                                 <td style="background-color: {alert_color}; padding: 25px; text-align: center;">
-                                    <span style="font-size: 48px;">{alert_icon}</span>
-                                    <h2 style="color: #ffffff; margin: 15px 0 5px 0; font-size: 22px; font-weight: 600; text-transform: uppercase;">
-                                        ¡Alerta Crítica!
+                                    <h2 style="color: #ffffff; margin: 0 0 5px 0; font-size: 22px; font-weight: 600; text-transform: uppercase;">
+                                        ALERTA CRÍTICA
                                     </h2>
                                     <p style="color: #ffffff; margin: 0; font-size: 18px; opacity: 0.95;">
                                         {alert_name}
@@ -198,7 +197,7 @@ async def send_critical_alert_email(
                             <tr>
                                 <td style="padding: 30px; text-align: center; background-color: #fff3cd; border-top: 3px solid #ffc107;">
                                     <p style="color: #856404; margin: 0; font-size: 16px; font-weight: 600;">
-                                        ⚠️ Se requiere atención inmediata
+                                        ACCIÓN REQUERIDA
                                     </p>
                                     <p style="color: #856404; margin: 10px 0 0 0; font-size: 14px;">
                                         Por favor, revise el sistema y tome las acciones correctivas necesarias.
@@ -226,17 +225,16 @@ async def send_critical_alert_email(
         
         # Plain text fallback
         plain_text = f"""
-🚨 ALERTA CRÍTICA - AquaStat
+[ALERTA CRÍTICA] AquaStat
 
-{alert_icon} {alert_name}
+{alert_name}
 
 Ubicación: {reservoir_name}
 {"Sensor ID: " + sensor_id if sensor_id else ""}
 {value_label}: {display_value}
 Fecha y hora: {timestamp}
 
-⚠️ Se requiere atención inmediata.
-Por favor, revise el sistema y tome las acciones correctivas necesarias.
+ACCIÓN REQUERIDA: Revise el sistema y tome las acciones correctivas necesarias.
 
 ---
 Este es un mensaje automático del sistema AquaStat.

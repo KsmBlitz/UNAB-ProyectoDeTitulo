@@ -67,9 +67,11 @@ async def send_critical_alert_twilio_whatsapp(
         dict with 'ok', 'sid', 'status', 'error_code', 'error_message'
     """
     try:
+        logger.info(f"Intentando enviar WhatsApp a {to_phone} - tipo: {alert_type}")
+        
         # Check if Twilio WhatsApp is enabled
         if not getattr(settings, 'TWILIO_WHATSAPP_ENABLED', False):
-            logger.debug("Twilio WhatsApp notifications disabled in settings")
+            logger.warning("Twilio WhatsApp notifications DESHABILITADO en settings")
             return False
         
         # Validate configuration
@@ -78,7 +80,7 @@ async def send_critical_alert_twilio_whatsapp(
         twilio_from = getattr(settings, 'TWILIO_WHATSAPP_FROM', None)
         
         if not all([twilio_sid, twilio_token, twilio_from]):
-            logger.warning("Configuración Twilio WhatsApp incompleta")
+            logger.warning(f"Configuración Twilio WhatsApp incompleta - SID: {bool(twilio_sid)}, Token: {bool(twilio_token)}, From: {twilio_from}")
             return False
         
         if not to_phone:
@@ -90,20 +92,21 @@ async def send_critical_alert_twilio_whatsapp(
             logger.warning(f"Número de teléfono inválido (debe incluir código país con +): {to_phone}")
             return False
         
-        # Human-readable alert names and emojis
+        logger.info(f"Configuración Twilio OK - Enviando de {twilio_from} a {to_phone}")
+        
+        # Human-readable alert names
         alert_config = {
-            'ph_range': {'name': 'pH Fuera de Rango', 'icon': '⚗️'},
-            'ph': {'name': 'pH Fuera de Rango', 'icon': '⚗️'},
-            'conductivity': {'name': 'Conductividad Anormal', 'icon': '⚡'},
-            'ec': {'name': 'Conductividad Eléctrica Anormal', 'icon': '⚡'},
-            'temperature': {'name': 'Temperatura Crítica', 'icon': '🌡️'},
-            'water_level': {'name': 'Nivel de Agua Crítico', 'icon': '💧'},
-            'sensor_disconnection': {'name': 'Sensor Desconectado', 'icon': '🔌'}
+            'ph_range': {'name': 'pH Fuera de Rango'},
+            'ph': {'name': 'pH Fuera de Rango'},
+            'conductivity': {'name': 'Conductividad Anormal'},
+            'ec': {'name': 'Conductividad Eléctrica Anormal'},
+            'temperature': {'name': 'Temperatura Crítica'},
+            'water_level': {'name': 'Nivel de Agua Crítico'},
+            'sensor_disconnection': {'name': 'Sensor Desconectado'}
         }
         
-        config = alert_config.get(alert_type, {'name': alert_type, 'icon': '⚠️'})
+        config = alert_config.get(alert_type, {'name': alert_type})
         alert_name = config['name']
-        alert_icon = config['icon']
         
         # Format value for disconnect alerts
         is_disconnect = alert_type == 'sensor_disconnection'
@@ -115,19 +118,19 @@ async def send_critical_alert_twilio_whatsapp(
             value_label = "Valor detectado"
         
         # Build sensor ID line if available
-        sensor_line = f"\n📟 *Sensor ID:* `{sensor_id}`" if sensor_id else ""
+        sensor_line = f"\n*Sensor:* {sensor_id}" if sensor_id else ""
         
         # Create professional message body
         message_body = (
-            f"🚨 *ALERTA CRÍTICA - AquaStat* 🚨\n"
-            f"━━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"{alert_icon} *{alert_name}*\n\n"
-            f"📍 *Ubicación:* {reservoir_name}"
+            f"*[ALERTA CRÍTICA] AquaStat*\n"
+            f"------------------------\n\n"
+            f"*{alert_name}*\n\n"
+            f"*Ubicación:* {reservoir_name}"
             f"{sensor_line}\n"
-            f"📊 *{value_label}:* {display_value}\n\n"
-            f"━━━━━━━━━━━━━━━━━━━━━\n"
-            f"⚠️ *Acción requerida:* Revise el sistema inmediatamente.\n\n"
-            f"💧 _Sistema AquaStat_"
+            f"*{value_label}:* {display_value}\n\n"
+            f"------------------------\n"
+            f"Acción requerida: Revise el sistema inmediatamente.\n\n"
+            f"_Sistema AquaStat_"
         )
         
         # Initialize Twilio client
