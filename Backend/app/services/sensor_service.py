@@ -613,13 +613,16 @@ class SensorService:
             logger.error(f"Error getting alert config for {sensor_id}: {e}")
             raise
     
-    async def is_sensor_connected(self, sensor_id: str, threshold_minutes: int = 15) -> bool:
+    async def is_sensor_connected(self, sensor_id: str, threshold_minutes: int = 5) -> bool:
         """
         Check if a sensor is currently connected (has recent data)
         
         Args:
             sensor_id: Sensor identifier
-            threshold_minutes: Minutes threshold to consider sensor as connected (default: 15)
+            threshold_minutes: Minutes threshold to consider sensor as connected (default: 5)
+                              - < 5 min: Connected (sending data normally)
+                              - 5-6 min: Warning state (will trigger warning alert)
+                              - 10+ min: Critical (disconnected)
             
         Returns:
             True if sensor is connected (has data within threshold), False otherwise

@@ -142,8 +142,8 @@ class AlertRepository(BaseRepository):
             
             # Calculate duration if created_at exists
             duration_minutes = None
-            if alert.get("created_at"):
-                created_at = alert.get("created_at")
+            created_at = alert.get("created_at")
+            if created_at:
                 if isinstance(created_at, datetime):
                     # If stored datetime is naive, assume UTC
                     if getattr(created_at, 'tzinfo', None) is None:
@@ -155,8 +155,12 @@ class AlertRepository(BaseRepository):
                         duration = current_time - created_at
                         duration_minutes = int(duration.total_seconds() / 60)
                     except Exception:
-                        # If subtraction fails for any reason, leave duration as None
                         duration_minutes = None
+            
+            # Determine resolution type based on who dismissed
+            resolution_type = "manual_dismiss"
+            if dismissed_by in ("system_auto", "system@auto", "system"):
+                resolution_type = "auto_resolved"
             
             history_doc = {
                 "alert_id": alert_id_str,
@@ -168,20 +172,19 @@ class AlertRepository(BaseRepository):
                 "threshold_info": alert.get("threshold_info", ""),
                 "location": alert.get("location", "Sistema de Riego"),
                 "sensor_id": alert.get("sensor_id"),
-                # Ensure created_at/resolved_at are timezone-aware when possible
                 "created_at": (created_at if isinstance(created_at, datetime) else alert.get("created_at", current_time)),
                 "resolved_at": alert.get("resolved_at", current_time),
                 "dismissed_at": current_time,
                 "dismissed_by": dismissed_by,
-                "dismissed_by_role": alert.get("dismissed_by_role", "operario"),
-                "resolution_type": "manual_dismiss",
+                "dismissed_by_role": alert.get("dismissed_by_role", "system" if dismissed_by.startswith("system") else "operario"),
+                "resolution_type": resolution_type,
                 "duration_minutes": duration_minutes,
                 "dismissal_reason": reason,
                 "archived_at": current_time
             }
             
             await self.history_collection.insert_one(history_doc)
-            logger.info(f"Alert moved to history: {alert_id_str}")
+            logger.info(f"Alert moved to history: {alert_id_str} ({resolution_type})")
             
         except Exception as e:
             logger.error(f"Error moving alert to history: {e}")
