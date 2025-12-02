@@ -2,7 +2,7 @@
  * Constantes de la aplicación
  */
 
-export const APP_NAME = 'Embalse IoT';
+export const APP_NAME = 'AquaStat';
 export const APP_VERSION = '1.0.0';
 
 // Roles de usuario

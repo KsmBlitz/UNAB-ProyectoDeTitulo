@@ -69,12 +69,7 @@ onUnmounted(() => {
   <header class="flex justify-between items-center px-8 py-4 bg-white border-b border-gray-200 flex-shrink-0 shadow-sm">
     <!-- Left Section -->
     <div class="flex items-center gap-6">
-      <!-- Logo -->
-      <div class="flex items-center gap-3">
-        <img src="@/assets/Logo Embalse IoT.png" alt="Logo Embalse IoT" class="h-10 w-auto" />
-        <span class="text-lg font-semibold text-gray-800">Sistema de Monitoreo</span>
-      </div>
-      
+      <!-- Location Selector -->
       <div class="flex items-center gap-3 border border-gray-300 px-5 py-2.5 rounded-lg cursor-pointer hover:bg-gray-50 hover:border-gray-400 transition-all group">
         <i class="pi pi-map-marker text-gray-600 group-hover:text-blue-600 transition-colors"></i>
         <span class="text-sm font-medium text-gray-700 group-hover:text-gray-900">Ubicación</span>

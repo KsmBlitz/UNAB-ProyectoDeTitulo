@@ -72,7 +72,7 @@ const handleLogin = async () => {
 </script>
 
 <template>
-  <AuthLayout title="Embalses IoT" subtitle="Sistema de monitoreo">
+  <AuthLayout title="AquaStat" subtitle="Monitoreo de Calidad de Agua">
     <form @submit.prevent="handleLogin" class="flex flex-col">
       <!-- Error message with icon -->
       <div v-if="errorMessage" class="px-4 py-3 rounded-lg mb-6 border flex items-start gap-3 animate-shake transition-colors bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800">

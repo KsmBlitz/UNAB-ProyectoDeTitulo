@@ -273,6 +273,7 @@ class SensorMonitor:
             "location": location,
             "threshold_info": f"Sin datos: {int(minutes_since_data)} min",
             "sensor_id": sensor_id,
+            "value": f"{int(minutes_since_data)} minutos",  # Disconnect duration for notifications
             "created_at": datetime.now(timezone.utc),
             "is_resolved": False,
             "status": "active",
@@ -302,6 +303,7 @@ class SensorMonitor:
                         "title": "Sensor Desconectado",
                         "message": f"Sensor {sensor_id} sin datos por más de {int(minutes_since_data)} minutos",
                         "threshold_info": f"Sin datos: {int(minutes_since_data)} min",
+                        "value": f"{int(minutes_since_data)} minutos",  # Disconnect duration for notifications
                         "escalated_at": datetime.now(timezone.utc)
                     }
                 }

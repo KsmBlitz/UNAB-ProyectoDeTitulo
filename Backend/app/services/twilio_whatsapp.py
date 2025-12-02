@@ -1,9 +1,10 @@
 """
 Twilio WhatsApp notification service
-WhatsApp integration using Twilio API
+WhatsApp integration using Twilio API for AquaStat monitoring system
 """
 
 import logging
+import re
 from typing import Optional
 from twilio.rest import Client
 from twilio.base.exceptions import TwilioRestException
@@ -13,23 +14,57 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
+def _format_disconnect_duration(value: str) -> str:
+    """
+    Format disconnect duration from minutes to human-readable format.
+    
+    Args:
+        value: String containing minutes (e.g., "15 minutos" or "15")
+        
+    Returns:
+        Formatted duration string (e.g., "15 minutos", "1 hora 30 minutos")
+    """
+    try:
+        # Extract number from string
+        match = re.search(r'(\d+)', str(value))
+        if not match:
+            return value
+        
+        minutes = int(match.group(1))
+        
+        if minutes < 60:
+            return f"{minutes} minuto{'s' if minutes != 1 else ''}"
+        
+        hours = minutes // 60
+        remaining_mins = minutes % 60
+        
+        if remaining_mins == 0:
+            return f"{hours} hora{'s' if hours != 1 else ''}"
+        
+        return f"{hours} hora{'s' if hours != 1 else ''} {remaining_mins} minuto{'s' if remaining_mins != 1 else ''}"
+    except:
+        return value
+
+
 async def send_critical_alert_twilio_whatsapp(
     to_phone: str,
     reservoir_name: str,
     alert_type: str,
-    value: str
+    value: str,
+    sensor_id: str = None
 ) -> dict:
     """
-    Send a critical alert via Twilio WhatsApp
+    Send a professional critical alert via Twilio WhatsApp
     
     Args:
         to_phone: Recipient phone number in international format (e.g., +56912345678)
-        reservoir_name: Name of the reservoir/sensor
-        alert_type: Type of alert (e.g., "ph_range", "temperature")
+        reservoir_name: Name of the reservoir/sensor location
+        alert_type: Type of alert (e.g., "ph_range", "temperature", "sensor_disconnection")
         value: Detected value that triggered the alert
+        sensor_id: Optional sensor identifier
         
     Returns:
-        True if WhatsApp message sent successfully, False otherwise
+        dict with 'ok', 'sid', 'status', 'error_code', 'error_message'
     """
     try:
         # Check if Twilio WhatsApp is enabled
@@ -55,23 +90,44 @@ async def send_critical_alert_twilio_whatsapp(
             logger.warning(f"Número de teléfono inválido (debe incluir código país con +): {to_phone}")
             return False
         
-        # Human-readable alert names mapping
-        alert_names = {
-            'ph_range': 'pH fuera de rango',
-            'conductivity': 'Conductividad anormal',
-            'temperature': 'Temperatura crítica',
-            'sensor_disconnection': 'Sensor desconectado'
+        # Human-readable alert names and emojis
+        alert_config = {
+            'ph_range': {'name': 'pH Fuera de Rango', 'icon': '⚗️'},
+            'ph': {'name': 'pH Fuera de Rango', 'icon': '⚗️'},
+            'conductivity': {'name': 'Conductividad Anormal', 'icon': '⚡'},
+            'ec': {'name': 'Conductividad Eléctrica Anormal', 'icon': '⚡'},
+            'temperature': {'name': 'Temperatura Crítica', 'icon': '🌡️'},
+            'water_level': {'name': 'Nivel de Agua Crítico', 'icon': '💧'},
+            'sensor_disconnection': {'name': 'Sensor Desconectado', 'icon': '🔌'}
         }
         
-        alert_name = alert_names.get(alert_type, alert_type)
+        config = alert_config.get(alert_type, {'name': alert_type, 'icon': '⚠️'})
+        alert_name = config['name']
+        alert_icon = config['icon']
         
-        # Create message body
+        # Format value for disconnect alerts
+        is_disconnect = alert_type == 'sensor_disconnection'
+        if is_disconnect:
+            display_value = _format_disconnect_duration(value)
+            value_label = "Tiempo desconectado"
+        else:
+            display_value = value
+            value_label = "Valor detectado"
+        
+        # Build sensor ID line if available
+        sensor_line = f"\n📟 *Sensor ID:* `{sensor_id}`" if sensor_id else ""
+        
+        # Create professional message body
         message_body = (
-            f"*Alerta Crítica - Sistema de Monitoreo de Embalses*\n\n"
-            f"Embalse: {reservoir_name}\n"
-            f"Tipo de alerta: {alert_name}\n"
-            f"Valor detectado: {value}\n\n"
-            f"Por favor, revise el sistema inmediatamente."
+            f"🚨 *ALERTA CRÍTICA - AquaStat* 🚨\n"
+            f"━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"{alert_icon} *{alert_name}*\n\n"
+            f"📍 *Ubicación:* {reservoir_name}"
+            f"{sensor_line}\n"
+            f"📊 *{value_label}:* {display_value}\n\n"
+            f"━━━━━━━━━━━━━━━━━━━━━\n"
+            f"⚠️ *Acción requerida:* Revise el sistema inmediatamente.\n\n"
+            f"💧 _Sistema AquaStat_"
         )
         
         # Initialize Twilio client

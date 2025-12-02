@@ -26,8 +26,8 @@ const emit = defineEmits(['toggle-sidebar']);
         class="flex items-center gap-4 h-header flex-shrink-0 overflow-hidden border-b border-gray-200 bg-white mt-0 rounded-tl-2xl"
         :class="isCollapsed ? 'justify-center px-0' : 'px-6'"
       >
-        <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center flex-shrink-0 shadow-lg">
-          <img src="@/assets/Logo Embalse IoT.png" alt="Logo" class="w-7 h-7 object-contain">
+        <div class="w-10 h-10 flex items-center justify-center flex-shrink-0">
+          <img src="@/assets/Logo Embalse IoT.png" alt="Logo" class="w-10 h-10 object-contain">
         </div>
         <h2 v-if="!isCollapsed" class="text-lg font-bold whitespace-nowrap tracking-wide text-gray-800">
           {{ APP_NAME }}
