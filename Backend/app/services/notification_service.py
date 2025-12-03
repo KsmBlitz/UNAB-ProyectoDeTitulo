@@ -59,7 +59,7 @@ class NotificationService:
         Returns:
             Unique notification key
         """
-        return f"{channel}:{alert_type}:{sensor_id}:{user_id}"
+        return f"{channel.value}:{alert_type}:{sensor_id}:{user_id}"
     
     async def _should_send_notification(self, key: str) -> bool:
         """

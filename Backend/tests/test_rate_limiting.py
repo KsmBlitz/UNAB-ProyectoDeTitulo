@@ -43,7 +43,8 @@ class TestRateLimitConfiguration:
         assert "/api/token" in middleware.CRITICAL_ENDPOINTS
         assert "/api/forgot-password" in middleware.CRITICAL_ENDPOINTS
         assert "/api/reset-password" in middleware.CRITICAL_ENDPOINTS
-        assert "/api/users" in middleware.CRITICAL_ENDPOINTS
+        # /api/users is handled via _is_critical_endpoint() for POST only
+        assert middleware._is_critical_endpoint("/api/users", "POST") is True
     
     def test_get_rate_limit_for_roles(self):
         """Test: obtener límite según rol"""
