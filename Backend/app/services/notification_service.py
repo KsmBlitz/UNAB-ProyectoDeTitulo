@@ -4,10 +4,11 @@ Unified notification handling following Single Responsibility Principle
 Orchestrates email and WhatsApp notifications with throttling
 """
 
-from typing import Optional, List, Dict, Any
+import asyncio
+import logging
 from datetime import datetime, timedelta
 from enum import Enum
-import logging
+from typing import Any, Dict, List, Optional
 
 from app.services.email import send_critical_alert_email
 from app.services.twilio_whatsapp import send_critical_alert_twilio_whatsapp
@@ -136,7 +137,7 @@ class NotificationService:
                 logger.info(f"Email throttled for {to_email}")
                 return False
             
-            sent = await send_critical_alert_email(to_email, location, title, value)
+            sent = await send_critical_alert_email(to_email, location, title, value, sensor_id=sensor_id)
             
             if sent:
                 await self._mark_notification_sent(key)
@@ -198,7 +199,8 @@ class NotificationService:
                     to_phone,
                     location,
                     alert_type,
-                    value
+                    value,
+                    sensor_id=sensor_id
                 )
 
                 last_result = result

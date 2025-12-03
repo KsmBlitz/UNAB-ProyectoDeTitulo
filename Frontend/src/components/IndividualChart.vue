@@ -13,7 +13,8 @@ import {
   Tooltip,
   Legend,
   Filler,
-  type ChartData
+  type ChartData,
+  type ChartOptions
 } from 'chart.js';
 import { API_BASE_URL } from '@/config/api';
 import { parseIsoToDate } from '@/utils/helpers';
@@ -42,6 +43,11 @@ const error = ref<string | null>(null);
 const currentTimeRange = ref(props.timeRange);
 // Disable rendering/fetching for water level charts (sensorType 'nivel')
 const isDisabledForWaterLevel = props.sensorType === 'nivel';
+
+// Variables para rango de fechas personalizado
+const customStartDate = ref<string | null>(null);
+const customEndDate = ref<string | null>(null);
+const isCustomRangeMode = ref(false);
 
 // Cargar estado de predicción desde localStorage
 const savedPredictionState = localStorage.getItem(`prediction_${props.sensorType}_enabled`);
@@ -144,7 +150,8 @@ const criticalPredictions = computed(() => {
 });
 
 // Opciones de gráfico optimizadas para gráfico individual
-const chartOptions = {
+// Se genera dinámicamente según el rango de tiempo para mejor visualización
+const getChartOptions = (hours: number): ChartOptions<'line'> => ({
   responsive: true,
   maintainAspectRatio: false, // IMPORTANTE: Para que respete el contenedor
   interaction: {
@@ -167,9 +174,14 @@ const chartOptions = {
       titleColor: '#fff',
       bodyColor: '#fff',
       callbacks: {
+        title: (context: any) => {
+          // Mostrar fecha completa en el tooltip
+          const label = context[0]?.label || '';
+          return label.replace('\n', ' ');
+        },
         label: (context: any) => {
-          const label = context.dataset.label || '';
-          return `${label}: ${context.parsed.y} ${props.unit}`;
+          const datasetLabel = context.dataset.label || '';
+          return `${datasetLabel}: ${context.parsed.y} ${props.unit}`;
         }
       }
     }
@@ -180,9 +192,12 @@ const chartOptions = {
         color: 'rgba(0, 0, 0, 0.05)',
       },
       ticks: {
-        maxTicksLimit: 6, // Limitar etiquetas en el eje X
+        // Ajustar cantidad de ticks según el rango
+        maxTicksLimit: hours <= 6 ? 6 : hours <= 24 ? 8 : hours <= 72 ? 10 : 12,
+        maxRotation: 45,
+        minRotation: 0,
         font: {
-          size: 11 // Texto más pequeño
+          size: 10
         }
       }
     },
@@ -205,6 +220,62 @@ const chartOptions = {
       }
     }
   }
+});
+
+// Opciones reactivas del gráfico
+const chartOptions = computed(() => getChartOptions(currentTimeRange.value));
+
+/**
+ * Formatea las etiquetas del eje X según el rango de tiempo seleccionado
+ * - Para rangos cortos (1-6h): solo hora:minuto
+ * - Para rangos medios (24h): día + hora en cambios de día
+ * - Para rangos largos (3d+): siempre día/mes + hora
+ */
+const formatTimeLabel = (date: Date, idx: number, arr: string[], hours: number): string => {
+  const timeStr = date.toLocaleTimeString('es-CL', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'America/Santiago'
+  });
+  
+  const dayMonth = date.toLocaleDateString('es-CL', { 
+    day: '2-digit', 
+    month: 'short', 
+    timeZone: 'America/Santiago' 
+  });
+  
+  // Para rangos de 1-6 horas: solo mostrar hora, agregar día solo si cambia
+  if (hours > 0 && hours <= 6) {
+    if (idx === 0) {
+      return `${dayMonth} ${timeStr}`;
+    }
+    const prevDate = parseIsoToDate(arr[idx - 1]);
+    if (prevDate.getDate() !== date.getDate()) {
+      return `${dayMonth} ${timeStr}`;
+    }
+    return timeStr;
+  }
+  
+  // Para rango de 24 horas: mostrar día en cada cambio de día
+  if (hours === 24) {
+    if (idx === 0) {
+      return `${dayMonth} ${timeStr}`;
+    }
+    const prevDate = parseIsoToDate(arr[idx - 1]);
+    if (prevDate.getDate() !== date.getDate()) {
+      return `${dayMonth} ${timeStr}`;
+    }
+    return timeStr;
+  }
+  
+  // Para rangos de 3 días o más: siempre mostrar día/mes + hora
+  const shortDay = date.toLocaleDateString('es-CL', { 
+    day: '2-digit', 
+    month: '2-digit',
+    timeZone: 'America/Santiago' 
+  });
+  return `${shortDay} ${timeStr}`;
 };
 
 const fetchData = async () => {
@@ -215,6 +286,14 @@ const fetchData = async () => {
     chartData.value = { labels: [], datasets: [] };
     return;
   }
+  
+  // Si estamos esperando un rango personalizado (timeRange = -1), no hacer fetch aún
+  // El componente padre llamará a updateCustomDateRange con las fechas correctas
+  if (!isCustomRangeMode.value && currentTimeRange.value < 0) {
+    isLoading.value = true; // Mostrar loading mientras esperamos
+    return;
+  }
+  
   // Solo mostrar loading en la primera carga
   if (!chartData.value || chartData.value.labels?.length === 0) {
     isLoading.value = true;
@@ -225,13 +304,20 @@ const fetchData = async () => {
   const token = localStorage.getItem('userToken');
 
   try {
+    // Construir URL con parámetros según el modo
+    let url = `${API_BASE_URL}/api/charts/historical-data?sensor_type=${props.sensorType}`;
+    
+    if (isCustomRangeMode.value && customStartDate.value && customEndDate.value) {
+      // Modo rango personalizado: usar start_date y end_date
+      url += `&start_date=${customStartDate.value}&end_date=${customEndDate.value}`;
+    } else {
+      // Modo normal: usar hours (nunca será negativo aquí por la guarda anterior)
+      url += `&hours=${currentTimeRange.value}`;
+    }
   
-    const response = await fetch(
-      `${API_BASE_URL}/api/charts/historical-data?sensor_type=${props.sensorType}&hours=${currentTimeRange.value}`,
-      {
-        headers: { 'Authorization': `Bearer ${token}` }
-      }
-    );
+    const response = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
 
     if (!response.ok) {
       throw new Error('Error al cargar datos históricos');
@@ -239,35 +325,15 @@ const fetchData = async () => {
 
     const data = await response.json();
 
-    // Las fechas ya vienen en hora de Chile desde el backend (sin timezone info)
-    // Solo necesitamos extraer la hora (HH:MM)
+    // Formatear etiquetas según el rango de tiempo seleccionado
+    // Para rango personalizado, usar formato de días largos
+    const hours = isCustomRangeMode.value ? 720 : currentTimeRange.value; // 720 = formato largo para personalizado
     const localLabels = (data.labels || []).map((isoString: string, idx: number, arr: string[]) => {
       if (!isoString) return '';
       try {
-        // Parse as UTC when timezone is missing, then render in Chile local time
         const date = parseIsoToDate(isoString);
         if (isNaN(date.getTime())) return '';
-        // If this label is the first of a different day than previous label, include day marker
-        let label = date.toLocaleTimeString('es-CL', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
-          timeZone: 'America/Santiago'
-        });
-
-        if (idx === 0) {
-          // always prefix first label with day
-          const day = date.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', timeZone: 'America/Santiago' });
-          label = `${day} ${label}`;
-        } else {
-          const prevIso = arr[idx - 1];
-          const prevDate = parseIsoToDate(prevIso);
-          if (prevDate.getDate() !== date.getDate() || prevDate.getMonth() !== date.getMonth() || prevDate.getFullYear() !== date.getFullYear()) {
-            const day = date.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', timeZone: 'America/Santiago' });
-            label = `${day} ${label}`;
-          }
-        }
-        return label;
+        return formatTimeLabel(date, idx, arr, hours);
       } catch (e) {
         return '';
       }
@@ -338,14 +404,46 @@ const fetchData = async () => {
 };
 
 // Funciones expuestas para control externo
-const updateTimeRange = (hours: number) => {
+const updateTimeRange = async (hours: number) => {
   // Evitar actualizar si ya está cargando (throttling)
   if (isLoading.value) {
     return;
   }
   
+  // Desactivar modo rango personalizado
+  isCustomRangeMode.value = false;
+  customStartDate.value = null;
+  customEndDate.value = null;
+  
   currentTimeRange.value = hours;
-  fetchData();
+  await fetchData();
+  
+  // Re-cargar predicción si estaba activa
+  if (showPrediction.value && predictionData.value) {
+    await loadPrediction();
+  }
+};
+
+/**
+ * Actualiza el gráfico con un rango de fechas personalizado
+ */
+const updateCustomDateRange = async (startDate: string, endDate: string) => {
+  console.log(`[${props.sensorType}] updateCustomDateRange called:`, startDate, endDate);
+  
+  // Activar modo rango personalizado
+  isCustomRangeMode.value = true;
+  customStartDate.value = startDate;
+  customEndDate.value = endDate;
+  
+  // Forzar loading a false para permitir la carga
+  isLoading.value = false;
+  
+  await fetchData();
+  
+  // Re-cargar predicción si estaba activa
+  if (showPrediction.value && predictionData.value) {
+    await loadPrediction();
+  }
 };
 
 const refreshData = async () => {
@@ -354,7 +452,18 @@ const refreshData = async () => {
     return;
   }
   
+  // Si está en modo rango personalizado, no hacer refresh normal
+  // El refresh se maneja desde el componente padre
+  if (isCustomRangeMode.value) {
+    return;
+  }
+  
   await fetchData();
+  
+  // Re-cargar predicción si estaba activa
+  if (showPrediction.value && predictionData.value) {
+    updateChartWithPrediction(predictionData.value);
+  }
 };
 
 // Open config modal
@@ -513,41 +622,73 @@ const updateChartWithPrediction = (prediction: any) => {
   }
   
   // Keep only the historical data dataset (first one)
-  const historicalDataset = chartData.value.datasets[0];
+  const historicalDataset = { ...chartData.value.datasets[0] };
   
   if (!prediction) {
-    // Remove prediction - keep only historical
+    // Remove prediction - keep only historical with original labels
+    const originalLabelsCount = (historicalDataset.data as any[]).length;
     chartData.value = {
-      ...chartData.value,
+      labels: (chartData.value.labels || []).slice(0, originalLabelsCount),
       datasets: [historicalDataset]
     };
     return;
   }
   
-  // Get current labels and data
-  const currentLabels = [...(chartData.value.labels || [])];
-  const currentData = [...historicalDataset.data];
+  // Get current historical data
+  const historicalLabels = [...(chartData.value.labels || [])].slice(0, (historicalDataset.data as any[]).length);
+  const historicalData = [...(historicalDataset.data as any[])];
   
-  // Add prediction points
+  // Build prediction labels and values
   const predictionLabels: string[] = [];
-  const predictionValues: number[] = [];
+  const predictionValues: (number | null)[] = [];
   
-  // Start prediction from last historical point
-  const lastValue = currentData[currentData.length - 1];
-  predictionValues.push(lastValue as number);
-  predictionLabels.push(currentLabels[currentLabels.length - 1] as string);
+  // Fill historical portion with null (prediction line doesn't show for historical data)
+  for (let i = 0; i < historicalData.length - 1; i++) {
+    predictionValues.push(null);
+  }
   
-  // Add predicted values
-  prediction.predictions.forEach((pred: any) => {
+  // Connect from last historical point
+  const lastHistoricalValue = historicalData[historicalData.length - 1] as number;
+  predictionValues.push(lastHistoricalValue);
+  
+  // Calculate spacing: Add visual gap points to show temporal separation
+  // Each spacer represents ~4 hours to make days feel proportionally distant
+  const numPredictions = prediction.predictions.length;
+  const spacersPerDay = 4; // Visual spacers between each prediction day
+  
+  // Add spacers and predictions
+  prediction.predictions.forEach((pred: any, index: number) => {
     const date = parseIsoToDate(pred.timestamp);
-    const label = `${String(date.getDate()).padStart(2,'0')}/${String(date.getMonth() + 1).padStart(2,'0')}`;
-    predictionLabels.push(label);
+    const dayNum = index + 1;
+    
+    // Add spacer points before each prediction (except connecting to last historical)
+    for (let s = 0; s < spacersPerDay; s++) {
+      // Interpolate value between last point and this prediction
+      const prevValue = index === 0 ? lastHistoricalValue : prediction.predictions[index - 1].value;
+      const progress = (s + 1) / (spacersPerDay + 1);
+      const interpolatedValue = prevValue + (pred.value - prevValue) * progress;
+      
+      if (s === Math.floor(spacersPerDay / 2)) {
+        // Middle spacer shows the day label
+        predictionLabels.push(`Día ${dayNum}`);
+      } else {
+        predictionLabels.push(''); // Empty label for spacing
+      }
+      predictionValues.push(interpolatedValue);
+    }
+    
+    // Add the actual prediction point
+    const dateStr = date.toLocaleDateString('es-CL', { 
+      day: '2-digit', 
+      month: '2-digit',
+      timeZone: 'America/Santiago' 
+    });
+    predictionLabels.push(`📍 ${dateStr}`);
     predictionValues.push(pred.value);
   });
   
   // Determine prediction line color based on critical status
-  let predictionColor = props.color;
-  let predictionBgColor = 'transparent';
+  let predictionColor = '#6366f1'; // Default indigo color for predictions
   
   // Get thresholds for current sensor type
   if (props.sensorType === 'ph' || props.sensorType === 'conductividad') {
@@ -568,32 +709,58 @@ const updateChartWithPrediction = (prediction: any) => {
     // Change color based on worst status
     if (hasCritical) {
       predictionColor = '#dc3545'; // Red for critical
-      predictionBgColor = 'rgba(220, 53, 69, 0.1)';
     } else if (hasWarning) {
-      predictionColor = '#ffc107'; // Yellow for warning
-      predictionBgColor = 'rgba(255, 193, 7, 0.1)';
+      predictionColor = '#f59e0b'; // Orange for warning
+    } else {
+      predictionColor = '#22c55e'; // Green for normal
     }
   }
   
-  // Create prediction dataset
+  // Calculate point radius array: large for actual predictions, small/none for spacers
+  // Structure: [nulls for historical..., connection point, (spacers + prediction) x N]
+  const pointRadiusArray: number[] = [];
+  const pointsPerDay = spacersPerDay + 1; // spacers + 1 actual prediction
+  
+  // Historical data points (null values, no points shown for prediction line)
+  for (let i = 0; i < historicalData.length; i++) {
+    pointRadiusArray.push(0);
+  }
+  
+  // Prediction points: small for spacers, large for actual predictions
+  for (let day = 0; day < numPredictions; day++) {
+    // Spacer points (small or no radius)
+    for (let s = 0; s < spacersPerDay; s++) {
+      pointRadiusArray.push(1); // Tiny dot for spacers
+    }
+    // Actual prediction point (large)
+    pointRadiusArray.push(8);
+  }
+  
+  // Create prediction dataset with enhanced visibility
   const predictionDataset = {
-    label: 'Predicción',
-    data: Array(currentData.length - 1).fill(null).concat(predictionValues),
+    label: '📈 Predicción (próximos días)',
+    data: predictionValues,
     borderColor: predictionColor,
-    backgroundColor: predictionBgColor,
-    borderDash: [5, 5], // Dashed line
-    tension: 0.4,
-    fill: false,
-    pointRadius: 3,
-    pointHoverRadius: 5,
-    borderWidth: 2,
+    backgroundColor: `${predictionColor}15`, // Semi-transparent background
+    borderDash: [6, 3], // Dashed line
+    tension: 0.3,
+    fill: true, // Fill area under prediction line
+    pointRadius: pointRadiusArray, // Variable point sizes
+    pointHoverRadius: 10,
+    borderWidth: 2.5, // Line width
     pointStyle: 'circle',
-    pointBackgroundColor: predictionColor
+    pointBackgroundColor: predictionColor,
+    pointBorderColor: '#ffffff',
+    pointBorderWidth: 2,
+    spanGaps: true // Important: connect points even with nulls in between
   };
+  
+  // Combine labels: historical + prediction (without duplicating the connection point)
+  const allLabels = [...historicalLabels, ...predictionLabels];
   
   // Update chart with both datasets
   chartData.value = {
-    labels: [...currentLabels, ...predictionLabels.slice(1)],
+    labels: allLabels,
     datasets: [historicalDataset, predictionDataset]
   };
 };
@@ -601,13 +768,18 @@ const updateChartWithPrediction = (prediction: any) => {
 // Exponer funciones al componente padre
 defineExpose({
   updateTimeRange,
+  updateCustomDateRange,
   refreshData
 });
 
 // Watch para cambios en timeRange (prop)
 watch(() => props.timeRange, (newRange) => {
-  currentTimeRange.value = newRange;
-  fetchData();
+  // Solo actualizar si no estamos en modo rango personalizado
+  // y si el nuevo rango es válido (no es -1 que indica rango personalizado)
+  if (!isCustomRangeMode.value && newRange >= 0) {
+    currentTimeRange.value = newRange;
+    fetchData();
+  }
 });
 
 onMounted(fetchData);

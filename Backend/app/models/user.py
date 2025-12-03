@@ -46,8 +46,8 @@ class UserBase(BaseModel):
     full_name: Optional[str] = None
     role: str
     disabled: Optional[bool] = False
-    phone: Optional[str] = None  # Teléfono en formato internacional (ej: +56912345678)
-    whatsapp_notifications_enabled: Optional[bool] = False  # Preferencia de notificaciones WhatsApp
+    phone: Optional[str] = None  # Phone in international format (e.g. +56912345678)
+    whatsapp_notifications_enabled: Optional[bool] = False  # WhatsApp notification preference
 
 
 class UserCreate(UserBase):

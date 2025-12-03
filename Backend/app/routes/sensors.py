@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 # Timezone offset for Chile (UTC-3)
 CHILE_OFFSET = timedelta(hours=-3)
 
-router = APIRouter(prefix="/api", tags=["Datos de Sensores"])
+router = APIRouter(prefix="/api", tags=["Sensor Data"])
 
 
 @router.get("/sensors/individual")
@@ -41,7 +41,7 @@ async def get_individual_sensors_status(current_user: dict = Depends(get_current
         return sensors
         
     except Exception as e:
-        logger.error(f"Error obteniendo sensores individuales: {e}")
+        logger.error(f"Error getting individual sensors: {e}")
         return []
 
 
@@ -61,7 +61,7 @@ async def get_latest_metrics(
         return result
         
     except Exception as e:
-        logger.error(f"Error obteniendo métricas: {e}")
+        logger.error(f"Error getting metrics: {e}")
         return {
             "temperature": 0,
             "ph": 0,
@@ -76,6 +76,8 @@ async def get_latest_metrics(
 async def get_historical_data(
     reservoir_id: Optional[str] = Query(None),
     hours: int = Query(24, ge=0, le=8760),
+    start_date: Optional[str] = Query(None, description="Start date in YYYY-MM-DD format"),
+    end_date: Optional[str] = Query(None, description="End date in YYYY-MM-DD format"),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -84,23 +86,50 @@ async def get_historical_data(
     Args:
         reservoir_id: Optional filter by reservoir ID
         hours: Number of hours to retrieve (0 = all data, max 8760 = 1 year)
+        start_date: Optional start date for custom range (YYYY-MM-DD)
+        end_date: Optional end date for custom range (YYYY-MM-DD)
     """
     try:
-        # Calculate start_time based on hours
         start_time = None
-        if hours > 0:
-            start_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+        end_time = None
+        
+        # Check if custom date range is provided
+        if start_date and end_date:
+            try:
+                # Parse dates - dates come in Chile local time (UTC-3)
+                # Convert to UTC by adding 3 hours to match DB data
+                # Start of day in Chile = 03:00 UTC same day
+                # End of day in Chile = 02:59:59 UTC next day
+                start_time = datetime.strptime(start_date, "%Y-%m-%d").replace(
+                    hour=3, minute=0, second=0, tzinfo=timezone.utc
+                )
+                # For end, we need end of day in Chile = 02:59:59 UTC next day
+                end_parsed = datetime.strptime(end_date, "%Y-%m-%d")
+                end_time = (end_parsed + timedelta(days=1)).replace(
+                    hour=2, minute=59, second=59, tzinfo=timezone.utc
+                )
+                logger.info(f"Custom date range: {start_date} to {end_date} -> UTC: {start_time} to {end_time}")
+            except ValueError:
+                logger.warning(f"Invalid date format: start={start_date}, end={end_date}")
+                # Fall back to hours-based calculation
+                if hours > 0:
+                    start_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+        else:
+            # Calculate start_time based on hours
+            if hours > 0:
+                start_time = datetime.now(timezone.utc) - timedelta(hours=hours)
         
         # Call service with sensor_ids parameter
         sensor_ids = [reservoir_id] if reservoir_id else None
         result = await sensor_service.get_historical_data(
             sensor_ids=sensor_ids,
-            start_time=start_time
+            start_time=start_time,
+            end_time=end_time
         )
         return result
         
     except Exception as e:
-        logger.error(f"Error obteniendo datos históricos: {e}")
+        logger.error(f"Error getting historical data: {e}")
         return {
             "labels": [],
             "temperatura": [],
@@ -136,7 +165,7 @@ async def get_sensors_status(current_user: dict = Depends(get_current_user)):
         }
         
     except Exception as e:
-        logger.error(f"Error obteniendo estado de sensores: {e}")
+        logger.error(f"Error getting sensor status: {e}")
         return {
             "online": 0,
             "warning": 0,
@@ -190,7 +219,7 @@ async def get_sensor_prediction(
         if sensor_type not in valid_types:
             return {
                 "success": False,
-                "message": f"Tipo de sensor inválido. Debe ser: {', '.join(valid_types)}",
+                "message": f"Invalid sensor type. Must be: {', '.join(valid_types)}",
                 "predictions": []
             }
         
@@ -204,10 +233,10 @@ async def get_sensor_prediction(
         return result
         
     except Exception as e:
-        logger.error(f"Error en endpoint de predicción: {e}")
+        logger.error(f"Error in prediction endpoint: {e}")
         return {
             "success": False,
-            "message": f"Error generando predicción: {str(e)}",
+            "message": f"Error generating prediction: {str(e)}",
             "predictions": []
         }
 
@@ -251,7 +280,7 @@ async def save_prediction_config(
         
         return {
             "success": True,
-            "message": "Configuración guardada exitosamente",
+            "message": "Configuration saved successfully",
             "config": {
                 "sensor_type": config.sensor_type,
                 "days": config.days,
@@ -263,7 +292,7 @@ async def save_prediction_config(
         logger.error(f"Error saving prediction config: {e}")
         return {
             "success": False,
-            "message": f"Error al guardar configuración: {str(e)}"
+            "message": f"Error saving configuration: {str(e)}"
         }
 
 
@@ -272,17 +301,17 @@ async def get_sensors_list(
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Obtener lista de sensores con su configuración de alertas
+    Get list of sensors with their alert configuration
     """
     try:
         from app.config import db
         sensors_collection = db["sensors"]
         
-        # Obtener todos los sensores
+        # Get all sensors
         sensors_cursor = sensors_collection.find({})
         sensors = await sensors_cursor.to_list(length=100)
         
-        # Formatear respuesta
+        # Format response
         sensors_list = []
         for sensor in sensors:
             sensor_data = {
@@ -387,21 +416,8 @@ async def get_sensor_alert_config(
         }
         
     except ValueError as ve:
-        logger.warning(f"Validation error: {ve}")
+        logger.warning(f"Sensor not found: {ve}")
         raise HTTPException(status_code=404, detail=str(ve))
-    except Exception as e:
-        logger.error(f"Error getting sensor alert config: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-        
-        return {
-            "success": True,
-            "sensor_id": sensor_id,
-            "name": sensor.get("name", sensor_id),
-            "alert_config": alert_config
-        }
-        
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Error getting sensor alert config: {e}")
         raise HTTPException(status_code=500, detail=str(e))

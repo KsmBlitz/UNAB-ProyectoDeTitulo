@@ -19,42 +19,42 @@ logger = logging.getLogger(__name__)
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """
-    Middleware para rate limiting basado en IP, usuario y rol.
+    Rate limiting middleware based on IP, user, and role.
     
-    Límites por rol (requests/minuto):
-    - Administrador: Sin límite (solo tracking)
-    - Operario: 300 requests/minuto
-    - Usuario básico: 200 requests/minuto
-    - Anónimo (IP): 100 requests/minuto
-    - Endpoints críticos: 5 requests/minuto para todos
+    Limits per role (requests/minute):
+    - Admin: No limit (tracking only)
+    - Operator: 300 requests/minute
+    - Basic user: 200 requests/minute
+    - Anonymous (IP): 100 requests/minute
+    - Critical endpoints: 5 requests/minute for all
     
-    Límites por hora:
-    - Usuarios autenticados: 10,000 requests/hora
-    - Anónimos: N/A (limitados por minuto)
+    Hourly limits:
+    - Authenticated users: 10,000 requests/hour
+    - Anonymous: N/A (limited per minute)
     """
     
     def __init__(self, app):
         super().__init__(app)
-        # Estructura: {ip: [(timestamp, endpoint), ...]}
+        # Structure: {ip: [(timestamp, endpoint), ...]}
         self.ip_requests: Dict[str, list] = defaultdict(list)
-        # Estructura: {user_email: [(timestamp, endpoint, role), ...]}
+        # Structure: {user_email: [(timestamp, endpoint, role), ...]}
         self.user_requests: Dict[str, list] = defaultdict(list)
         
-        # Configuración de límites por rol (requests/minuto)
+        # Rate limits by role (requests/minute)
         self.ROLE_LIMITS = {
-            "administrador": None,  # Sin límite
+            "administrador": None,  # No limit
             "operario": 300,
             "usuario": 200,
-            "anonymous": 100  # Para IPs sin autenticar
+            "anonymous": 100  # For unauthenticated IPs
         }
         
-        # Límite por hora para usuarios autenticados
+        # Hourly limit for authenticated users
         self.USER_LIMIT_PER_HOUR = 10000
         
-        # Límite para endpoints críticos (aplica a todos)
-        self.CRITICAL_ENDPOINTS_LIMIT = 5  # Por minuto
+        # Limit for critical endpoints (applies to all)
+        self.CRITICAL_ENDPOINTS_LIMIT = 5  # Per minute
         
-        # Endpoints considerados críticos
+        # Endpoints considered critical
         self.CRITICAL_ENDPOINTS = [
             "/api/token",
             "/api/forgot-password",
@@ -63,23 +63,23 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         ]
     
     def _clean_old_requests(self, requests_list: list, time_window: timedelta):
-        """Elimina requests antiguos fuera de la ventana de tiempo"""
+        """Remove old requests outside the time window"""
         now = datetime.utcnow()
         cutoff_time = now - time_window
         return [req for req in requests_list if req[0] > cutoff_time]
     
     def _is_critical_endpoint(self, path: str, method: str) -> bool:
-        """Determina si un endpoint es crítico"""
+        """Determine if an endpoint is critical"""
         if path == "/api/users" and method == "POST":
             return True
         return any(path.startswith(endpoint) for endpoint in self.CRITICAL_ENDPOINTS)
     
     def _get_user_from_token(self, request: Request) -> Tuple[Optional[str], Optional[str]]:
         """
-        Extrae el email y rol del usuario del token JWT.
+        Extract user email and role from JWT token.
         
         Returns:
-            Tuple[email, role] o (None, None) si no hay token válido
+            Tuple[email, role] or (None, None) if no valid token
         """
         auth_header = request.headers.get("Authorization")
         if not auth_header or not auth_header.startswith("Bearer "):
@@ -92,7 +92,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             token = auth_header.split(" ")[1]
             payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
             email = payload.get("sub")
-            role = payload.get("role", "usuario")  # Default: usuario
+            role = payload.get("role", "usuario")  # Default: basic user
             return email, role
         except Exception as e:
             logger.debug(f"Error decoding token: {e}")
@@ -100,20 +100,20 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     
     def _get_rate_limit_for_role(self, role: Optional[str]) -> Optional[int]:
         """
-        Obtiene el límite de rate para un rol específico.
+        Get rate limit for a specific role.
         
         Args:
-            role: Rol del usuario ("administrador", "operario", "usuario", None)
+            role: User role ("administrador", "operario", "usuario", None)
             
         Returns:
-            Límite de requests/minuto o None si no tiene límite
+            Requests/minute limit or None if unlimited
         """
         if role is None:
             return self.ROLE_LIMITS["anonymous"]
         return self.ROLE_LIMITS.get(role.lower(), self.ROLE_LIMITS["usuario"])
     
     async def dispatch(self, request: Request, call_next):
-        # Excluir health checks y WebSocket del rate limiting
+        # Exclude health checks and WebSocket from rate limiting
         if (request.url.path.startswith("/health") or 
             request.url.path == "/" or 
             request.url.path.startswith("/ws/")):
@@ -128,22 +128,22 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         path = request.url.path
         method = request.method
         
-        # Verificar si es endpoint crítico
+        # Check if critical endpoint
         is_critical = self._is_critical_endpoint(path, method)
         
-        # Obtener usuario autenticado y su rol
+        # Get authenticated user and role
         user_email, user_role = self._get_user_from_token(request)
         
-        # Obtener límite apropiado según el rol
+        # Get appropriate limit based on role
         rate_limit = self._get_rate_limit_for_role(user_role)
         
-        # Rate limiting por IP (ventana de 1 minuto)
+        # Rate limiting by IP (1 minute window)
         self.ip_requests[client_ip] = self._clean_old_requests(
             self.ip_requests[client_ip],
             timedelta(minutes=1)
         )
         
-        # === RATE LIMITING PARA ENDPOINTS CRÍTICOS ===
+        # === RATE LIMITING FOR CRITICAL ENDPOINTS ===
         if is_critical:
             critical_requests = [req for req in self.ip_requests[client_ip] 
                                 if self._is_critical_endpoint(req[1], method)]
@@ -161,14 +161,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 return JSONResponse(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                     content={
-                        "detail": "Demasiadas solicitudes. Por favor, espera 1 minuto antes de intentar nuevamente.",
+                        "detail": "Too many requests. Please wait 1 minute before trying again.",
                         "retry_after": 60
                     },
                     headers={"Retry-After": "60"}
                 )
         
-        # === RATE LIMITING POR ROL (por minuto) ===
-        # Administradores no tienen límite
+        # === RATE LIMITING BY ROLE (per minute) ===
+        # Admins have no limit
         if rate_limit is not None:
             if len(self.ip_requests[client_ip]) >= rate_limit:
                 logger.warning(
@@ -184,7 +184,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 return JSONResponse(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                     content={
-                        "detail": f"Límite de solicitudes excedido ({rate_limit}/min). Intenta nuevamente en 1 minuto.",
+                        "detail": f"Request limit exceeded ({rate_limit}/min). Try again in 1 minute.",
                         "retry_after": 60,
                         "limit": rate_limit,
                         "role": user_role or "anonymous"
@@ -192,14 +192,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                     headers={"Retry-After": "60"}
                 )
         
-        # === RATE LIMITING POR USUARIO (por hora) ===
+        # === RATE LIMITING BY USER (per hour) ===
         if user_email:
             self.user_requests[user_email] = self._clean_old_requests(
                 self.user_requests[user_email],
                 timedelta(hours=1)
             )
             
-            # Solo aplicar límite por hora si no es administrador
+            # Only apply hourly limit if not admin
             if user_role and user_role.lower() != "administrador":
                 if len(self.user_requests[user_email]) >= self.USER_LIMIT_PER_HOUR:
                     logger.warning(
@@ -213,19 +213,19 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                     return JSONResponse(
                         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                         content={
-                            "detail": f"Límite de solicitudes por hora excedido ({self.USER_LIMIT_PER_HOUR}/hora). Intenta nuevamente más tarde.",
+                            "detail": f"Hourly request limit exceeded ({self.USER_LIMIT_PER_HOUR}/hour). Try again later.",
                             "retry_after": 3600
                         },
                         headers={"Retry-After": "3600"}
                     )
             
-            # Registrar request del usuario con su rol
+            # Record user request with role
             self.user_requests[user_email].append((now, path, user_role))
         
-        # Registrar request de la IP
+        # Record IP request
         self.ip_requests[client_ip].append((now, path))
         
-        # Continuar con la solicitud. Some tests mock `call_next` as a sync function
+        # Continue with request. Some tests mock `call_next` as a sync function
         # that returns a Response object (not awaitable). Support both awaitable
         # and non-awaitable call_next implementations.
         maybe_response = call_next(request)
@@ -234,14 +234,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         else:
             response = maybe_response
         
-        # Agregar headers de rate limit info
+        # Add rate limit info headers
         if rate_limit is not None:
             remaining_requests = max(0, rate_limit - len(self.ip_requests[client_ip]))
             response.headers["X-RateLimit-Limit"] = str(rate_limit)
             response.headers["X-RateLimit-Remaining"] = str(remaining_requests)
             response.headers["X-RateLimit-Reset"] = str(int((now + timedelta(minutes=1)).timestamp()))
         else:
-            # Administradores
+            # Admins
             response.headers["X-RateLimit-Limit"] = "unlimited"
             response.headers["X-RateLimit-Remaining"] = "unlimited"
         
@@ -251,8 +251,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return response
     
     def get_stats(self) -> Dict:
-        """Obtiene estadísticas del rate limiting (útil para monitoring)"""
-        # Contar requests por rol
+        """Get rate limiting statistics (useful for monitoring)"""
+        # Count requests by role
         role_stats = defaultdict(int)
         for user_email, requests in self.user_requests.items():
             if requests:

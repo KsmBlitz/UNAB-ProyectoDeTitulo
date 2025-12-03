@@ -1,6 +1,7 @@
 import logging
 import asyncio
 import os
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -16,16 +17,72 @@ from app.services.cache import cache_service
 from app.middleware import RateLimitMiddleware
 from app.middleware.request_id import RequestIDMiddleware
 from app.utils.dependencies import get_current_user
+from app.core import register_exception_handlers, get_container, configure_container
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# Configure logging level based on environment
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=getattr(logging, LOG_LEVEL, logging.INFO),
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Application lifespan manager
+    Handles startup and shutdown events
+    """
+    # Startup
+    logger.info("Starting application...")
+    
+    # Configure dependency injection container
+    container = get_container()
+    configure_container(container)
+    logger.info("Dependency container configured")
+    
+    logger.info(f"Connected to database: {settings.DATABASE_NAME}")
+    
+    # Connect Redis cache
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+    await cache_service.connect(redis_url)
+    
+    # Start alert watcher in background
+    asyncio.create_task(alert_change_stream_watcher())
+    logger.info("Alert watcher started")
+    
+    # Start alert reconciler
+    asyncio.create_task(start_reconciler(60))
+    logger.info("Alert reconciler started (interval 60s)")
+
+    # Start sensor monitor in background
+    asyncio.create_task(sensor_monitor.start())
+    logger.info("Sensor monitor started")
+    
+    logger.info("Application ready")
+    
+    yield  # Application is running
+    
+    # Shutdown
+    logger.info("Shutting down application...")
+    sensor_monitor.stop()
+    await cache_service.disconnect()
+    await Database.close()
+    logger.info("Application closed successfully")
+
+
 app = FastAPI(
-    title="Sistema de Monitoreo de Embalses IoT",
-    description="API para monitoreo en tiempo real de sensores IoT en embalses",
-    version="2.0.0"
+    title="AquaStat IoT Monitoring System",
+    description="API for real-time IoT sensor monitoring in reservoirs",
+    version="2.1.0",
+    lifespan=lifespan
 )
 
+# Register exception handlers
+register_exception_handlers(app)
+
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -34,93 +91,53 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Request ID middleware (debe ir antes que otros middlewares)
+# Request ID middleware (must come before other middlewares)
 app.add_middleware(RequestIDMiddleware)
 
 # Rate limiting middleware
-rate_limit_middleware = None
-for middleware in app.user_middleware:
-    if middleware.cls == RateLimitMiddleware:
-        rate_limit_middleware = middleware
-        break
-
-# Si no se encontró, agregarlo
-if not rate_limit_middleware:
-    app.add_middleware(RateLimitMiddleware)
-
-@app.on_event("startup")
-async def startup_event():
-    """Evento de inicio de la aplicación"""
-    logger.info("Iniciando aplicación...")
-    logger.info(f"Conectado a base de datos: {settings.DATABASE_NAME}")
-    
-    # Conectar Redis cache
-    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
-    await cache_service.connect(redis_url)
-    
-    # Iniciar el watcher de alertas en background
-    asyncio.create_task(alert_change_stream_watcher())
-    logger.info("Alert watcher iniciado")
-    
-    # Iniciar reconciliador de alertas (seguridad adicional contra inserciones directas)
-    asyncio.create_task(start_reconciler(60))
-    logger.info("Alert reconciler iniciado (interval 60s)")
-
-    # Iniciar el monitor de sensores en background
-    asyncio.create_task(sensor_monitor.start())
-    logger.info("Sensor monitor iniciado")
-    
-    logger.info("Aplicación lista")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    logger.info("Cerrando aplicación...")
-    sensor_monitor.stop()
-    await cache_service.disconnect()
-    await Database.close()
-    logger.info("Aplicación cerrada correctamente")
+app.add_middleware(RateLimitMiddleware)
 
 @app.get("/", tags=["Health"])
 async def root():
     return {
         "status": "online",
-        "message": "Sistema de Monitoreo de Embalses IoT API",
-        "version": "2.0.0"
+        "message": "AquaStat IoT Monitoring System API",
+        "version": "2.1.0"
     }
 
 @app.get("/api/rate-limit/stats", tags=["Monitoring"])
 async def get_rate_limit_stats(current_user: dict = Depends(get_current_user)):
     """
-    Obtiene estadísticas del rate limiting (solo para administradores).
+    Get rate limiting statistics (admin only).
     
-    Requiere autenticación y rol de administrador.
+    Requires authentication and admin role.
     """
     from fastapi import HTTPException, status
     
-    # Verificar que sea administrador
+    # Verify admin role
     if current_user.get("role") != "administrador":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Solo los administradores pueden ver estadísticas de rate limiting"
+            detail="Only administrators can view rate limiting statistics"
         )
     
-    # Obtener el middleware de rate limiting
+    # Get rate limiting middleware instance
     rate_limit_instance = None
     for middleware in app.user_middleware:
         if middleware.cls == RateLimitMiddleware:
-            # El middleware es una instancia envuelta, necesitamos acceder al app original
+            # Middleware is a wrapped instance, need to access original app
             rate_limit_instance = middleware.kwargs.get("app")
             break
     
     if rate_limit_instance:
-        # Buscar la instancia real del middleware en la cadena
+        # Search for actual middleware instance in chain
         for mw in app.middleware_stack.__self__.middleware:
             if isinstance(mw, RateLimitMiddleware):
                 return mw.get_stats()
     
-    # Fallback: crear respuesta básica
+    # Fallback: return basic response
     return {
-        "message": "Rate limiting activo pero sin estadísticas disponibles",
+        "message": "Rate limiting active but stats unavailable",
         "active_ips": 0,
         "active_users": 0
     }
