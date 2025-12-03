@@ -4,46 +4,14 @@ WhatsApp integration using Twilio API for AquaStat monitoring system
 """
 
 import logging
-import re
 from typing import Optional
 from twilio.rest import Client
 from twilio.base.exceptions import TwilioRestException
 
 from app.config import settings
+from app.utils.formatting import format_disconnect_duration, get_alert_display_config
 
 logger = logging.getLogger(__name__)
-
-
-def _format_disconnect_duration(value: str) -> str:
-    """
-    Format disconnect duration from minutes to human-readable format.
-    
-    Args:
-        value: String containing minutes (e.g., "15 minutos" or "15")
-        
-    Returns:
-        Formatted duration string (e.g., "15 minutos", "1 hora 30 minutos")
-    """
-    try:
-        # Extract number from string
-        match = re.search(r'(\d+)', str(value))
-        if not match:
-            return value
-        
-        minutes = int(match.group(1))
-        
-        if minutes < 60:
-            return f"{minutes} minuto{'s' if minutes != 1 else ''}"
-        
-        hours = minutes // 60
-        remaining_mins = minutes % 60
-        
-        if remaining_mins == 0:
-            return f"{hours} hora{'s' if hours != 1 else ''}"
-        
-        return f"{hours} hora{'s' if hours != 1 else ''} {remaining_mins} minuto{'s' if remaining_mins != 1 else ''}"
-    except:
-        return value
 
 
 async def send_critical_alert_twilio_whatsapp(
@@ -54,7 +22,7 @@ async def send_critical_alert_twilio_whatsapp(
     sensor_id: str = None
 ) -> dict:
     """
-    Send a professional critical alert via Twilio WhatsApp
+    Send a professional critical alert via Twilio WhatsApp.
     
     Args:
         to_phone: Recipient phone number in international format (e.g., +56912345678)
@@ -67,12 +35,12 @@ async def send_critical_alert_twilio_whatsapp(
         dict with 'ok', 'sid', 'status', 'error_code', 'error_message'
     """
     try:
-        logger.info(f"Intentando enviar WhatsApp a {to_phone} - tipo: {alert_type}")
+        logger.info(f"Attempting WhatsApp send to {to_phone} - type: {alert_type}")
         
         # Check if Twilio WhatsApp is enabled
         if not getattr(settings, 'TWILIO_WHATSAPP_ENABLED', False):
-            logger.warning("Twilio WhatsApp notifications DESHABILITADO en settings")
-            return False
+            logger.warning("Twilio WhatsApp notifications DISABLED in settings")
+            return {'ok': False, 'sid': None, 'status': None, 'error_code': None, 'error_message': 'WhatsApp disabled'}
         
         # Validate configuration
         twilio_sid = getattr(settings, 'TWILIO_ACCOUNT_SID', None)
@@ -80,38 +48,28 @@ async def send_critical_alert_twilio_whatsapp(
         twilio_from = getattr(settings, 'TWILIO_WHATSAPP_FROM', None)
         
         if not all([twilio_sid, twilio_token, twilio_from]):
-            logger.warning(f"Configuración Twilio WhatsApp incompleta - SID: {bool(twilio_sid)}, Token: {bool(twilio_token)}, From: {twilio_from}")
-            return False
+            logger.warning(f"Incomplete Twilio WhatsApp config - SID: {bool(twilio_sid)}, Token: {bool(twilio_token)}, From: {twilio_from}")
+            return {'ok': False, 'sid': None, 'status': None, 'error_code': None, 'error_message': 'Incomplete configuration'}
         
         if not to_phone:
-            logger.warning("Número de teléfono no proporcionado")
-            return False
+            logger.warning("Phone number not provided")
+            return {'ok': False, 'sid': None, 'status': None, 'error_code': None, 'error_message': 'No phone number'}
             
         # Validate phone format (must start with +)
         if not to_phone.startswith('+'):
-            logger.warning(f"Número de teléfono inválido (debe incluir código país con +): {to_phone}")
-            return False
+            logger.warning(f"Invalid phone number (must include country code with +): {to_phone}")
+            return {'ok': False, 'sid': None, 'status': None, 'error_code': None, 'error_message': 'Invalid phone format'}
         
-        logger.info(f"Configuración Twilio OK - Enviando de {twilio_from} a {to_phone}")
+        logger.info(f"Twilio config OK - Sending from {twilio_from} to {to_phone}")
         
-        # Human-readable alert names
-        alert_config = {
-            'ph_range': {'name': 'pH Fuera de Rango'},
-            'ph': {'name': 'pH Fuera de Rango'},
-            'conductivity': {'name': 'Conductividad Anormal'},
-            'ec': {'name': 'Conductividad Eléctrica Anormal'},
-            'temperature': {'name': 'Temperatura Crítica'},
-            'water_level': {'name': 'Nivel de Agua Crítico'},
-            'sensor_disconnection': {'name': 'Sensor Desconectado'}
-        }
-        
-        config = alert_config.get(alert_type, {'name': alert_type})
+        # Get display configuration for alert type
+        config = get_alert_display_config(alert_type)
         alert_name = config['name']
         
         # Format value for disconnect alerts
         is_disconnect = alert_type == 'sensor_disconnection'
         if is_disconnect:
-            display_value = _format_disconnect_duration(value)
+            display_value = format_disconnect_duration(value)
             value_label = "Tiempo desconectado"
         else:
             display_value = value
@@ -140,7 +98,7 @@ async def send_critical_alert_twilio_whatsapp(
         from_whatsapp = f"whatsapp:{twilio_from}"
         to_whatsapp = f"whatsapp:{to_phone}"
         
-        # Optionally include a per-message status callback URL (if configured)
+        # Optional status callback URL
         status_callback_url = getattr(settings, 'TWILIO_STATUS_CALLBACK_URL', None)
 
         # Send message
@@ -158,20 +116,8 @@ async def send_critical_alert_twilio_whatsapp(
                 to=to_whatsapp
             )
 
-        # Log full response details for diagnostics
-        try:
-            msg_info = {
-                'sid': getattr(message, 'sid', None),
-                'status': getattr(message, 'status', None),
-                'to': getattr(message, 'to', None),
-                'from': getattr(message, 'from_', None),
-                'date_created': getattr(message, 'date_created', None),
-                'date_sent': getattr(message, 'date_sent', None),
-                'date_updated': getattr(message, 'date_updated', None),
-            }
-            logger.info(f"Twilio WhatsApp send response: {msg_info}")
-        except Exception:
-            logger.info(f"Twilio WhatsApp sent (sid={getattr(message,'sid',None)})")
+        # Log response details
+        logger.info(f"Twilio WhatsApp sent (sid={getattr(message, 'sid', None)}, status={getattr(message, 'status', None)})")
 
         return {
             'ok': True,
@@ -182,14 +128,7 @@ async def send_critical_alert_twilio_whatsapp(
         }
         
     except TwilioRestException as e:
-        # Log Twilio exception details (error code/message and response body if available)
-        try:
-            logger.error(
-                f"Twilio API error: code={getattr(e,'code',None)} msg={getattr(e,'msg',None)} resp={getattr(e,'resp',None)}"
-            )
-        except Exception:
-            logger.exception("Twilio API error (exception) while logging details")
-        # Return structured error info so callers can decide to retry
+        logger.error(f"Twilio API error: code={getattr(e, 'code', None)} msg={getattr(e, 'msg', None)}")
         return {
             'ok': False,
             'sid': None,
@@ -199,5 +138,11 @@ async def send_critical_alert_twilio_whatsapp(
         }
         
     except Exception as e:
-        logger.error(f"Error enviando Twilio WhatsApp a {to_phone}: {e}")
-        return False
+        logger.error(f"Error sending Twilio WhatsApp to {to_phone}: {e}")
+        return {
+            'ok': False,
+            'sid': None,
+            'status': None,
+            'error_code': None,
+            'error_message': str(e)
+        }

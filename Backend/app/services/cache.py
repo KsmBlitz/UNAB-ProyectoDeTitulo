@@ -17,28 +17,28 @@ logger = logging.getLogger(__name__)
 
 class CacheService:
     """
-    Servicio de caché con Redis para optimizar consultas frecuentes.
+    Redis cache service for optimizing frequent queries.
     
-    Estrategia de caché:
-    - Dashboard metrics: TTL 30 segundos
-    - ML Predictions: TTL 5 minutos
-    - User permissions: TTL 15 minutos
-    - Analytics data: TTL 2 minutos
+    Cache strategy:
+    - Dashboard metrics: TTL 30 seconds
+    - ML Predictions: TTL 5 minutes
+    - User permissions: TTL 15 minutes
+    - Analytics data: TTL 2 minutes
     """
     
     def __init__(self):
         self.redis_client: Optional[Any] = None
         self.enabled = True
         
-        # TTLs configurables
-        self.TTL_DASHBOARD = 30  # 30 segundos
-        self.TTL_PREDICTIONS = 300  # 5 minutos
-        self.TTL_PERMISSIONS = 900  # 15 minutos
-        self.TTL_ANALYTICS = 120  # 2 minutos
-        self.TTL_SENSOR_DATA = 60  # 1 minuto
+        # Configurable TTLs
+        self.TTL_DASHBOARD = 30  # 30 seconds
+        self.TTL_PREDICTIONS = 300  # 5 minutes
+        self.TTL_PERMISSIONS = 900  # 15 minutes
+        self.TTL_ANALYTICS = 120  # 2 minutes
+        self.TTL_SENSOR_DATA = 60  # 1 minute
     
     async def connect(self, redis_url: str = "redis://localhost:6379"):
-        """Conecta al servidor Redis"""
+        """Connect to Redis server"""
         try:
             self.redis_client = await redis.from_url(
                 redis_url,
@@ -56,21 +56,21 @@ class CacheService:
             self.redis_client = None
     
     async def disconnect(self):
-        """Cierra la conexión con Redis"""
+        """Close Redis connection"""
         if self.redis_client:
             await self.redis_client.close()
             logger.info("Redis connection closed")
     
     def _generate_cache_key(self, prefix: str, *args, **kwargs) -> str:
-        """Genera una clave de caché única basada en los parámetros"""
-        # Crear un string con todos los parámetros
+        """Generate unique cache key based on parameters"""
+        # Create string from all parameters
         params_str = f"{args}{sorted(kwargs.items())}"
-        # Hash para claves únicas y de longitud fija
+        # Hash for unique, fixed-length keys
         params_hash = hashlib.md5(params_str.encode()).hexdigest()[:12]
         return f"{prefix}:{params_hash}"
     
     async def get(self, key: str) -> Optional[Any]:
-        """Obtiene un valor del caché"""
+        """Get value from cache"""
         if not self.enabled or not self.redis_client:
             return None
         
@@ -86,7 +86,7 @@ class CacheService:
             return None
     
     async def set(self, key: str, value: Any, ttl: int):
-        """Almacena un valor en el caché con TTL"""
+        """Store value in cache with TTL"""
         if not self.enabled or not self.redis_client:
             return False
         
@@ -100,7 +100,7 @@ class CacheService:
             return False
     
     async def delete(self, key: str):
-        """Elimina una clave del caché"""
+        """Delete key from cache"""
         if not self.enabled or not self.redis_client:
             return False
         
@@ -113,7 +113,7 @@ class CacheService:
             return False
     
     async def delete_pattern(self, pattern: str):
-        """Elimina todas las claves que coinciden con un patrón"""
+        """Delete all keys matching pattern"""
         if not self.enabled or not self.redis_client:
             return False
         
@@ -128,7 +128,7 @@ class CacheService:
             return False
     
     async def clear_all(self):
-        """Limpia todo el caché"""
+        """Clear entire cache"""
         if not self.enabled or not self.redis_client:
             return False
         
@@ -141,7 +141,7 @@ class CacheService:
             return False
     
     async def get_stats(self) -> dict:
-        """Obtiene estadísticas del caché"""
+        """Get cache statistics"""
         if not self.enabled or not self.redis_client:
             return {"enabled": False}
         
@@ -165,7 +165,7 @@ class CacheService:
             return {"enabled": True, "error": str(e)}
     
     def _calculate_hit_rate(self, hits: int, misses: int) -> float:
-        """Calcula la tasa de aciertos del caché"""
+        """Calculate cache hit rate percentage"""
         total = hits + misses
         if total == 0:
             return 0.0
@@ -173,9 +173,9 @@ class CacheService:
     
     def cached(self, ttl: int, key_prefix: str):
         """
-        Decorador para cachear resultados de funciones.
+        Decorator for caching function results.
         
-        Uso:
+        Usage:
         @cache_service.cached(ttl=60, key_prefix="sensor_data")
         async def get_sensor_data(reservoir_id: str):
             # ...
@@ -183,18 +183,18 @@ class CacheService:
         def decorator(func):
             @wraps(func)
             async def wrapper(*args, **kwargs):
-                # Generar clave de caché
+                # Generate cache key
                 cache_key = self._generate_cache_key(key_prefix, *args, **kwargs)
                 
-                # Intentar obtener del caché
+                # Try to get from cache
                 cached_result = await self.get(cache_key)
                 if cached_result is not None:
                     return cached_result
                 
-                # Si no está en caché, ejecutar función
+                # If not cached, execute function
                 result = await func(*args, **kwargs)
                 
-                # Guardar en caché
+                # Save to cache
                 await self.set(cache_key, result, ttl)
                 
                 return result
@@ -202,5 +202,5 @@ class CacheService:
             return wrapper
         return decorator
 
-# Instancia global del servicio de caché
+# Global cache service instance
 cache_service = CacheService()

@@ -7,47 +7,15 @@ Professional alert emails for AquaStat monitoring system
 import smtplib
 import secrets
 import string
-import re
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import datetime
 import logging
 
 from app.config import settings
+from app.utils.formatting import format_disconnect_duration, get_alert_display_config
 
 logger = logging.getLogger(__name__)
-
-
-def _format_disconnect_duration(value: str) -> str:
-    """
-    Format disconnect duration from minutes to human-readable format.
-    
-    Args:
-        value: String containing minutes (e.g., "15 minutos" or "15")
-        
-    Returns:
-        Formatted duration string (e.g., "15 minutos", "1 hora 30 minutos")
-    """
-    try:
-        # Extract number from string
-        match = re.search(r'(\d+)', str(value))
-        if not match:
-            return value
-        
-        minutes = int(match.group(1))
-        
-        if minutes < 60:
-            return f"{minutes} minuto{'s' if minutes != 1 else ''}"
-        
-        hours = minutes // 60
-        remaining_mins = minutes % 60
-        
-        if remaining_mins == 0:
-            return f"{hours} hora{'s' if hours != 1 else ''}"
-        
-        return f"{hours} hora{'s' if hours != 1 else ''} {remaining_mins} minuto{'s' if remaining_mins != 1 else ''}"
-    except:
-        return value
 
 
 async def send_critical_alert_email(
@@ -58,7 +26,7 @@ async def send_critical_alert_email(
     sensor_id: str = None
 ) -> bool:
     """
-    Send a professional critical alert email notification
+    Send a professional critical alert email notification.
     
     Args:
         to_email: Recipient email address
@@ -79,35 +47,23 @@ async def send_critical_alert_email(
             settings.SMTP_PASSWORD, 
             settings.FROM_EMAIL
         ]):
-            logger.warning("Configuración SMTP incompleta - no se puede enviar email")
+            logger.warning("Incomplete SMTP configuration - cannot send email")
             return False
 
-        # Human-readable alert names and icons
-        alert_config = {
-            'ph_range': {'name': 'pH Fuera de Rango', 'icon': '⚗️', 'color': '#ff6b6b'},
-            'ph': {'name': 'pH Fuera de Rango', 'icon': '⚗️', 'color': '#ff6b6b'},
-            'conductivity': {'name': 'Conductividad Anormal', 'icon': '⚡', 'color': '#feca57'},
-            'ec': {'name': 'Conductividad Eléctrica Anormal', 'icon': '⚡', 'color': '#feca57'},
-            'temperature': {'name': 'Temperatura Crítica', 'icon': '🌡️', 'color': '#ff9f43'},
-            'water_level': {'name': 'Nivel de Agua Crítico', 'icon': '💧', 'color': '#54a0ff'},
-            'sensor_disconnection': {'name': 'Sensor Desconectado', 'icon': '🔌', 'color': '#636e72'}
-        }
-        
-        config = alert_config.get(alert_type, {'name': alert_type, 'icon': '⚠️', 'color': '#dc3545'})
+        # Get display configuration for alert type
+        config = get_alert_display_config(alert_type)
         alert_name = config['name']
-        alert_icon = config['icon']
         alert_color = config['color']
         
         # Format value for disconnect alerts
         is_disconnect = alert_type == 'sensor_disconnection'
         if is_disconnect:
-            display_value = _format_disconnect_duration(value)
+            display_value = format_disconnect_duration(value)
             value_label = "Tiempo desconectado"
         else:
             display_value = value
             value_label = "Valor detectado"
         
-        # Get current timestamp
         timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
         
         # Sensor ID section (only show if available)
@@ -122,7 +78,6 @@ async def send_critical_alert_email(
                 </tr>
             """
 
-        # Create email message
         msg = MIMEMultipart('alternative')
         msg['From'] = settings.FROM_EMAIL or ""
         msg['To'] = to_email
@@ -243,24 +198,24 @@ Este es un mensaje automático del sistema AquaStat.
         msg.attach(MIMEText(plain_text, 'plain'))
         msg.attach(MIMEText(html_body, 'html'))
 
-        # Send email via SMTP
-        server = smtplib.SMTP(settings.SMTP_SERVER or "", settings.SMTP_PORT or 587)
+        # Send email via SMTP with timeout
+        server = smtplib.SMTP(settings.SMTP_SERVER or "", settings.SMTP_PORT or 587, timeout=30)
         server.starttls()
         server.login(settings.SMTP_USERNAME or "", settings.SMTP_PASSWORD or "")
         server.send_message(msg)
         server.quit()
 
-        logger.info(f"Email de alerta crítica enviado a {to_email} para {reservoir_name}")
+        logger.info(f"Critical alert email sent to {to_email} for {reservoir_name}")
         return True
         
     except Exception as e:
-        logger.error(f"Error enviando email a {to_email}: {e}")
+        logger.error(f"Error sending email to {to_email}: {e}")
         return False
 
 
 async def send_reset_email(email: str, reset_token: str) -> bool:
     """
-    Send password reset email
+    Send password reset email.
     
     Args:
         email: Recipient email address
@@ -270,7 +225,6 @@ async def send_reset_email(email: str, reset_token: str) -> bool:
         True if email sent successfully, False otherwise
     """
     try:
-        # Validate SMTP configuration
         if not all([
             settings.SMTP_SERVER, 
             settings.SMTP_PORT, 
@@ -278,19 +232,16 @@ async def send_reset_email(email: str, reset_token: str) -> bool:
             settings.SMTP_PASSWORD, 
             settings.FROM_EMAIL
         ]):
-            logger.warning("Configuración SMTP incompleta - no se puede enviar email")
+            logger.warning("Incomplete SMTP configuration - cannot send email")
             return False
 
-        # Build reset URL (adjust FRONTEND_URL if you have it in settings)
         reset_url = f"http://localhost:5173/reset-password?token={reset_token}"
         
-        # Create email message
         msg = MIMEMultipart()
         msg['From'] = settings.FROM_EMAIL or ""
         msg['To'] = email
         msg['Subject'] = "Recuperación de Contraseña"
 
-        # HTML email body
         body = f"""
         <html>
         <body>
@@ -308,27 +259,26 @@ async def send_reset_email(email: str, reset_token: str) -> bool:
 
         msg.attach(MIMEText(body, 'html'))
 
-        # Send email via SMTP
-        server = smtplib.SMTP(settings.SMTP_SERVER or "", settings.SMTP_PORT or 587)
+        server = smtplib.SMTP(settings.SMTP_SERVER or "", settings.SMTP_PORT or 587, timeout=30)
         server.starttls()
         server.login(settings.SMTP_USERNAME or "", settings.SMTP_PASSWORD or "")
         server.send_message(msg)
         server.quit()
 
-        logger.info(f"Email de recuperación enviado a {email}")
+        logger.info(f"Password reset email sent to {email}")
         return True
         
     except Exception as e:
-        logger.error(f"Error enviando email de recuperación a {email}: {e}")
+        logger.error(f"Error sending reset email to {email}: {e}")
         return False
 
 
 def generate_reset_token() -> str:
     """
-    Generate a secure random token for password reset
+    Generate a secure random token for password reset.
     
     Returns:
-        32-character random string
+        32-character random alphanumeric string
     """
     alphabet = string.ascii_letters + string.digits
     return ''.join(secrets.choice(alphabet) for _ in range(32))

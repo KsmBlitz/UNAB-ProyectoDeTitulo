@@ -1,6 +1,6 @@
 # Backend/models/sensor_models.py
 """
-Modelos Pydantic para validación de datos de sensores
+Pydantic models for sensor data validation
 """
 
 from pydantic import BaseModel, Field, validator
@@ -9,42 +9,42 @@ from datetime import datetime
 
 
 class SensorReading(BaseModel):
-    """Modelo para validar lecturas de sensores"""
-    temperature: float = Field(..., ge=-50, le=100, description="Temperatura en °C")
-    ph: float = Field(..., ge=0, le=14, description="Nivel de pH")
-    ec: float = Field(..., ge=0, le=20, description="Conductividad eléctrica (dS/m)")
-    water_level: float = Field(..., ge=0, le=100, description="Nivel de agua (%)")
+    """Model for validating sensor readings"""
+    temperature: float = Field(..., ge=-50, le=100, description="Temperature in °C")
+    ph: float = Field(..., ge=0, le=14, description="pH level")
+    ec: float = Field(..., ge=0, le=20, description="Electrical conductivity (dS/m)")
+    water_level: float = Field(..., ge=0, le=100, description="Water level (%)")
     timestamp: Optional[datetime] = None
     reservoir_id: Optional[str] = Field(None, min_length=1, max_length=100)
     
     @validator('temperature')
     def validate_temperature(cls, v):
-        """Validar rango razonable de temperatura"""
+        """Validate reasonable temperature range"""
         if v < -10 or v > 50:
-            raise ValueError(f'Temperatura fuera de rango operativo: {v}°C (esperado: -10 a 50°C)')
+            raise ValueError(f'Temperature out of operational range: {v}°C (expected: -10 to 50°C)')
         return v
     
     @validator('ph')
     def validate_ph(cls, v):
-        """Validar rango razonable de pH"""
+        """Validate reasonable pH range"""
         if v < 3 or v > 10:
-            raise ValueError(f'pH fuera de rango operativo: {v} (esperado: 3 a 10)')
+            raise ValueError(f'pH out of operational range: {v} (expected: 3 to 10)')
         return v
     
     @validator('ec')
     def validate_conductivity(cls, v):
-        """Validar rango razonable de conductividad"""
+        """Validate reasonable conductivity range"""
         if v < 0 or v > 10:
-            raise ValueError(f'Conductividad fuera de rango operativo: {v} dS/m (esperado: 0 a 10)')
+            raise ValueError(f'Conductivity out of operational range: {v} dS/m (expected: 0 to 10)')
         return v
     
     @validator('reservoir_id')
     def validate_reservoir_id(cls, v):
-        """Limpiar y validar reservoir_id"""
+        """Clean and validate reservoir_id"""
         if v is not None:
             v = v.strip()
             if not v:
-                raise ValueError('reservoir_id no puede estar vacío')
+                raise ValueError('reservoir_id cannot be empty')
         return v
     
     class Config:
@@ -60,25 +60,25 @@ class SensorReading(BaseModel):
 
 
 class PredictionRequest(BaseModel):
-    """Modelo para solicitudes de predicción"""
+    """Model for prediction requests"""
     sensor_type: str = Field(..., pattern="^(ph|temperature|conductivity|water_level)$")
-    days: int = Field(..., ge=1, le=30, description="Días a predecir (1-30)")
-    lookback_days: int = Field(..., ge=1, le=90, description="Días históricos para el modelo (1-90)")
+    days: int = Field(..., ge=1, le=30, description="Days to predict (1-30)")
+    lookback_days: int = Field(..., ge=1, le=90, description="Historical days for model (1-90)")
     
     @validator('days')
     def validate_prediction_days(cls, v):
-        """Validar días de predicción razonables"""
+        """Validate reasonable prediction days"""
         if v > 7:
-            raise ValueError('Predicciones a más de 7 días tienen baja confiabilidad')
+            raise ValueError('Predictions beyond 7 days have low reliability')
         return v
     
     @validator('lookback_days')
     def validate_lookback_days(cls, v, values):
-        """Validar que lookback_days sea suficiente"""
+        """Validate sufficient lookback_days"""
         if v < 7:
-            raise ValueError('Se requieren al menos 7 días de datos históricos')
+            raise ValueError('At least 7 days of historical data required')
         if 'days' in values and v < values['days'] * 3:
-            raise ValueError(f'Se recomienda al menos {values["days"] * 3} días históricos')
+            raise ValueError(f'Recommend at least {values["days"] * 3} historical days')
         return v
     
     class Config:
@@ -92,7 +92,7 @@ class PredictionRequest(BaseModel):
 
 
 class SensorConfigUpdate(BaseModel):
-    """Modelo para actualizar configuración de sensor"""
+    """Model for updating sensor configuration"""
     reservoir_id: str = Field(..., min_length=1, max_length=100)
     location: Optional[str] = Field(None, max_length=200)
     description: Optional[str] = Field(None, max_length=500)
@@ -100,12 +100,12 @@ class SensorConfigUpdate(BaseModel):
     
     @validator('reservoir_id')
     def clean_reservoir_id(cls, v):
-        """Limpiar reservoir_id"""
+        """Clean reservoir_id"""
         return v.strip().upper()
     
     @validator('location', 'description')
     def clean_text_fields(cls, v):
-        """Limpiar campos de texto"""
+        """Clean text fields"""
         if v is not None:
             v = v.strip()
             if not v:
@@ -114,15 +114,15 @@ class SensorConfigUpdate(BaseModel):
 
 
 class TimeRangeQuery(BaseModel):
-    """Modelo para consultas con rango de tiempo"""
-    hours: Optional[int] = Field(24, ge=1, le=8760, description="Horas de datos a recuperar (max 1 año)")
+    """Model for time range queries"""
+    hours: Optional[int] = Field(24, ge=1, le=8760, description="Hours of data to retrieve (max 1 year)")
     reservoir_id: Optional[str] = Field(None, max_length=100)
     
     @validator('hours')
     def validate_hours(cls, v):
-        """Validar rango de horas razonable"""
-        if v > 720:  # 30 días
-            raise ValueError('No se recomienda consultar más de 30 días (720 horas) de datos')
+        """Validate reasonable hours range"""
+        if v > 720:  # 30 days
+            raise ValueError('Not recommended to query more than 30 days (720 hours) of data')
         return v
     
     class Config:
