@@ -636,7 +636,7 @@ async def export_pdf(
         styles = getSampleStyleSheet()
         
         # Título
-        title = Paragraph("<b>Reporte de Analítica Avanzada</b>", styles['Title'])
+        title = Paragraph("<b>Resumen de Datos</b>", styles['Title'])
         story.append(title)
         story.append(Spacer(1, 0.3*inch))
         

@@ -76,6 +76,8 @@ async def get_latest_metrics(
 async def get_historical_data(
     reservoir_id: Optional[str] = Query(None),
     hours: int = Query(24, ge=0, le=8760),
+    start_date: Optional[str] = Query(None, description="Start date in YYYY-MM-DD format"),
+    end_date: Optional[str] = Query(None, description="End date in YYYY-MM-DD format"),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -84,18 +86,45 @@ async def get_historical_data(
     Args:
         reservoir_id: Optional filter by reservoir ID
         hours: Number of hours to retrieve (0 = all data, max 8760 = 1 year)
+        start_date: Optional start date for custom range (YYYY-MM-DD)
+        end_date: Optional end date for custom range (YYYY-MM-DD)
     """
     try:
-        # Calculate start_time based on hours
         start_time = None
-        if hours > 0:
-            start_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+        end_time = None
+        
+        # Check if custom date range is provided
+        if start_date and end_date:
+            try:
+                # Parse dates - las fechas vienen en hora local de Chile (UTC-3)
+                # Convertir a UTC sumando 3 horas para que coincida con los datos en DB
+                # Inicio del día en Chile = 03:00 UTC del mismo día
+                # Fin del día en Chile = 02:59:59 UTC del día siguiente
+                start_time = datetime.strptime(start_date, "%Y-%m-%d").replace(
+                    hour=3, minute=0, second=0, tzinfo=timezone.utc
+                )
+                # Para el fin, necesitamos el final del día en Chile = 02:59:59 UTC del día siguiente
+                end_parsed = datetime.strptime(end_date, "%Y-%m-%d")
+                end_time = (end_parsed + timedelta(days=1)).replace(
+                    hour=2, minute=59, second=59, tzinfo=timezone.utc
+                )
+                logger.info(f"Custom date range: {start_date} to {end_date} -> UTC: {start_time} to {end_time}")
+            except ValueError:
+                logger.warning(f"Invalid date format: start={start_date}, end={end_date}")
+                # Fall back to hours-based calculation
+                if hours > 0:
+                    start_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+        else:
+            # Calculate start_time based on hours
+            if hours > 0:
+                start_time = datetime.now(timezone.utc) - timedelta(hours=hours)
         
         # Call service with sensor_ids parameter
         sensor_ids = [reservoir_id] if reservoir_id else None
         result = await sensor_service.get_historical_data(
             sensor_ids=sensor_ids,
-            start_time=start_time
+            start_time=start_time,
+            end_time=end_time
         )
         return result
         

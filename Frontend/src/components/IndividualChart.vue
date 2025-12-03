@@ -44,6 +44,11 @@ const currentTimeRange = ref(props.timeRange);
 // Disable rendering/fetching for water level charts (sensorType 'nivel')
 const isDisabledForWaterLevel = props.sensorType === 'nivel';
 
+// Variables para rango de fechas personalizado
+const customStartDate = ref<string | null>(null);
+const customEndDate = ref<string | null>(null);
+const isCustomRangeMode = ref(false);
+
 // Cargar estado de predicción desde localStorage
 const savedPredictionState = localStorage.getItem(`prediction_${props.sensorType}_enabled`);
 const showPrediction = ref(savedPredictionState === 'true');
@@ -281,6 +286,14 @@ const fetchData = async () => {
     chartData.value = { labels: [], datasets: [] };
     return;
   }
+  
+  // Si estamos esperando un rango personalizado (timeRange = -1), no hacer fetch aún
+  // El componente padre llamará a updateCustomDateRange con las fechas correctas
+  if (!isCustomRangeMode.value && currentTimeRange.value < 0) {
+    isLoading.value = true; // Mostrar loading mientras esperamos
+    return;
+  }
+  
   // Solo mostrar loading en la primera carga
   if (!chartData.value || chartData.value.labels?.length === 0) {
     isLoading.value = true;
@@ -291,13 +304,20 @@ const fetchData = async () => {
   const token = localStorage.getItem('userToken');
 
   try {
+    // Construir URL con parámetros según el modo
+    let url = `${API_BASE_URL}/api/charts/historical-data?sensor_type=${props.sensorType}`;
+    
+    if (isCustomRangeMode.value && customStartDate.value && customEndDate.value) {
+      // Modo rango personalizado: usar start_date y end_date
+      url += `&start_date=${customStartDate.value}&end_date=${customEndDate.value}`;
+    } else {
+      // Modo normal: usar hours (nunca será negativo aquí por la guarda anterior)
+      url += `&hours=${currentTimeRange.value}`;
+    }
   
-    const response = await fetch(
-      `${API_BASE_URL}/api/charts/historical-data?sensor_type=${props.sensorType}&hours=${currentTimeRange.value}`,
-      {
-        headers: { 'Authorization': `Bearer ${token}` }
-      }
-    );
+    const response = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
 
     if (!response.ok) {
       throw new Error('Error al cargar datos históricos');
@@ -306,7 +326,8 @@ const fetchData = async () => {
     const data = await response.json();
 
     // Formatear etiquetas según el rango de tiempo seleccionado
-    const hours = currentTimeRange.value;
+    // Para rango personalizado, usar formato de días largos
+    const hours = isCustomRangeMode.value ? 720 : currentTimeRange.value; // 720 = formato largo para personalizado
     const localLabels = (data.labels || []).map((isoString: string, idx: number, arr: string[]) => {
       if (!isoString) return '';
       try {
@@ -389,7 +410,34 @@ const updateTimeRange = async (hours: number) => {
     return;
   }
   
+  // Desactivar modo rango personalizado
+  isCustomRangeMode.value = false;
+  customStartDate.value = null;
+  customEndDate.value = null;
+  
   currentTimeRange.value = hours;
+  await fetchData();
+  
+  // Re-cargar predicción si estaba activa
+  if (showPrediction.value && predictionData.value) {
+    await loadPrediction();
+  }
+};
+
+/**
+ * Actualiza el gráfico con un rango de fechas personalizado
+ */
+const updateCustomDateRange = async (startDate: string, endDate: string) => {
+  console.log(`[${props.sensorType}] updateCustomDateRange called:`, startDate, endDate);
+  
+  // Activar modo rango personalizado
+  isCustomRangeMode.value = true;
+  customStartDate.value = startDate;
+  customEndDate.value = endDate;
+  
+  // Forzar loading a false para permitir la carga
+  isLoading.value = false;
+  
   await fetchData();
   
   // Re-cargar predicción si estaba activa
@@ -401,6 +449,12 @@ const updateTimeRange = async (hours: number) => {
 const refreshData = async () => {
   // Evitar refresh si ya está cargando
   if (isLoading.value) {
+    return;
+  }
+  
+  // Si está en modo rango personalizado, no hacer refresh normal
+  // El refresh se maneja desde el componente padre
+  if (isCustomRangeMode.value) {
     return;
   }
   
@@ -714,13 +768,18 @@ const updateChartWithPrediction = (prediction: any) => {
 // Exponer funciones al componente padre
 defineExpose({
   updateTimeRange,
+  updateCustomDateRange,
   refreshData
 });
 
 // Watch para cambios en timeRange (prop)
 watch(() => props.timeRange, (newRange) => {
-  currentTimeRange.value = newRange;
-  fetchData();
+  // Solo actualizar si no estamos en modo rango personalizado
+  // y si el nuevo rango es válido (no es -1 que indica rango personalizado)
+  if (!isCustomRangeMode.value && newRange >= 0) {
+    currentTimeRange.value = newRange;
+    fetchData();
+  }
 });
 
 onMounted(fetchData);

@@ -14,6 +14,10 @@ const correlationData = ref<any>(null);
 const anomalies = ref<any[]>([]);
 const predictions = ref<any>(null);
 
+// Paginación de anomalías
+const anomaliesPage = ref(1);
+const anomaliesPerPage = 10;
+
 // Datos para comparativa
 const currentPeriodStats = ref<any>(null);
 const previousPeriodStats = ref<any>(null);
@@ -79,9 +83,21 @@ const growthPercentage = computed(() => {
   return (((current - previous) / previous) * 100).toFixed(2);
 });
 
+// Computed para paginación de anomalías
+const totalAnomaliesPages = computed(() => {
+  return Math.ceil(anomalies.value.length / anomaliesPerPage);
+});
+
+const paginatedAnomalies = computed(() => {
+  const start = (anomaliesPage.value - 1) * anomaliesPerPage;
+  const end = start + anomaliesPerPage;
+  return anomalies.value.slice(start, end);
+});
+
 // Métodos
 const fetchAnalyticsData = async () => {
   isLoading.value = true;
+  anomaliesPage.value = 1; // Reset page when fetching new data
   try {
     // 1. Calcular correlación
     await calculateCorrelation();
@@ -430,53 +446,6 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Anomaly Detection -->
-      <div class="bg-white rounded-xl shadow-md p-6">
-        <div class="flex items-center justify-between mb-6">
-          <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
-            <i class="pi pi-exclamation-triangle text-orange-600"></i>
-            Detección de Anomalías
-          </h2>
-          <span class="px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm font-medium">
-            {{ anomalies.length }} anomalías detectadas
-          </span>
-        </div>
-
-        <div v-if="anomalies.length > 0" class="space-y-3">
-          <div
-            v-for="(anomaly, index) in anomalies.slice(0, 10)"
-            :key="index"
-            class="bg-orange-50 border-l-4 border-orange-500 rounded-lg p-4 hover:shadow-md transition-shadow"
-          >
-            <div class="flex items-start justify-between">
-              <div class="flex-1">
-                <div class="flex items-center gap-2 mb-2">
-                  <i class="pi pi-bolt text-orange-600"></i>
-                  <span class="font-medium text-gray-800">{{ getVariableLabel(anomaly.sensor_type) || 'Sensor' }}</span>
-                  <span class="text-xs text-gray-500">{{ formatDateTime(anomaly.timestamp) }}</span>
-                </div>
-                <p class="text-sm text-gray-700">
-                  Valor detectado: <strong>{{ formatNumber(anomaly.value, 2) }}</strong>
-                  (esperado: {{ anomaly.expected_range || 'N/A' }})
-                </p>
-                <p class="text-xs text-gray-600 mt-1">
-                  {{ anomaly.description || 'Patrón inusual detectado por el modelo de ML' }}
-                </p>
-              </div>
-              <div class="text-right">
-                <span class="px-2 py-1 bg-orange-600 text-white rounded text-xs font-bold">
-                  {{ anomaly.severity || 'Media' }}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div v-else class="text-center text-gray-500 py-8">
-          <i class="pi pi-check-circle text-4xl text-green-600 mb-2"></i>
-          <p>No se detectaron anomalías en el período seleccionado</p>
-        </div>
-      </div>
-
       <!-- Historical Comparison -->
       <div class="bg-white rounded-xl shadow-md p-6">
         <div class="flex items-center justify-between mb-6">
@@ -586,6 +555,108 @@ onMounted(() => {
         <div v-else class="text-center text-gray-500 py-8">
           <i class="pi pi-calendar text-4xl mb-2"></i>
           <p>Cargando datos de comparativa...</p>
+        </div>
+      </div>
+
+      <!-- Anomaly Detection (moved to end with pagination) -->
+      <div class="bg-white rounded-xl shadow-md p-6">
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+            <i class="pi pi-exclamation-triangle text-orange-600"></i>
+            Detección de Anomalías
+          </h2>
+          <span class="px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm font-medium">
+            {{ anomalies.length }} anomalías detectadas
+          </span>
+        </div>
+
+        <div v-if="anomalies.length > 0" class="space-y-3">
+          <div
+            v-for="(anomaly, index) in paginatedAnomalies"
+            :key="index"
+            class="bg-orange-50 border-l-4 border-orange-500 rounded-lg p-4 hover:shadow-md transition-shadow"
+          >
+            <div class="flex items-start justify-between">
+              <div class="flex-1">
+                <div class="flex items-center gap-2 mb-2">
+                  <i class="pi pi-bolt text-orange-600"></i>
+                  <span class="font-medium text-gray-800">{{ getVariableLabel(anomaly.sensor_type) || 'Sensor' }}</span>
+                  <span class="text-xs text-gray-500">{{ formatDateTime(anomaly.timestamp) }}</span>
+                </div>
+                <p class="text-sm text-gray-700">
+                  Valor detectado: <strong>{{ formatNumber(anomaly.value, 2) }}</strong>
+                  (esperado: {{ anomaly.expected_range || 'N/A' }})
+                </p>
+                <p class="text-xs text-gray-600 mt-1">
+                  {{ anomaly.description || 'Patrón inusual detectado por el modelo de ML' }}
+                </p>
+              </div>
+              <div class="text-right">
+                <span class="px-2 py-1 bg-orange-600 text-white rounded text-xs font-bold">
+                  {{ anomaly.severity || 'Media' }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pagination Controls -->
+          <div v-if="totalAnomaliesPages > 1" class="flex items-center justify-between mt-6 pt-4 border-t border-gray-200">
+            <div class="text-sm text-gray-600">
+              Mostrando {{ (anomaliesPage - 1) * anomaliesPerPage + 1 }} - {{ Math.min(anomaliesPage * anomaliesPerPage, anomalies.length) }} de {{ anomalies.length }} anomalías
+            </div>
+            <div class="flex items-center gap-2">
+              <button
+                @click="anomaliesPage--"
+                :disabled="anomaliesPage === 1"
+                class="px-4 py-2 rounded-lg transition-colors flex items-center gap-1"
+                :class="anomaliesPage === 1 
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                  : 'bg-orange-100 text-orange-700 hover:bg-orange-200'"
+              >
+                <i class="pi pi-chevron-left text-sm"></i>
+                Anterior
+              </button>
+              
+              <div class="flex items-center gap-1">
+                <template v-for="page in totalAnomaliesPages" :key="page">
+                  <button
+                    v-if="page === 1 || page === totalAnomaliesPages || (page >= anomaliesPage - 1 && page <= anomaliesPage + 1)"
+                    @click="anomaliesPage = page"
+                    class="w-10 h-10 rounded-lg transition-colors font-medium"
+                    :class="anomaliesPage === page 
+                      ? 'bg-orange-600 text-white' 
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+                  >
+                    {{ page }}
+                  </button>
+                  <span 
+                    v-else-if="page === 2 && anomaliesPage > 3"
+                    class="text-gray-400 px-1"
+                  >...</span>
+                  <span 
+                    v-else-if="page === totalAnomaliesPages - 1 && anomaliesPage < totalAnomaliesPages - 2"
+                    class="text-gray-400 px-1"
+                  >...</span>
+                </template>
+              </div>
+
+              <button
+                @click="anomaliesPage++"
+                :disabled="anomaliesPage === totalAnomaliesPages"
+                class="px-4 py-2 rounded-lg transition-colors flex items-center gap-1"
+                :class="anomaliesPage === totalAnomaliesPages 
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                  : 'bg-orange-100 text-orange-700 hover:bg-orange-200'"
+              >
+                Siguiente
+                <i class="pi pi-chevron-right text-sm"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div v-else class="text-center text-gray-500 py-8">
+          <i class="pi pi-check-circle text-4xl text-green-600 mb-2"></i>
+          <p>No se detectaron anomalías en el período seleccionado</p>
         </div>
       </div>
     </template>
