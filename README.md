@@ -105,52 +105,66 @@
 
 ```mermaid
 flowchart TB
-    subgraph Cliente["Capa de Cliente"]
-        Dashboard["Dashboard<br/>Vue 3"]
-        Analitica["Analítica<br/>Chart.js"]
-        Alertas["Alertas<br/>WebSocket"]
-        Auditoria["Auditoría<br/>Tabla"]
+    subgraph Frontend["CAPA DE PRESENTACION"]
+        direction LR
+        Dashboard["Dashboard"]
+        Analytics["Analítica"]
+        Alerts["Alertas"]
+        Audit["Auditoría"]
     end
 
-    subgraph API["Capa API - FastAPI Backend"]
-        subgraph Routers["Routers"]
-            AuthRouter["Auth Router"]
-            SensorsRouter["Sensors Router"]
-            AlertsRouter["Alerts Router"]
-            AuditRouter["Audit Router"]
+    subgraph Backend["CAPA DE NEGOCIO - FastAPI"]
+        direction TB
+        subgraph Routes["Routers"]
+            direction LR
+            R1["Auth"]
+            R2["Sensors"]
+            R3["Alerts"]
+            R4["Audit"]
         end
-        subgraph Services["Capa de Servicios"]
-            AuthService["AuthService"]
-            SensorService["SensorService"]
-            AlertService["AlertService"]
-            AuditService["AuditService"]
+        subgraph Services["Servicios"]
+            direction LR
+            S1["AuthService"]
+            S2["SensorService"]
+            S3["AlertService"]
+            S4["AuditService"]
         end
-        subgraph Repositories["Capa de Repositorios"]
-            BaseRepo["BaseRepository"]
-            UserRepo["UserRepo"]
-            SensorRepo["SensorRepo"]
-            AlertRepo["AlertRepo"]
-        end
-    end
-
-    subgraph Datos["Capa de Datos"]
-        MongoDB[("MongoDB<br/>Motor")]
-        Redis[("Redis<br/>Caché")]
-        subgraph IoT["AWS IoT Core"]
-            ESP32_1["ESP32 Sensor"]
-            ESP32_2["ESP32 Sensor"]
-            IoTRules["IoT Rules"]
+        subgraph Repos["Repositorios"]
+            direction LR
+            RP1["UserRepo"]
+            RP2["SensorRepo"]
+            RP3["AlertRepo"]
         end
     end
 
-    Cliente --> API
-    Routers --> Services
-    Services --> Repositories
-    Repositories --> MongoDB
-    Repositories --> Redis
-    ESP32_1 -->|MQTT| IoTRules
-    ESP32_2 -->|MQTT| IoTRules
-    IoTRules --> MongoDB
+    subgraph Data["CAPA DE DATOS"]
+        direction LR
+        MongoDB[("MongoDB")]
+        Redis[("Redis")]
+    end
+
+    subgraph IoT["AWS IoT Core"]
+        direction TB
+        ESP1["ESP32"]
+        ESP2["ESP32"]
+        Rules["IoT Rules"]
+    end
+
+    Frontend --> Backend
+    Routes --> Services
+    Services --> Repos
+    Repos --> MongoDB
+    Repos --> Redis
+    ESP1 -->|MQTT| Rules
+    ESP2 -->|MQTT| Rules
+    Rules --> MongoDB
+
+    style Frontend fill:#4FC08D,stroke:#3a9d6e,color:#fff
+    style Backend fill:#009688,stroke:#00796b,color:#fff
+    style Data fill:#47A248,stroke:#388E3C,color:#fff
+    style IoT fill:#FF9900,stroke:#cc7a00,color:#fff
+    style MongoDB fill:#47A248,stroke:#388E3C,color:#fff
+    style Redis fill:#DC382D,stroke:#b02d24,color:#fff
 ```
 
 ### Stack Tecnológico
@@ -464,7 +478,7 @@ Este proyecto fue desarrollado como parte de un proyecto de título académico p
 
 **Carrera**: Ingeniería en Computación e Informática
 
-**Año**: 2024-2025
+**Año**: 2025
 
 ---
 
