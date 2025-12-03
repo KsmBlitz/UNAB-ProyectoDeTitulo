@@ -4,7 +4,7 @@
 
 ![AquaStat Logo](https://img.shields.io/badge/AquaStat-Monitoreo%20IoT-0369a1?style=for-the-badge)
 
-**Plataforma IoT de nivel empresarial para monitoreo de calidad de agua en tiempo real para cultivo de arándanos**
+**Plataforma IoT para monitoreo de calidad de agua en tiempo real para cultivo de arándanos**
 
 [![Vue.js](https://img.shields.io/badge/Vue.js-3.5-4FC08D?logo=vue.js&logoColor=white)](https://vuejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -103,58 +103,54 @@
 
 ## Arquitectura
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              CAPA DE CLIENTE                                │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
-│  │  Dashboard  │  │  Analítica  │  │   Alertas   │  │  Auditoría  │        │
-│  │    Vue 3    │  │  Chart.js   │  │  WebSocket  │  │   Tabla     │        │
-│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘        │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                               CAPA API                                      │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                         FastAPI Backend                              │   │
-│  │  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐           │   │
-│  │  │   Auth    │ │  Sensors  │ │  Alerts   │ │  Audit    │           │   │
-│  │  │  Router   │ │  Router   │ │  Router   │ │  Router   │           │   │
-│  │  └─────┬─────┘ └─────┬─────┘ └─────┬─────┘ └─────┬─────┘           │   │
-│  │        │             │             │             │                  │   │
-│  │  ┌─────▼─────────────▼─────────────▼─────────────▼─────┐           │   │
-│  │  │              Capa de Servicios                       │           │   │
-│  │  │  AuthService │ SensorService │ AlertService │ Audit  │           │   │
-│  │  └─────────────────────────┬───────────────────────────┘           │   │
-│  │                            │                                        │   │
-│  │  ┌─────────────────────────▼───────────────────────────┐           │   │
-│  │  │              Capa de Repositorios                    │           │   │
-│  │  │  BaseRepository → UserRepo │ SensorRepo │ AlertRepo  │           │   │
-│  │  └─────────────────────────────────────────────────────┘           │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                             CAPA DE DATOS                                   │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────────────────┐ │
-│  │   MongoDB   │  │    Redis    │  │           AWS IoT Core              │ │
-│  │  (Motor)    │  │   (Caché)   │  │  ┌─────────┐  ┌─────────┐          │ │
-│  │             │  │             │  │  │ ESP32   │  │ ESP32   │          │ │
-│  │ • usuarios  │  │ • sesiones  │  │  │ Sensor  │  │ Sensor  │          │ │
-│  │ • sensores  │  │ • rate_limit│  │  └────┬────┘  └────┬────┘          │ │
-│  │ • alertas   │  │ • throttle  │  │       │            │               │ │
-│  │ • auditoría │  │             │  │       └─────┬──────┘               │ │
-│  └─────────────┘  └─────────────┘  │             │ MQTT                 │ │
-│                                     │             ▼                      │ │
-│                                     │    ┌──────────────┐               │ │
-│                                     │    │  IoT Rules   │               │ │
-│                                     │    └──────────────┘               │ │
-│                                     └─────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Cliente["Capa de Cliente"]
+        Dashboard["Dashboard<br/>Vue 3"]
+        Analitica["Analítica<br/>Chart.js"]
+        Alertas["Alertas<br/>WebSocket"]
+        Auditoria["Auditoría<br/>Tabla"]
+    end
+
+    subgraph API["Capa API - FastAPI Backend"]
+        subgraph Routers["Routers"]
+            AuthRouter["Auth Router"]
+            SensorsRouter["Sensors Router"]
+            AlertsRouter["Alerts Router"]
+            AuditRouter["Audit Router"]
+        end
+        subgraph Services["Capa de Servicios"]
+            AuthService["AuthService"]
+            SensorService["SensorService"]
+            AlertService["AlertService"]
+            AuditService["AuditService"]
+        end
+        subgraph Repositories["Capa de Repositorios"]
+            BaseRepo["BaseRepository"]
+            UserRepo["UserRepo"]
+            SensorRepo["SensorRepo"]
+            AlertRepo["AlertRepo"]
+        end
+    end
+
+    subgraph Datos["Capa de Datos"]
+        MongoDB[("MongoDB<br/>Motor")]
+        Redis[("Redis<br/>Caché")]
+        subgraph IoT["AWS IoT Core"]
+            ESP32_1["ESP32 Sensor"]
+            ESP32_2["ESP32 Sensor"]
+            IoTRules["IoT Rules"]
+        end
+    end
+
+    Cliente --> API
+    Routers --> Services
+    Services --> Repositories
+    Repositories --> MongoDB
+    Repositories --> Redis
+    ESP32_1 -->|MQTT| IoTRules
+    ESP32_2 -->|MQTT| IoTRules
+    IoTRules --> MongoDB
 ```
 
 ### Stack Tecnológico
@@ -460,9 +456,9 @@ Este proyecto fue desarrollado como parte de un proyecto de título académico p
 
 ---
 
-## Equipo
+## Autor
 
-**Desarrollador**: Bastián Araya
+**Desarrollador**: Vicente Estay Valdivia
 
 **Institución**: Universidad Andrés Bello (UNAB)
 
